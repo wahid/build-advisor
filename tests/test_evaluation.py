@@ -289,3 +289,13 @@ def test_run_evals_command_writes_results(indexed: FakeEmbedder, tmp_path: Path,
     assert "retrieval only" in data["meta"]
     assert "Expected page in top" in (tmp_path / "res.md").read_text()
     assert "pass" in out.getvalue()
+
+
+@pytest.mark.django_db
+def test_retrieval_run_with_rewrite(indexed: FakeEmbedder) -> None:
+    provider = FakeProvider(["Ignite"])
+
+    report = run(CASES[:1], k=4, embedder=indexed, provider=provider, rewrite=True)
+
+    assert report.cases[0].rewrite == "Ignite"
+    assert report.cases[0].passed

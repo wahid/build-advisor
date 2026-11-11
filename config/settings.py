@@ -151,6 +151,7 @@ SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=8)
 SEARCH_CANDIDATES = env.int("SEARCH_CANDIDATES", default=40)  # per ranked list
 SEARCH_MAX_PER_DOCUMENT = env.int("SEARCH_MAX_PER_DOCUMENT", default=3)
 
+
 # --- LLM ------------------------------------------------------------------------
 # deepseek | openai | anthropic (all via their OpenAI-compatible APIs).
 LLM_PROVIDER = env("LLM_PROVIDER", default="deepseek")
@@ -162,6 +163,11 @@ LLM_MAX_TOKENS = env.int("LLM_MAX_TOKENS", default=1500)
 LLM_TIMEOUT = env.float("LLM_TIMEOUT", default=60.0)
 # Provider-specific request options as JSON, e.g. to turn off thinking mode.
 LLM_EXTRA_BODY = env.json("LLM_EXTRA_BODY", default={})
+
+# Ask the LLM for wiki terms before searching: one extra short call per question (~2-4 s),
+# finds pages the question describes without naming ("something that casts for me" -> Totem).
+# On by default when an LLM is configured.
+SEARCH_QUERY_REWRITE = env.bool("SEARCH_QUERY_REWRITE", default=bool(LLM_API_KEY))
 
 # --- Path of Building (pob-mcp tools for the LLM) --------------------------------
 # Path to a PathOfBuilding checkout (only src/ and runtime/lua/ are needed).

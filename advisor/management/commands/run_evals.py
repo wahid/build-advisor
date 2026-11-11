@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--answers", action="store_true", help="Also generate and judge answers (uses the LLM)."
         )
+        parser.add_argument(
+            "--rewrite",
+            action=argparse.BooleanOptionalAction,
+            default=settings.SEARCH_QUERY_REWRITE,
+            help="Rewrite questions into wiki terms with the LLM before searching.",
+        )
         parser.add_argument("--only", nargs="*", default=[], help="Run only these case ids.")
         parser.add_argument("--category", action="append", help="Run only these categories.")
         parser.add_argument("--limit", type=int, help="Run at most this many cases.")
@@ -49,7 +56,7 @@ class Command(BaseCommand):
                 "No embedded chunks. Run fetch_wiki (or load_eval_corpus) and build_index."
             )
 
-        provider = get_provider() if options["answers"] else None
+        provider = get_provider() if options["answers"] or options["rewrite"] else None
         pob = options["answers"] and get_pool() is not None
         self.stdout.write(
             f"Running {len(cases)} cases (k={options['k']}, answers={options['answers']})"
@@ -62,6 +69,7 @@ class Command(BaseCommand):
             provider=provider,
             pob_available=pob,
             progress=self._progress,
+            rewrite=options["rewrite"],
         )
 
         documents = Document.objects.count()
@@ -69,7 +77,12 @@ class Command(BaseCommand):
         meta = (
             f"_{timezone.now():%Y-%m-%d}, patch {patches}, {documents} wiki pages, "
             f"{Chunk.objects.count()} chunks"
-            + (f", answers by {provider.name}/{provider.model}" if provider else ", retrieval only")
+            + (", query rewriting" if options["rewrite"] else "")
+            + (
+                f", answers by {provider.name}/{provider.model}"
+                if options["answers"] and provider
+                else ", retrieval only"
+            )
             + (f", {len(report.skipped)} PoB cases skipped" if report.skipped else "")
             + "._"
         )
@@ -94,4 +107,5 @@ class Command(BaseCommand):
 
     def _progress(self, result: CaseResult) -> None:
         mark = self.style.SUCCESS("pass") if result.passed else self.style.ERROR("FAIL")
-        self.stdout.write(f"  {mark}  {result.id}  ({result.seconds}s)")
+        terms = f"  [{result.rewrite}]" if result.rewrite else ""
+        self.stdout.write(f"  {mark}  {result.id}  ({result.seconds}s){terms}")

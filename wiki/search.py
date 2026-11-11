@@ -72,7 +72,14 @@ def hybrid_search(
     embedder: Embedder | None = None,
     candidates: int | None = None,
     max_per_document: int | None = None,
+    expansion: str = "",
 ) -> list[SearchHit]:
+    """Search chunks for a question.
+
+    `expansion` holds extra search terms (e.g. wiki terms an LLM derived from
+    the question). They feed the keyword and title lists and a fourth vector
+    list; the original question's vector list is kept, so they only add.
+    """
     top_k = top_k or settings.SEARCH_TOP_K
     candidates = candidates or settings.SEARCH_CANDIDATES
     max_per_document = max_per_document or settings.SEARCH_MAX_PER_DOCUMENT
@@ -82,11 +89,15 @@ def hybrid_search(
     base = filters.apply(Chunk.objects.exclude(embedding=None))
     query_vector = embedder.embed_query(question)
 
+    text = f"{question}\n{expansion}" if expansion else question
     ranked_lists = {
         "vector": _vector_ids(base, query_vector, candidates),
-        "keyword": _keyword_ids(base, question, candidates),
-        "title": _title_ids(base, question, query_vector, candidates),
+        "keyword": _keyword_ids(base, text, candidates),
+        "title": _title_ids(base, text, query_vector, candidates),
     }
+    if expansion:
+        expanded_vector = embedder.embed_query(text)
+        ranked_lists["rewrite"] = _vector_ids(base, expanded_vector, candidates)
     return _fuse(ranked_lists, top_k, max_per_document)
 
 

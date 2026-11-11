@@ -39,3 +39,9 @@ def _fresh_pob_pool(settings):
     get_pool.cache_clear()
     yield
     get_pool.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_query_rewrite(settings):
+    """Tests opt in to query rewriting explicitly."""
+    settings.SEARCH_QUERY_REWRITE = False

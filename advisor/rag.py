@@ -31,6 +31,7 @@ from wiki.search import SearchFilters, SearchHit, hybrid_search
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
 from .prompts import NO_SOURCES_ANSWER, build_messages
+from .rewrite import rewrite_query
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +157,17 @@ def answer_stream(
     top_k: int | None = None,
     build: str = "",
     use_tools: bool = True,
+    rewrite: bool | None = None,
 ) -> Iterator[Event]:
-    hits = hybrid_search(question, top_k=top_k, filters=filters, embedder=embedder)
+    expansion = ""
+    if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
+        provider = provider or get_provider()
+        expansion = rewrite_query(question, provider)
+        if expansion:
+            yield {"type": "rewrite", "terms": expansion}
+    hits = hybrid_search(
+        question, top_k=top_k, filters=filters, embedder=embedder, expansion=expansion
+    )
     sources = [Source.from_hit(n, hit) for n, hit in enumerate(hits, start=1)]
     yield {"type": "sources", "sources": [asdict(s) for s in sources]}
     patch = ", ".join(sorted({s.patch for s in sources}))

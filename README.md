@@ -172,12 +172,17 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
 
 ## How answering works
 
+0. **Query rewriting** (`advisor/rewrite.py`, on when an LLM is configured):
+   a short LLM call turns the question into wiki terms ("can something cast
+   my spells for me?" becomes "Spell Totem Support, Totem"), used next to the
+   original question. In the evals this took indirect questions from 7/8 to
+   8/8, at a cost of 2-4 s per question.
 1. **Hybrid retrieval** (`wiki/search.py`) merges three ranked lists with
    reciprocal rank fusion: vector similarity, Postgres full-text search, and
    chunks of pages whose title appears in the question (one per page first,
-   so "Righteous Fire Chieftain" finds both pages). Common words ("support",
-   "gem") are ignored for keyword search, and at most 3 chunks per page are
-   kept.
+   so "Righteous Fire Chieftain" finds both pages; one-word titles that are
+   common words, like "Damage", don't count). Common words ("support", "gem")
+   are ignored for keyword search, and at most 3 chunks per page are kept.
 2. **Grounded prompt** (`advisor/prompts.py`): the top 8 chunks are numbered
    and the model is told to use only those, cite them as `[n]`, say when the
    sources don't cover the question, and mention the game version.

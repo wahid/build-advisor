@@ -36,6 +36,7 @@ from wiki.search import SearchFilters, SearchHit, hybrid_search
 from .llm import LLMProvider, Message
 from .prompts import format_sources
 from .rag import CITATION_RE, answer
+from .rewrite import rewrite_query
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,7 @@ class CaseResult:
     verdict: Verdict | None = None
     error: str = ""
     seconds: float = 0.0
+    rewrite: str = ""
 
 
 @dataclass
@@ -270,6 +272,7 @@ def run(
     embedder: Embedder | None = None,
     pob_available: bool = False,
     progress: Callable[[CaseResult], None] | None = None,
+    rewrite: bool = False,
 ) -> Report:
     report = Report(k=k, answered=answer_questions, cases=[])
     for case in cases:
@@ -277,7 +280,7 @@ def run(
             report.skipped.append(case.id)
             continue
         started = time.monotonic()
-        result = _run_case(case, k, answer_questions, provider, judge_provider, embedder)
+        result = _run_case(case, k, answer_questions, provider, judge_provider, embedder, rewrite)
         result.seconds = round(time.monotonic() - started, 1)
         report.cases.append(result)
         if progress:
@@ -292,11 +295,16 @@ def _run_case(
     provider: LLMProvider | None,
     judge_provider: LLMProvider | None,
     embedder: Embedder | None,
+    rewrite: bool = False,
 ) -> CaseResult:
     filters = SearchFilters(doc_types=case.doc_types)
-    hits = hybrid_search(case.question, top_k=k, filters=filters, embedder=embedder)
+    expansion = rewrite_query(case.question, provider) if rewrite and provider else ""
+    hits = hybrid_search(
+        case.question, top_k=k, filters=filters, embedder=embedder, expansion=expansion
+    )
     retrieval = score_retrieval(case.expected_sources, hits) if case.expected_sources else None
     result = CaseResult(case.id, case.category, case.question, passed=False, retrieval=retrieval)
+    result.rewrite = expansion
     retrieval_ok = retrieval is None or retrieval.hit
     if not answer_questions:
         result.passed = retrieval_ok
@@ -309,6 +317,7 @@ def _run_case(
         embedder=embedder,
         top_k=k,
         use_tools=case.requires_pob,
+        rewrite=rewrite,
     )
     result.answer = produced.text
     result.tools_called = [t["name"] for t in produced.tools]

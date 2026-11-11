@@ -35,3 +35,8 @@ Thumbs.db
 
 # Proxy list (may contain credentials)
 proxies.txt
+
+# Ad-hoc eval runs (only the latest run is committed)
+evals/results/*
+!evals/results/latest.json
+!evals/results/latest.md

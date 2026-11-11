@@ -32,6 +32,7 @@ export default function App() {
   const [showBuild, setShowBuild] = useState(false);
   const [steps, setSteps] = useState<ToolStep[]>([]);
   const [exportCode, setExportCode] = useState("");
+  const [searchTerms, setSearchTerms] = useState("");
   const controller = useRef<AbortController | null>(null);
 
   const busy = status === "searching" || status === "answering";
@@ -52,10 +53,14 @@ export default function App() {
     setError("");
     setSteps([]);
     setExportCode("");
+    setSearchTerms("");
 
     try {
       for await (const event of ask(trimmed, docTypes, build.trim(), current.signal)) {
         switch (event.type) {
+          case "rewrite":
+            setSearchTerms(event.terms);
+            break;
           case "sources":
             setSources(event.sources);
             if (event.sources[0]) setPatch(event.sources[0].patch);
@@ -205,7 +210,10 @@ export default function App() {
         <main className="result">
           <article className="answer" aria-live="polite" aria-busy={busy}>
             <h2 className="answer-question">{asked}</h2>
-            {status === "searching" && <p className="status">Searching the wiki…</p>}
+            {searchTerms && <p className="search-terms">Searched the wiki for {searchTerms}</p>}
+            {status === "searching" && (
+              <p className="status">{searchTerms ? "Searching the wiki…" : "Working out what to search for…"}</p>
+            )}
             <PobSteps steps={steps} />
             {status === "answering" && !answer && !steps.some((s) => s.status === "running") && (
               <p className="status">Found {sources.length} pages. Writing the answer…</p>
