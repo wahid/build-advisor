@@ -5,8 +5,10 @@ import { Composer } from "./Composer";
 import {
   applyEvent,
   findBuildLink,
+  loadAttachedBuild,
   loadConversation,
   newTurn,
+  saveAttachedBuild,
   saveConversation,
   toHistory,
   type ChatTurn,
@@ -26,9 +28,10 @@ const UNREACHABLE = "The server can't be reached. Check your connection and try 
 export default function App() {
   const [turns, setTurns] = useState<ChatTurn[]>(loadConversation);
   const [docTypes, setDocTypes] = useState<DocType[]>([]);
-  const [build, setBuild] = useState("");
+  // Kept with the conversation, so a reload doesn't lose the build the chat is about.
+  const [build, setBuild] = useState(() => loadAttachedBuild().build);
   // The attached build is one the assistant changed (its exported share code).
-  const [buildChanged, setBuildChanged] = useState(false);
+  const [buildChanged, setBuildChanged] = useState(() => loadAttachedBuild().changed);
   const controller = useRef<AbortController | null>(null);
   const nextId = useRef(0);
   // Keep following the newest text unless the reader scrolled up to read.
@@ -38,6 +41,7 @@ export default function App() {
   const busy = latest?.status === "searching" || latest?.status === "answering";
 
   useEffect(() => saveConversation(turns), [turns]);
+  useEffect(() => saveAttachedBuild({ build, changed: buildChanged }), [build, buildChanged]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -99,6 +103,8 @@ export default function App() {
   function newChat() {
     controller.current?.abort();
     setTurns([]);
+    setBuild("");
+    setBuildChanged(false);
   }
 
   const composer = (

@@ -34,6 +34,13 @@ export function findBuildLink(question: string): string {
 
 export const MAX_HISTORY = 6; // the server uses no more than this
 const STORAGE_KEY = "build-advisor:conversation";
+const BUILD_KEY = "build-advisor:build";
+
+/** The build attached to the conversation, and whether it's the assistant's changed version. */
+export interface AttachedBuild {
+  build: string;
+  changed: boolean;
+}
 
 export function newTurn(id: string, question: string): ChatTurn {
   return {
@@ -106,5 +113,24 @@ export function saveConversation(turns: ChatTurn[]): void {
     else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Storage can be full or blocked; the conversation just isn't kept.
+  }
+}
+
+export function loadAttachedBuild(): AttachedBuild {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(BUILD_KEY) ?? "null") as AttachedBuild | null;
+    if (saved && typeof saved.build === "string") return { build: saved.build, changed: Boolean(saved.changed) };
+  } catch {
+    // fall through: nothing attached
+  }
+  return { build: "", changed: false };
+}
+
+export function saveAttachedBuild(attached: AttachedBuild): void {
+  try {
+    if (attached.build.trim()) window.localStorage.setItem(BUILD_KEY, JSON.stringify(attached));
+    else window.localStorage.removeItem(BUILD_KEY);
+  } catch {
+    // Storage can be full or blocked; the build just isn't kept.
   }
 }

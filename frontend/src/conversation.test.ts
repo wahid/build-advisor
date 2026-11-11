@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { applyEvent, findBuildLink, MAX_HISTORY, newTurn, toHistory, type ChatTurn } from "./conversation";
+import {
+  applyEvent,
+  findBuildLink,
+  loadAttachedBuild,
+  MAX_HISTORY,
+  newTurn,
+  saveAttachedBuild,
+  toHistory,
+  type ChatTurn,
+} from "./conversation";
 
 const source = {
   number: 1,
@@ -62,5 +71,37 @@ describe("findBuildLink", () => {
     expect(findBuildLink("see http://pastebin.com/abc123/ please")).toBe("https://pastebin.com/abc123");
     expect(findBuildLink("How does poison work?")).toBe("");
     expect(findBuildLink("https://evil.example/pobb.in/x")).toBe("");
+  });
+});
+
+describe("attached build", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  function fakeStorage() {
+    const items = new Map<string, string>();
+    (globalThis as { window?: unknown }).window = {
+      localStorage: {
+        getItem: (key: string) => items.get(key) ?? null,
+        setItem: (key: string, value: string) => items.set(key, value),
+        removeItem: (key: string) => items.delete(key),
+      },
+    };
+    return items;
+  }
+
+  it("survives a reload and is cleared when removed", () => {
+    const items = fakeStorage();
+    saveAttachedBuild({ build: "eNrCHANGED", changed: true });
+    expect(loadAttachedBuild()).toEqual({ build: "eNrCHANGED", changed: true });
+    saveAttachedBuild({ build: "", changed: false });
+    expect(items.size).toBe(0);
+    expect(loadAttachedBuild()).toEqual({ build: "", changed: false });
+  });
+
+  it("works without storage", () => {
+    expect(loadAttachedBuild()).toEqual({ build: "", changed: false });
+    expect(() => saveAttachedBuild({ build: "x", changed: false })).not.toThrow();
   });
 });

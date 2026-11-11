@@ -154,3 +154,13 @@ def test_ask_endpoint_loads_a_build_link_from_the_question(client, mocker) -> No
 
     assert stream.call_args.args[0] == "Is it tanky?"
     assert stream.call_args.kwargs["build"] == "https://pobb.in/abc"
+
+
+def test_with_tools_but_no_build_the_model_is_told_to_ask_for_one() -> None:
+    without = build_messages("Which gem should I swap?", [], tool_rounds=8)[0]["content"]
+    with_build = build_messages("q", [], tool_rounds=8, build_summary={"mainSkill": "Tornado Shot"})
+
+    assert "No build is loaded" in without
+    assert "pobb.in or pastebin" in without
+    assert "No build is loaded" not in with_build[0]["content"]
+    assert "No build is loaded" not in build_messages("q", [])[0]["content"]  # no tools at all

@@ -108,6 +108,11 @@ def test_tool_definitions_follow_the_allowlist_and_hide_file_parameters() -> Non
 # --- pool over real MCP stdio --------------------------------------------------
 
 
+def _summary(toolbox) -> dict:
+    """What the process holds, read past the toolbox's no-build check."""
+    return toolbox._server.call("get_build_summary", {}, 5).data
+
+
 @pytest.fixture
 def pool():
     p = PobPool(FAKE_SERVER, env={}, size=1, allowed=ALLOWED, call_timeout=5, startup_timeout=30)
@@ -121,7 +126,15 @@ def test_each_checkout_starts_with_an_empty_build(pool: PobPool) -> None:
         assert toolbox.call("get_build_summary", {}).data == {"ascendancy": "Slayer"}
 
     with pool.toolbox() as toolbox:
-        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": None}
+        assert _summary(toolbox) == {"ascendancy": None}
+
+
+def test_without_a_build_tools_that_need_one_say_so(pool: PobPool) -> None:
+    with pool.toolbox() as toolbox:
+        with pytest.raises(PobToolError, match="No build is loaded"):
+            toolbox.call("get_build_summary", {})
+        toolbox.call("new_build", {"ascendancy": "Slayer"})  # now there is one
+        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": "Slayer"}
 
 
 def test_model_never_sees_or_reaches_tools_outside_the_allowlist(pool: PobPool) -> None:
@@ -134,6 +147,7 @@ def test_model_never_sees_or_reaches_tools_outside_the_allowlist(pool: PobPool) 
 
 def test_file_arguments_never_reach_the_server(pool: PobPool) -> None:
     with pool.toolbox() as toolbox:
+        toolbox.call("new_build", {})
         exported = toolbox.call("export_build", {"save_to": "/tmp/evil.xml", "format": "xml"})
         toolbox.call("load_build", {"source": SHARE_CODE, "name": "../../etc"})
         received = toolbox.call("received", {}).data
@@ -144,6 +158,7 @@ def test_file_arguments_never_reach_the_server(pool: PobPool) -> None:
 
 def test_tool_errors_are_results_not_crashes(pool: PobPool) -> None:
     with pool.toolbox() as toolbox:
+        toolbox.call("new_build", {})
         result = toolbox.call("fail", {})
         assert result.ok is False
         assert "fail" in result.text
@@ -153,10 +168,11 @@ def test_tool_errors_are_results_not_crashes(pool: PobPool) -> None:
 def test_a_hung_server_is_replaced(pool: PobPool) -> None:
     pool.call_timeout = 1
     with pool.toolbox() as toolbox, pytest.raises(PobToolError, match="longer than"):
+        toolbox.call("new_build", {})
         toolbox.call("slow", {"seconds": 5})
 
     with pool.toolbox() as toolbox:  # a fresh process
-        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": None}
+        assert _summary(toolbox) == {"ascendancy": None}
 
 
 # --- keeping a loaded build for follow-up questions --------------------------------
@@ -203,7 +219,7 @@ def test_a_changed_build_is_loaded_again(pool: PobPool) -> None:
 
     with pool.toolbox(build=SHARE_CODE) as toolbox:
         assert toolbox.reused is False
-        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": None}
+        assert _summary(toolbox) == {"ascendancy": None}
 
 
 def test_an_exported_build_can_be_continued_without_loading(pool: PobPool) -> None:

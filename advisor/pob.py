@@ -96,6 +96,25 @@ READ_ONLY_TOOLS = frozenset(
     }
 )
 
+# Tools that work without a loaded build (they start one or look things up).
+NO_BUILD_NEEDED = frozenset(
+    {
+        "new_build",
+        "load_build",
+        "search_gems",
+        "search_uniques",
+        "list_classes",
+        "list_ascendancy_notables",
+        "list_keystones",
+        "find_passive_nodes",
+        "price_check",
+    }
+)
+NO_BUILD_ERROR = (
+    "No build is loaded. Ask the user to attach their build (a pobb.in or pastebin "
+    "link, or a Path of Building share code), or create one with new_build."
+)
+
 SHARE_CODE_RE = re.compile(r"^[A-Za-z0-9_\-+/=]{100,}$")
 BUILD_LINK_HOSTS = {"pobb.in", "pastebin.com", "www.pastebin.com"}
 BUILD_LINK_RE = re.compile(r"https?://(?:www\.)?(?:pobb\.in|pastebin\.com)/[\w\-/]+", re.IGNORECASE)
@@ -214,6 +233,7 @@ class _Server:
         # exported as), and whether anything changed it since. "" = unknown.
         self.build_source = ""
         self.changed = True
+        self.has_build = False  # False: the empty build a reset leaves behind
         self.tools: list[Any] = []
         self._requests: asyncio.Queue[Any] | None = None
 
@@ -321,9 +341,13 @@ class PobToolbox:
     def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         if name not in self._allowed:
             raise PobToolError(f"Unknown tool {name!r}.")
+        if not self._server.has_build and name not in NO_BUILD_NEEDED:
+            raise PobToolError(NO_BUILD_ERROR)
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
         result = self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
+        if name in ("new_build", "load_build") and result.ok:
+            self._server.has_build = True
         if name == "export_build" and result.ok and isinstance(result.data, dict):
             code = result.data.get("code")
             if isinstance(code, str) and code:
@@ -335,6 +359,7 @@ class PobToolbox:
     def mark_loaded(self, source: str) -> None:
         """The build from `source` was just loaded and nothing has changed it yet."""
         self._server.build_source, self._server.changed = source, False
+        self._server.has_build = True
 
 
 class PobPool:
@@ -411,7 +436,7 @@ class PobPool:
             reused = bool(build) and server.build_source == build and not server.changed
             if not reused and (server.build_source or server.changed):
                 server.call("new_build", {}, self.call_timeout)
-                server.build_source, server.changed = "", False
+                server.build_source, server.changed, server.has_build = "", False, False
             definitions = openai_tool_definitions(server.tools, self.allowed)
             yield PobToolbox(server, definitions, self.call_timeout, reused=reused)
         finally:
