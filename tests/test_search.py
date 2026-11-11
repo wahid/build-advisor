@@ -163,3 +163,19 @@ def test_every_named_page_gets_a_top_title_rank(embedder: FakeEmbedder) -> None:
 
     chieftain = next(h for h in hits if h.title == "Chieftain")
     assert chieftain.ranks["title"] <= 3
+
+
+def test_generic_one_word_titles_dont_count_as_named(embedder: FakeEmbedder, monkeypatch) -> None:
+    monkeypatch.setattr("wiki.search.GENERIC_TITLE_MIN_CHUNKS", 3)  # tiny test corpus
+    make_document("Fire", "Fire is a damage type. Fire spells deal fire damage." + LONG)
+    for i in range(8):
+        make_document(f"Fire Skill {i}", f"Fire skill number {i} deals fire damage." + LONG)
+    build_chunks()
+    embed_pending(embedder)
+    _aim_at(embedder, "Ice Nova")
+
+    hits = hybrid_search("Does Righteous Fire work with fire?", embedder=embedder, top_k=8)
+
+    titled = {h.title for h in hits if "title" in h.ranks}
+    assert "Righteous Fire" in titled
+    assert "Fire" not in titled  # "fire" is in most chunks: not a meaningful match

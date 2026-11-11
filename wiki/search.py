@@ -31,6 +31,9 @@ RRF_K = 60  # standard constant; dampens the advantage of the very top ranks
 # Words in more than this share of chunks ("support", "gem") carry no signal.
 KEYWORD_MAX_SHARE = 0.15
 KEYWORD_MIN_TERMS = 2  # always keep at least this many of the rarest words
+# One-word titles found in this many chunks are common words, not page names.
+GENERIC_TITLE_SHARE = 0.03
+GENERIC_TITLE_MIN_CHUNKS = 200
 # ts_rank normalisation flag 1: divide by 1 + log(length), so long chunks
 # don't win just by containing more words.
 RANK_NORMALIZATION = 1
@@ -152,13 +155,27 @@ def titles_in(question: str) -> QuerySet[Document]:
     )
 
 
+def _generic_title(base: QuerySet[Chunk], title: str) -> bool:
+    """A one-word title that is also a common word ("Damage", "Life", "Charge").
+
+    Such a title appearing in a question says nothing about what the question
+    is about, so it shouldn't count as naming that page.
+    """
+    words = question_words(title)
+    if len(words) != 1:
+        return False
+    total = base.count()
+    count = base.filter(search_vector=_term_query(words[0])).count()
+    return count >= GENERIC_TITLE_MIN_CHUNKS and count / max(total, 1) >= GENERIC_TITLE_SHARE
+
+
 def _title_ids(base: QuerySet[Chunk], question: str, vector: list[float], limit: int) -> list[int]:
     """Chunks of pages named in the question, interleaved per page.
 
     Each named page contributes its most similar chunk first, then its second,
     and so on, so a long page can't push a shorter named page out of the list.
     """
-    matching = titles_in(question).values("id")
+    matching = [d.id for d in titles_in(question) if not _generic_title(base, d.title)]
     rows = (
         base.filter(document_id__in=matching)
         .order_by(CosineDistance("embedding", vector))
