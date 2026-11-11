@@ -94,7 +94,9 @@ WIKI_USER_AGENT = env(
     default="build-advisor/0.1 (non-commercial portfolio project; set WIKI_USER_AGENT)",
 )
 WIKI_REQUEST_INTERVAL = env.float("WIKI_REQUEST_INTERVAL", default=1.0)  # seconds
-WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=3)
+# On rate limiting the interval grows (up to this) and slowly shrinks again.
+WIKI_MAX_REQUEST_INTERVAL = env.float("WIKI_MAX_REQUEST_INTERVAL", default=30.0)
+WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=6)
 WIKI_CACHE_DIR = Path(env("WIKI_CACHE_DIR", default=str(BASE_DIR / "data" / "raw")))
 # Leave empty to use the latest released version from the wiki's version table.
 POE_PATCH = env("POE_PATCH", default="")

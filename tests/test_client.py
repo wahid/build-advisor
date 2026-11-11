@@ -79,11 +79,56 @@ def test_fetch_page_uses_cache_for_known_revision(wiki_client: WikiClient) -> No
 def test_retries_after_rate_limit(wiki_client: WikiClient) -> None:
     waits: list[float] = []
     wiki_client._sleep = waits.append
-    responses.get(API_URL, status=429, headers={"Retry-After": "3"})
+    responses.get(API_URL, status=429, headers={"Retry-After": "30"})
     responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
 
     assert wiki_client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
-    assert 3.0 in waits
+    assert 30.0 in waits  # a longer Retry-After than our backoff is respected
+
+
+@responses.activate
+def test_rate_limit_slows_down_later_requests(wiki_client: WikiClient) -> None:
+    waits: list[float] = []
+    wiki_client._sleep = waits.append
+    wiki_client.base_interval = wiki_client.request_interval = 1.0
+    responses.get(API_URL, status=429)
+    responses.get(API_URL, status=429)
+    responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
+
+    wiki_client.current_patch(today=date(2026, 11, 11))
+
+    assert [w for w in waits if w >= 5] == [5.0, 10.0]  # backoff doubles per retry
+    assert wiki_client.request_interval == pytest.approx(4.0 * 0.95)
+
+
+def test_interval_recovers_but_not_below_base(wiki_client: WikiClient) -> None:
+    wiki_client.base_interval = wiki_client.request_interval = 1.0
+    wiki_client._slow_down()
+    assert wiki_client.request_interval == 2.0
+
+    for _ in range(100):
+        wiki_client._speed_up()
+
+    assert wiki_client.request_interval == 1.0
+
+
+def test_interval_is_capped(wiki_client: WikiClient) -> None:
+    wiki_client.max_interval = 30.0
+    for _ in range(20):
+        wiki_client._slow_down()
+
+    assert wiki_client.request_interval == 30.0
+
+
+@responses.activate
+def test_gives_up_after_max_retries(wiki_client: WikiClient) -> None:
+    wiki_client.max_retries = 3
+    for _ in range(3):
+        responses.get(API_URL, status=429)
+
+    with pytest.raises(WikiError, match="Gave up"):
+        wiki_client.current_patch(today=date(2026, 11, 11))
+    assert len(responses.calls) == 3
 
 
 @responses.activate

@@ -26,6 +26,10 @@ from .models import DocumentType
 logger = logging.getLogger(__name__)
 
 CARGO_PAGE_SIZE = 500
+BACKOFF_BASE = 5.0  # seconds; doubled per retry
+BACKOFF_CAP = 120.0
+SLOWDOWN_FACTOR = 2.0  # interval multiplier after a rate-limit response
+SPEEDUP_FACTOR = 0.95  # interval multiplier after each successful request
 REVISION_BATCH_SIZE = 50  # MediaWiki's limit for titles per query for normal clients.
 
 
@@ -78,14 +82,17 @@ class WikiClient:
         user_agent: str,
         cache_dir: Path,
         request_interval: float = 1.0,
-        max_retries: int = 3,
+        max_retries: int = 6,
+        max_interval: float = 30.0,
         session: requests.Session | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.api_url = api_url
         self.page_url = page_url
         self.cache_dir = cache_dir
+        self.base_interval = request_interval
         self.request_interval = request_interval
+        self.max_interval = max(max_interval, request_interval)
         self.max_retries = max_retries
         self._sleep = sleep
         self._last_request = 0.0
@@ -103,6 +110,7 @@ class WikiClient:
             cache_dir=settings.WIKI_CACHE_DIR,
             request_interval=settings.WIKI_REQUEST_INTERVAL,
             max_retries=settings.WIKI_MAX_RETRIES,
+            max_interval=settings.WIKI_MAX_REQUEST_INTERVAL,
         )
 
     # --- public API ---------------------------------------------------------
@@ -237,17 +245,24 @@ class WikiClient:
         params = {**params, "format": "json", "formatversion": 2, "maxlag": 5}
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
+            backoff = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP)
             try:
                 response = self.session.get(self.api_url, params=params, timeout=30)
             except requests.RequestException as exc:
                 if attempt == self.max_retries:
                     raise WikiError(f"Request failed: {exc}") from exc
-                self._sleep(2**attempt)
+                self._sleep(backoff)
                 continue
 
             if response.status_code in (429, 503):
-                wait = _retry_after(response, default=2**attempt)
-                logger.warning("Wiki asked us to slow down; waiting %.0fs", wait)
+                self._slow_down()
+                wait = max(_retry_after(response, default=backoff), backoff)
+                logger.warning(
+                    "Wiki asked us to slow down (HTTP %s); waiting %.0fs, then 1 request per %.1fs",
+                    response.status_code,
+                    wait,
+                    self.request_interval,
+                )
                 self._sleep(wait)
                 continue
             if response.status_code != 200:
@@ -255,13 +270,23 @@ class WikiClient:
 
             data: dict[str, Any] = response.json()
             error = data.get("error")
-            if error and error.get("code") == "maxlag":
-                self._sleep(_retry_after(response, default=5))
+            if error and error.get("code") in ("maxlag", "ratelimited"):
+                self._slow_down()
+                self._sleep(max(_retry_after(response, default=backoff), backoff))
                 continue
             if error:
                 raise WikiError(f"{error.get('code')}: {error.get('info')}")
+            self._speed_up()
             return data
         raise WikiError("Gave up after repeated rate-limit responses.")
+
+    def _slow_down(self) -> None:
+        self.request_interval = min(
+            max(self.request_interval, 0.5) * SLOWDOWN_FACTOR, self.max_interval
+        )
+
+    def _speed_up(self) -> None:
+        self.request_interval = max(self.base_interval, self.request_interval * SPEEDUP_FACTOR)
 
     def _throttle(self) -> None:
         elapsed = time.monotonic() - self._last_request
