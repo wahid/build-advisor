@@ -163,6 +163,17 @@ LLM_TIMEOUT = env.float("LLM_TIMEOUT", default=60.0)
 # Provider-specific request options as JSON, e.g. to turn off thinking mode.
 LLM_EXTRA_BODY = env.json("LLM_EXTRA_BODY", default={})
 
+# --- Path of Building (pob-mcp tools for the LLM) --------------------------------
+# Path to a PathOfBuilding checkout (only src/ and runtime/lua/ are needed).
+POB_PATH = env("POB_PATH", default="")
+POB_ENABLED = env.bool("POB_ENABLED", default=bool(POB_PATH) and Path(POB_PATH).exists())
+POB_POOL_SIZE = env.int("POB_POOL_SIZE", default=1)  # PoB processes per web/worker process
+POB_TOOL_TIMEOUT = env.float("POB_TOOL_TIMEOUT", default=90.0)
+POB_MAX_TOOL_ROUNDS = env.int("POB_MAX_TOOL_ROUNDS", default=8)
+POB_DEBUG = env.bool("POB_DEBUG", default=False)  # show PoB's console output
+# Override the allowlist of pob-mcp tools (comma-separated); empty = advisor.pob.DEFAULT_TOOLS.
+POB_TOOLS = env.list("POB_TOOLS", default=[])
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

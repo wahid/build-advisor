@@ -23,6 +23,8 @@ class AskSerializer(serializers.Serializer):
         child=serializers.ChoiceField(choices=DocumentType.values), required=False, default=list
     )
     stream = serializers.BooleanField(required=False, default=True)
+    # A Path of Building share code (often 5-20 KB) or a pobb.in / pastebin link.
+    build = serializers.CharField(required=False, allow_blank=True, default="", max_length=200_000)
 
 
 class StreamFriendlyNegotiation(BaseContentNegotiation):
@@ -63,10 +65,12 @@ class AskView(APIView):
         filters = SearchFilters(doc_types=tuple(data["doc_types"]))
 
         if not data["stream"]:
-            return Response(answer(data["question"], filters=filters).as_dict())
+            return Response(
+                answer(data["question"], filters=filters, build=data["build"]).as_dict()
+            )
 
         response = StreamingHttpResponse(
-            sse(answer_stream(data["question"], filters=filters)),
+            sse(answer_stream(data["question"], filters=filters, build=data["build"])),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"

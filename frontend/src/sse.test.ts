@@ -49,16 +49,16 @@ describe("ask", () => {
     }) as typeof fetch;
 
     const events = [];
-    for await (const event of ask("RF?", ["gem"], undefined, fakeFetch)) events.push(event);
+    for await (const event of ask("RF?", ["gem"], "eNrCODE", undefined, fakeFetch)) events.push(event);
 
-    expect(body).toEqual({ question: "RF?", doc_types: ["gem"] });
+    expect(body).toEqual({ question: "RF?", doc_types: ["gem"], build: "eNrCODE" });
     expect(events).toEqual([{ type: "delta", text: "Hi" }]);
   });
 
   it("explains rate limiting", async () => {
     const fakeFetch = (async () => new Response("{}", { status: 429 })) as typeof fetch;
 
-    await expect(ask("q", [], undefined, fakeFetch).next()).rejects.toThrow(AskError);
-    await expect(ask("q", [], undefined, fakeFetch).next()).rejects.toThrow(/Wait a few minutes/);
+    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow(AskError);
+    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow(/Wait a few minutes/);
   });
 });

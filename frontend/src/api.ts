@@ -11,6 +11,7 @@ async function errorMessage(response: Response): Promise<string> {
     try {
       const body = (await response.json()) as Record<string, string[]>;
       if (body.question) return `Question: ${body.question.join(" ")}`;
+      if (body.build) return `Build: ${body.build.join(" ")}`;
     } catch {
       // fall through to the generic message
     }
@@ -23,13 +24,14 @@ async function errorMessage(response: Response): Promise<string> {
 export async function* ask(
   question: string,
   docTypes: DocType[],
+  build = "",
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
 ): AsyncGenerator<AskEvent> {
   const response = await fetchImpl("/api/ask/", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ question, doc_types: docTypes }),
+    body: JSON.stringify({ question, doc_types: docTypes, build }),
     signal,
   });
   if (!response.ok || !response.body) throw new AskError(await errorMessage(response));

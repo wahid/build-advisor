@@ -6,10 +6,29 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
+# --- Path of Building: only the parts the headless engine needs ---------------
+FROM python:3.12-slim AS pob
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+# Pin a tag or commit with --build-arg POB_REF=... ; rebuild when PoB updates for a league.
+# Only src/ and runtime/lua/ are checked out, and tree/item images are deleted
+# (~400 MB, only needed for drawing): the headless engine runs without them.
+ARG POB_REF=
+RUN git clone --depth 1 --filter=blob:none --sparse ${POB_REF:+--branch "$POB_REF"} \
+        https://github.com/PathOfBuildingCommunity/PathOfBuilding /opt/PathOfBuilding \
+    && cd /opt/PathOfBuilding \
+    && git sparse-checkout set src runtime/lua \
+    && git log -1 --format="Path of Building %h (%cd)" > /opt/PathOfBuilding/VERSION \
+    && rm -rf .git \
+    && find src \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.webp' \) -delete
+
 # --- Backend -----------------------------------------------------------------
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+COPY --from=pob /opt/PathOfBuilding /opt/PathOfBuilding
+
+ENV POB_PATH=/opt/PathOfBuilding \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy \

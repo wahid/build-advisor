@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { AnswerText } from "./answerText";
 import { ask, AskError } from "./api";
+import { PobExport, PobSteps, type ToolStep } from "./PobPanel";
 import { groupSources, SourceCard } from "./SourceCard";
 import { DOC_TYPES, type DocType, type Source } from "./types";
 
@@ -11,7 +12,10 @@ const EXAMPLES = [
   "Which support gems work with Righteous Fire on a Chieftain?",
   "How does Cast when Damage Taken trigger spells?",
   "What scales the damage of ignite?",
+  "Create a level 90 Righteous Fire Chieftain build",
 ];
+
+const BUILD_PLACEHOLDER = "Paste a Path of Building code or a pobb.in link";
 
 export default function App() {
   const [question, setQuestion] = useState("");
@@ -24,6 +28,10 @@ export default function App() {
   const [patch, setPatch] = useState("");
   const [error, setError] = useState("");
   const [hovered, setHovered] = useState<number | null>(null);
+  const [build, setBuild] = useState("");
+  const [showBuild, setShowBuild] = useState(false);
+  const [steps, setSteps] = useState<ToolStep[]>([]);
+  const [exportCode, setExportCode] = useState("");
   const controller = useRef<AbortController | null>(null);
 
   const busy = status === "searching" || status === "answering";
@@ -42,9 +50,11 @@ export default function App() {
     setSources([]);
     setCited([]);
     setError("");
+    setSteps([]);
+    setExportCode("");
 
     try {
-      for await (const event of ask(trimmed, docTypes, current.signal)) {
+      for await (const event of ask(trimmed, docTypes, build.trim(), current.signal)) {
         switch (event.type) {
           case "sources":
             setSources(event.sources);
@@ -53,6 +63,24 @@ export default function App() {
             break;
           case "delta":
             setAnswer((prev) => prev + event.text);
+            break;
+          case "tool_call":
+            setSteps((prev) => [
+              ...prev,
+              { id: event.id, name: event.name, arguments: event.arguments, status: "running" },
+            ]);
+            break;
+          case "tool_result":
+            setSteps((prev) =>
+              prev.map((step) =>
+                step.id === event.id
+                  ? { ...step, status: event.ok ? "ok" : "failed", error: event.error }
+                  : step,
+              ),
+            );
+            break;
+          case "pob_export":
+            setExportCode(event.code);
             break;
           case "done":
             setCited(event.cited);
@@ -131,6 +159,31 @@ export default function App() {
           ))}
           {docTypes.length === 0 && <span className="filters-hint">Nothing ticked searches everything.</span>}
         </fieldset>
+
+        <div className="attach">
+          {showBuild || build ? (
+            <>
+              <label htmlFor="build" className="attach-label">
+                Your build (optional)
+              </label>
+              <textarea
+                id="build"
+                className="attach-input"
+                rows={2}
+                placeholder={BUILD_PLACEHOLDER}
+                value={build}
+                onChange={(e) => setBuild(e.target.value)}
+              />
+              <p className="attach-hint">
+                Path of Building will load it, so you can ask about its damage, defences or upgrades.
+              </p>
+            </>
+          ) : (
+            <button type="button" className="attach-toggle" onClick={() => setShowBuild(true)}>
+              Attach a Path of Building build
+            </button>
+          )}
+        </div>
       </form>
 
       {!showResult && (
@@ -153,12 +206,14 @@ export default function App() {
           <article className="answer" aria-live="polite" aria-busy={busy}>
             <h2 className="answer-question">{asked}</h2>
             {status === "searching" && <p className="status">Searching the wiki…</p>}
-            {status === "answering" && !answer && (
+            <PobSteps steps={steps} />
+            {status === "answering" && !answer && !steps.some((s) => s.status === "running") && (
               <p className="status">Found {sources.length} pages. Writing the answer…</p>
             )}
             <div className="answer-text" data-streaming={status === "answering" || undefined}>
               <AnswerText text={answer} sources={sources} onCiteHover={setHovered} />
             </div>
+            {exportCode && <PobExport code={exportCode} />}
             {error && (
               <p className="error" role="alert">
                 {error}

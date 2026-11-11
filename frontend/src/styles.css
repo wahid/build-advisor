@@ -179,6 +179,56 @@ a {
 [data-type="ascendancy"] { --type-colour: var(--ascendancy); }
 [data-type="mechanic"] { --type-colour: var(--mechanic); }
 
+/* --- Attach a build -------------------------------------------------------- */
+
+.attach {
+  grid-column: 1 / -1;
+}
+
+.attach-toggle {
+  padding: 0;
+  font: inherit;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--stone-edge);
+  cursor: pointer;
+}
+
+.attach-toggle:hover {
+  color: var(--mechanic);
+  border-bottom-color: var(--mechanic);
+}
+
+.attach-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.attach-input {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--parchment);
+  background: var(--stone-raised);
+  border: 1px solid var(--stone-edge);
+  border-radius: 2px;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.attach-hint {
+  margin: 0.3rem 0 0;
+  font-size: var(--step--1);
+  font-style: italic;
+  color: var(--parchment-dim);
+}
+
 /* --- Examples ------------------------------------------------------------- */
 
 .examples {
@@ -318,6 +368,123 @@ a {
   color: var(--danger);
   border-left: 3px solid var(--danger);
   background: rgba(216, 106, 90, 0.08);
+}
+
+/* --- Path of Building steps and export ----------------------------------- */
+
+.pob {
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 0.9rem 0.7rem;
+  border-left: 2px solid var(--stone-edge);
+}
+
+.pob-heading {
+  margin: 0 0 0.35rem;
+  font-family: var(--small-caps);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--parchment-dim);
+}
+
+.pob-steps {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+}
+
+.pob-step {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  align-items: baseline;
+}
+
+/* Diamond markers: hollow while running, filled when done, red when failed. */
+.pob-marker {
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 1px solid var(--mechanic);
+  transform: rotate(45deg);
+}
+
+.pob-step[data-status="ok"] .pob-marker {
+  background: var(--mechanic);
+}
+
+.pob-step[data-status="running"] .pob-marker {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.pob-step[data-status="failed"] .pob-marker {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.pob-error {
+  color: var(--danger);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pob-export {
+  margin: 1.5rem 0 0;
+  padding: 0.8rem 1rem 1rem;
+  background: #120f0d;
+  border: 1px solid var(--stone-edge);
+  border-top: 3px double var(--mechanic);
+}
+
+.pob-export-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pob-export .pob-heading {
+  color: var(--mechanic);
+}
+
+.pob-copy {
+  padding: 0.25rem 0.8rem;
+  font-family: var(--small-caps);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--stone);
+  background: var(--mechanic);
+  border: 1px solid var(--mechanic);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.pob-copy:hover {
+  background: var(--parchment);
+}
+
+.pob-export-hint {
+  margin: 0.2rem 0 0.6rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.pob-code {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--parchment);
+  background: var(--stone);
+  border: 1px solid var(--stone-edge);
+  border-radius: 2px;
+  resize: vertical;
+  word-break: break-all;
 }
 
 /* --- Sources as item tooltips ---------------------------------------------- */
@@ -480,7 +647,8 @@ a {
     transform: none;
   }
 
-  .answer-text[data-streaming] > :last-child::after {
+  .answer-text[data-streaming] > :last-child::after,
+  .pob-step[data-status="running"] .pob-marker {
     animation: none;
   }
 }

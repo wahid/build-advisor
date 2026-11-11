@@ -6,7 +6,11 @@ Ask questions about Path of Exile builds and get answers grounded in the
 > *"Which support gems work with Righteous Fire Chieftain?"*
 
 Built with Django, PostgreSQL + pgvector, local `bge-m3` embeddings and an
-LLM behind a provider-agnostic interface (DeepSeek by default).
+LLM behind a provider-agnostic interface (DeepSeek by default). For questions
+about a concrete build the model can also drive
+[Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
+through [pob-mcp](https://github.com/wahid/pob-mcp): load your build, rank
+support gems, test changes, or create a build and hand you the share code.
 
 ## Status
 
@@ -15,8 +19,8 @@ LLM behind a provider-agnostic interface (DeepSeek by default).
 | 1 | Collect wiki data (gems, uniques, ascendancies, mechanics) | ✅ done |
 | 2 | Chunking + embeddings | ✅ done |
 | 3 | RAG pipeline + React frontend with sources | ✅ done |
-| 4 | Tool calling with pob-mcp | ⏳ next |
-| 5 | Evaluation set in CI | |
+| 4 | Tool calling with pob-mcp | ✅ done |
+| 5 | Evaluation set in CI | ⏳ next |
 | 6 | Public demo on Railway | |
 
 ## Quick start (Docker)
@@ -133,6 +137,39 @@ colour, highlight it on hover and link to the wiki page.
   serves it at `/` through WhiteNoise, so one container serves everything.
 - `cd frontend && npm test` runs the parser and streaming tests.
 
+## Path of Building tools
+
+When pob-mcp is available (the Docker image includes it), the model gets a
+set of Path of Building tools next to the wiki sources. Ask with a build
+attached ("which support should replace Elemental Focus?") or ask it to create
+one ("make a level 90 RF Chieftain"); the frontend shows each step and the
+resulting share code to import into PoB.
+
+- **Same numbers as PoB:** pob-mcp boots Path of Building's own Lua engine
+  headlessly, so stats match the PoB app.
+- **Pool of processes:** PoB takes ~5 s to boot and holds one build, so a small
+  pool (`POB_POOL_SIZE` per web/worker process) is kept warm. Each question gets
+  its own process, reset with `new_build`, so visitors never see each other's
+  builds.
+- **Bounded tool loop:** at most `POB_MAX_TOOL_ROUNDS` rounds (default 8); the
+  last round has no tools, so the model must answer. Every call is logged with
+  its arguments and duration.
+- **Safe for a public site:** the model only sees an allowlist of 26 tools
+  (`advisor/pob.py`). File arguments are stripped (`export_build` can't write,
+  `load_build` only takes share codes and pobb.in / pastebin links), and
+  poe.ninja's ladder tools are left out because its builds API isn't open to
+  third parties.
+- **Attached builds are loaded by the app**, not by the model, so a 20 KB share
+  code isn't sent through the LLM.
+
+Locally without Docker, clone Path of Building and set `POB_PATH`:
+
+```bash
+git clone --depth 1 https://github.com/PathOfBuildingCommunity/PathOfBuilding ~/PathOfBuilding
+POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chieftain" \
+  --build "https://pobb.in/..."   # optional
+```
+
 ## How answering works
 
 1. **Hybrid retrieval** (`wiki/search.py`) merges three ranked lists with
@@ -145,10 +182,14 @@ colour, highlight it on hover and link to the wiki page.
    and the model is told to use only those, cite them as `[n]`, say when the
    sources don't cover the question, and mention the game version.
 3. **Provider-independent LLM** (`advisor/llm.py`): DeepSeek, OpenAI and
-   Anthropic through their OpenAI-compatible APIs, chosen by `LLM_PROVIDER`.
-   Model names live only in configuration.
-4. **Streaming** (`POST /api/ask/`): sources are sent first, then the answer
-   token by token, then which sources were actually cited.
+   Anthropic through their OpenAI-compatible APIs, chosen by `LLM_PROVIDER`,
+   with streamed tool calls. Model names live only in configuration.
+4. **Tools** (`advisor/rag.py`): when the model calls Path of Building tools,
+   results go back to it until it answers; numbers from PoB are reported as
+   such, wiki facts keep their `[n]` citations.
+5. **Streaming** (`POST /api/ask/`): sources first, then tool steps, the
+   answer token by token, an exported share code if any, and finally which
+   sources were cited.
 
 ## Development
 

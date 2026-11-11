@@ -20,19 +20,28 @@ pytestmark = pytest.mark.django_db
 
 
 class FakeProvider:
+    """Plays back one scripted list of stream items per round."""
+
     name = "fake"
     model = "fake-model"
 
-    def __init__(self, pieces: list[str] | None = None, fail: bool = False) -> None:
-        self.pieces = pieces or ["Righteous Fire burns you [1]", " and scales with life [2]."]
+    def __init__(self, *rounds: list, fail: bool = False) -> None:
+        self.rounds = list(rounds) or [
+            ["Righteous Fire burns you [1]", " and scales with life [2]."]
+        ]
         self.fail = fail
-        self.messages: list[llm.Message] = []
+        self.calls: list[tuple[list[llm.Message], list | None]] = []
 
-    def stream(self, messages: list[llm.Message]) -> Iterator[str]:
-        self.messages = messages
+    @property
+    def messages(self) -> list[llm.Message]:
+        return self.calls[-1][0] if self.calls else []
+
+    def stream(self, messages: list[llm.Message], tools: list | None = None) -> Iterator:
+        self.calls.append(([dict(m) for m in messages], tools))
         if self.fail:
             raise LLMError("down")
-        yield from self.pieces
+        script = self.rounds[min(len(self.calls), len(self.rounds)) - 1]
+        yield from script
 
 
 @pytest.fixture
@@ -112,8 +121,9 @@ def test_llm_failure_becomes_an_error_event(embedder: FakeEmbedder) -> None:
 # --- provider ------------------------------------------------------------------
 
 
-def _chunk(text: str | None) -> SimpleNamespace:
-    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))])
+def _chunk(text: str | None = None, tool_calls: list | None = None, reasoning: str | None = None):
+    delta = SimpleNamespace(content=text, tool_calls=tool_calls, reasoning_content=reasoning)
+    return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
 
 
 def test_openai_compatible_provider_streams_content_only() -> None:

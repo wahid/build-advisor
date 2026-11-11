@@ -28,3 +28,14 @@ def wiki_client(tmp_path: Path) -> WikiClient:
         request_interval=0,
         sleep=lambda _seconds: None,
     )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_pob_pool(settings):
+    """Path of Building is off in tests unless a test turns it on."""
+    from advisor.pob import get_pool
+
+    settings.POB_ENABLED = False
+    get_pool.cache_clear()
+    yield
+    get_pool.cache_clear()

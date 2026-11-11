@@ -65,3 +65,13 @@ describe("groupSources", () => {
     ]);
   });
 });
+
+describe("stepLabel", () => {
+  it("uses past tense for finished steps and says what failed", async () => {
+    const { stepLabel } = await import("./PobPanel");
+
+    expect(stepLabel("rank_support_gems")).toBe("Ranked support gems");
+    expect(stepLabel("fix_gaps", true)).toBe("Couldn't fix resistance and attribute gaps");
+    expect(stepLabel("brand_new_tool")).toBe("brand new tool");
+  });
+});

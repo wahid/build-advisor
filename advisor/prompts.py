@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from wiki.search import SearchHit
 
 from .llm import Message
@@ -26,6 +29,30 @@ Rules:
 6. Answer in the language of the question. Be concise: short paragraphs or a
    short list, no filler."""
 
+TOOLS_PROMPT = """
+
+Path of Building tools:
+You can also call tools that run Path of Building, the community's build
+calculator, on a real build. Use them when the user attached a build, asks for
+numbers (DPS, life, EHP, resistances, max hit), wants support gems or passives
+ranked for a build, asks "what if I change X", or asks you to create a build.
+For general questions about mechanics the wiki sources are enough.
+- Numbers from tools are facts about that specific build. Say they come from
+  Path of Building, without a [n] citation. Never invent or estimate numbers.
+- A new build starts with new_build, then apply_changes; use search_gems,
+  search_uniques and list_ascendancy_notables to look things up instead of
+  guessing names. Check get_warnings before you finish.
+- When you create or change a build, call export_build last. The app shows the
+  share code to the user, so don't paste it into your answer.
+- Be efficient: plan your calls and stop as soon as you can answer. You have
+  at most {rounds} rounds of tool calls."""
+
+ATTACHED_BUILD = """
+
+The user attached a Path of Building build. It is already loaded, so don't
+call load_build for it. Summary:
+{summary}"""
+
 NO_SOURCES_ANSWER = (
     "I couldn't find any wiki pages about this, so I can't answer it without guessing."
 )
@@ -41,8 +68,18 @@ def format_sources(hits: list[SearchHit]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def build_messages(question: str, hits: list[SearchHit]) -> list[Message]:
+def build_messages(
+    question: str,
+    hits: list[SearchHit],
+    tool_rounds: int = 0,
+    build_summary: dict[str, Any] | None = None,
+) -> list[Message]:
     patches = sorted({hit.chunk.patch for hit in hits})
     system = SYSTEM_PROMPT.format(patch=", ".join(patches) or "unknown")
-    user = f"Sources:\n\n{format_sources(hits)}\n\n===\n\nQuestion: {question}"
+    if tool_rounds:
+        system += TOOLS_PROMPT.format(rounds=tool_rounds)
+    if build_summary is not None:
+        system += ATTACHED_BUILD.format(summary=json.dumps(build_summary, indent=1)[:4000])
+    sources = format_sources(hits) if hits else "(no wiki pages matched)"
+    user = f"Sources:\n\n{sources}\n\n===\n\nQuestion: {question}"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

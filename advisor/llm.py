@@ -9,16 +9,35 @@ from settings. Model names are never hardcoded.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Literal, Protocol, TypedDict
+from typing import Any, Protocol
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
+# OpenAI chat format: {"role": ..., "content": ...}, plus tool_calls / tool_call_id.
+Message = dict[str, Any]
 
-class Message(TypedDict):
-    role: Literal["system", "user", "assistant"]
-    content: str
+
+@dataclass(frozen=True)
+class ToolCall:
+    """The model asks for a tool; `arguments` is the raw JSON string it produced."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
+class Reasoning:
+    """Thinking text from reasoning models. Not shown to users, but some
+    providers (DeepSeek) want it sent back alongside tool results."""
+
+    text: str
+
+
+StreamItem = str | ToolCall | Reasoning
 
 
 class LLMError(RuntimeError):
@@ -29,8 +48,10 @@ class LLMProvider(Protocol):
     name: str
     model: str
 
-    def stream(self, messages: list[Message]) -> Iterator[str]:
-        """Yield the answer text in pieces as the model produces it."""
+    def stream(
+        self, messages: list[Message], tools: list[dict[str, Any]] | None = None
+    ) -> Iterator[StreamItem]:
+        """Yield answer text in pieces; after the text, any tool calls (and reasoning)."""
         ...
 
 
@@ -66,9 +87,16 @@ class OpenAICompatibleProvider:
             client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=2)
         self.client = client
 
-    def stream(self, messages: list[Message]) -> Iterator[str]:
+    def stream(
+        self, messages: list[Message], tools: list[dict[str, Any]] | None = None
+    ) -> Iterator[StreamItem]:
         from openai import OpenAIError
 
+        options: dict[str, Any] = {}
+        if tools:
+            options["tools"] = tools
+        calls: dict[int, dict[str, str]] = {}
+        reasoning: list[str] = []
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -77,17 +105,34 @@ class OpenAICompatibleProvider:
                 max_tokens=self.max_tokens,
                 stream=True,
                 extra_body=self.extra_body or None,
+                **options,
             )
             for chunk in response:
                 if not chunk.choices:
                     continue
-                # Reasoning models may also send `reasoning_content`; only the
-                # final answer (`content`) is shown to the user.
-                text = chunk.choices[0].delta.content
-                if text:
-                    yield text
+                delta = chunk.choices[0].delta
+                thinking = getattr(delta, "reasoning_content", None)
+                if thinking:
+                    reasoning.append(thinking)
+                if delta.content:
+                    yield delta.content
+                # Tool calls arrive in pieces, keyed by index.
+                for part in delta.tool_calls or []:
+                    call = calls.setdefault(part.index, {"id": "", "name": "", "arguments": ""})
+                    if part.id:
+                        call["id"] = part.id
+                    if part.function and part.function.name:
+                        call["name"] += part.function.name
+                    if part.function and part.function.arguments:
+                        call["arguments"] += part.function.arguments
         except OpenAIError as exc:
             raise LLMError(f"{self.name} request failed: {exc}") from exc
+
+        if reasoning:
+            yield Reasoning("".join(reasoning))
+        for index in sorted(calls):
+            call = calls[index]
+            yield ToolCall(call["id"] or f"call_{index}", call["name"], call["arguments"] or "{}")
 
 
 @lru_cache(maxsize=1)
