@@ -76,6 +76,10 @@ document embeddings are already in the database.
   proxy and the failed one is skipped for `WIKI_PROXY_COOLDOWN` seconds. Each
   worker still keeps its own request interval and backoff, and a Cloudflare
   challenge stops the whole run.
+- **`fetch_wiki --direct`** skips the proxies and fetches pages one at a time
+  over your own connection, throttled to `WIKI_REQUEST_INTERVAL` and backing
+  off on `429`/`503`. Use it to retry pages that failed through proxies; only
+  missing or changed pages are downloaded.
 - **Raw pages are cached** in `data/raw/` per revision, so re-parsing never
   needs the network.
 - **HTML → text** keeps section headings as `##` lines (for per-section
