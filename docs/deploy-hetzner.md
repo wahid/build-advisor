@@ -69,7 +69,8 @@ one: `docker compose -f docker-compose.prod.yml --env-file .env.prod exec web py
 ## 4. Start it
 
 ```bash
-# server
+# server (as root): files you created as root must belong to the deploy user
+chown -R deploy:deploy /srv/build-advisor
 sudo -u deploy bash /srv/build-advisor/deploy/deploy.sh
 ```
 

@@ -4,6 +4,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Files created as root (e.g. .env.prod, a copied dump, a git command run as root)
+# can't be updated by the deploy user.
+if [ -n "$(find . -path ./backups -prune -o ! -user "$(id -un)" -print -quit)" ]; then
+  echo "Some files in $(pwd) aren't owned by $(id -un). Fix as root with:" >&2
+  echo "  chown -R $(id -un):$(id -gn) $(pwd)" >&2
+  exit 1
+fi
+
 git fetch --quiet origin main
 git reset --hard origin/main
 
