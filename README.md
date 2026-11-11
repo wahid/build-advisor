@@ -5,6 +5,12 @@ Ask questions about Path of Exile builds and get answers grounded in the
 
 > *"Which support gems work with Righteous Fire Chieftain?"*
 
+**Live demo: [2.29.162.98.sslip.io](https://2.29.162.98.sslip.io/)** — paste a
+[pobb.in](https://pobb.in) link to ask about your own build. The demo answers
+100 questions a day in total, so it may be out for the day.
+
+![A question about a Tornado Shot Slayer build: Path of Building's numbers, the answer with wiki citations, and the sources it used](docs/screenshot.png)
+
 Built with Django, PostgreSQL + pgvector, local `bge-m3` embeddings and an
 LLM behind a provider-agnostic interface (DeepSeek by default). For questions
 about a concrete build the model can also drive
@@ -21,7 +27,7 @@ support gems, test changes, or create a build and hand you the share code.
 | 3 | RAG pipeline + React frontend with sources | ✅ done |
 | 4 | Tool calling with pob-mcp | ✅ done |
 | 5 | Evaluation set in CI | ✅ done |
-| 6 | Public demo (Hetzner) | 🚧 deploy setup ready |
+| 6 | Public demo (Hetzner) | ✅ [live](https://2.29.162.98.sslip.io/) |
 
 ## Quick start (Docker)
 
