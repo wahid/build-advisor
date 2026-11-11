@@ -201,6 +201,14 @@ def test_rate_limited_proxy_switches_proxy(tmp_path) -> None:
     assert client.session.used == ["http://p1:8080", "http://p2:8080"]
 
 
+def test_unavailable_through_proxy_switches_proxy(tmp_path) -> None:
+    client = _proxy_client(tmp_path, ["http://p1:8080", "http://p2:8080"])
+    client.session = _RecordingSession({"http://p1:8080"}, PATCH_PAYLOAD, status=503)
+
+    assert client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
+    assert client.session.used == ["http://p1:8080", "http://p2:8080"]
+
+
 @responses.activate
 def test_rate_limit_without_proxies_raises(wiki_client: WikiClient) -> None:
     responses.get(API_URL, status=429)

@@ -6,9 +6,12 @@ from .ingest import ingest
 
 @shared_task(name="wiki.ingest")
 def ingest_wiki(
-    doc_types: list[str] | None = None, limit: int | None = None, refresh: bool = False
+    doc_types: list[str] | None = None,
+    limit: int | None = None,
+    refresh: bool = False,
+    direct: bool = False,
 ) -> dict[str, object]:
-    return ingest(doc_types=doc_types, limit=limit, refresh=refresh).as_dict()
+    return ingest(doc_types=doc_types, limit=limit, refresh=refresh, direct=direct).as_dict()
 
 
 @shared_task(name="wiki.build_index")

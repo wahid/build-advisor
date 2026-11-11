@@ -24,6 +24,12 @@ class Command(BaseCommand):
             "--refresh", action="store_true", help="Re-parse pages even if unchanged."
         )
         parser.add_argument(
+            "--direct",
+            action="store_true",
+            help="Skip the proxies: one worker on this machine's own connection, throttled "
+            "and backing off on rate limits. Handy for retrying pages that failed via proxies.",
+        )
+        parser.add_argument(
             "--async", dest="run_async", action="store_true", help="Queue as a Celery task."
         )
 
@@ -32,6 +38,7 @@ class Command(BaseCommand):
             "doc_types": options["doc_types"],
             "limit": options["limit"],
             "refresh": options["refresh"],
+            "direct": options["direct"],
         }
         if options["run_async"]:
             task = ingest_wiki.delay(**kwargs)

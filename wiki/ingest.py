@@ -105,6 +105,7 @@ def ingest(
     refresh: bool = False,
     client: WikiClient | None = None,
     workers: int | None = None,
+    direct: bool = False,
 ) -> IngestResult:
     """Import pages for the given document types.
 
@@ -112,9 +113,12 @@ def ingest(
     unless `refresh` is set. Downloads run on `workers` threads (default
     `WIKI_WORKERS`), each with its own client and home proxy; database writes
     all happen on the calling thread.
+
+    With `direct`, proxies are ignored and pages are fetched one at a time over
+    this machine's own connection, throttled to `WIKI_REQUEST_INTERVAL`.
     """
-    client = client or WikiClient.from_settings()
-    workers = max(workers or settings.WIKI_WORKERS, 1)
+    client = client or WikiClient.from_settings(direct=direct)
+    workers = 1 if direct else max(workers or settings.WIKI_WORKERS, 1)
     clients = [client] if workers == 1 else [client.for_worker(i, workers) for i in range(workers)]
     types = list(doc_types or DocumentType.values)
     result = IngestResult(patch=settings.POE_PATCH or client.current_patch())
