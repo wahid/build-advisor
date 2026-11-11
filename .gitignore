@@ -5,6 +5,9 @@ CLAUDE.md
 
 # Secrets
 .env
+.env.prod
+/backups/
+*.dump
 
 # Python
 __pycache__/

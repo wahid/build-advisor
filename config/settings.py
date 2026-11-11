@@ -22,10 +22,33 @@ def read_proxy_file(path: Path) -> list[str]:
 
 environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 
-SECRET_KEY = env("DJANGO_SECRET_KEY", default="insecure-dev-key-change-me")
+INSECURE_SECRET_KEY = "insecure-dev-key-change-me"
+SECRET_KEY = env("DJANGO_SECRET_KEY", default=INSECURE_SECRET_KEY)
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
+
+# --- Production behind HTTPS (Caddy terminates TLS and forwards to gunicorn) ----
+DJANGO_HTTPS = env.bool("DJANGO_HTTPS", default=False)
+if DJANGO_HTTPS:
+    if SECRET_KEY == INSECURE_SECRET_KEY or len(SECRET_KEY) < 50:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            "Set DJANGO_SECRET_KEY to a long random value (50+ characters) in production."
+        )
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SECURE_REDIRECT_EXEMPT = [r"^api/health/$"]  # container health checks use plain HTTP
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=60 * 60 * 24 * 30)
+    # Not for subdomains and no preload list: with <ip>.sslip.io the parent domain
+    # isn't ours, and preloading is hard to undo.
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
 
 INSTALLED_APPS = [
     "django.contrib.admin",

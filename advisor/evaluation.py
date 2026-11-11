@@ -197,8 +197,11 @@ def judge(
         },
     ]
     verdict = Verdict(error="judge not run")
-    for _ in range(2):  # one retry: reasoning models sometimes return no final text
-        text = "".join(item for item in provider.stream(messages) if isinstance(item, str))
+    # Retry once as a quick call: with long tool results, a reasoning model can
+    # spend its whole token budget thinking and return no verdict.
+    for quick in (False, True):
+        stream = provider.stream(messages, quick=quick)
+        text = "".join(item for item in stream if isinstance(item, str))
         verdict = parse_verdict(text)
         if not verdict.error:
             break

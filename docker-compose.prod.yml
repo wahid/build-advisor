@@ -1,0 +1,67 @@
+# Production on a single server (e.g. Hetzner CX33): Caddy (HTTPS) -> gunicorn -> Postgres.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# No Redis/Celery: wiki imports and indexing run locally; the database is copied over.
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: build_advisor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: build_advisor
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U build_advisor"]
+      interval: 5s
+      retries: 10
+
+  web:
+    image: build-advisor:prod
+    build:
+      context: .
+      args:
+        EMBEDDINGS: cpu
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgres://build_advisor:${POSTGRES_PASSWORD}@db:5432/build_advisor
+      DJANGO_HTTPS: "true"
+      DJANGO_ALLOWED_HOSTS: ${DOMAIN},localhost # localhost: the container health check
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
+      WARM_UP: "true"
+      EMBEDDING_DEVICE: cpu
+    volumes:
+      - hf_cache:/root/.cache/huggingface # bge-m3, downloaded once
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s # model download on the very first start
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env.prod}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  hf_cache:
+  caddy_data:
+  caddy_config:

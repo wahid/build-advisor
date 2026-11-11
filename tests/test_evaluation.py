@@ -317,7 +317,7 @@ def test_judge_retries_once_when_it_returns_no_json() -> None:
     verdict = judge(provider, "q", "sources", "answer")
 
     assert verdict.grounded == 5
-    assert len(provider.calls) == 2
+    assert provider.quick == [False, True]  # the retry skips thinking
 
 
 def test_judge_sees_path_of_building_results() -> None:

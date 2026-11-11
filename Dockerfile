@@ -59,5 +59,5 @@ COPY --from=frontend /frontend/dist /app/frontend/dist
 RUN DJANGO_SECRET_KEY=collectstatic python manage.py collectstatic --noinput
 
 EXPOSE 8000
-# Railway (and most PaaS hosts) inject $PORT.
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2"]
+# gunicorn settings (threads, timeouts for streamed answers) live in gunicorn.conf.py.
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application"]
