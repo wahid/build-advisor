@@ -7,7 +7,7 @@ import requests
 import responses
 
 from wiki import client as client_module
-from wiki.client import ProxyPool, WikiClient, WikiError
+from wiki.client import ProxyPool, WikiBlockedError, WikiClient, WikiError
 from wiki.models import DocumentType
 
 from .conftest import API_URL
@@ -210,12 +210,45 @@ def test_unavailable_through_proxy_switches_proxy(tmp_path) -> None:
 
 
 @responses.activate
-def test_rate_limit_without_proxies_raises(wiki_client: WikiClient) -> None:
-    responses.get(API_URL, status=429)
+def test_direct_retries_after_rate_limit(wiki_client: WikiClient) -> None:
+    waits: list[float] = []
+    wiki_client._sleep = waits.append
+    responses.get(API_URL, status=429, headers={"Retry-After": "30"})
+    responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
 
-    with pytest.raises(WikiError, match="HTTP 429"):
+    assert wiki_client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
+    assert 30.0 in waits  # a longer Retry-After than our backoff is respected
+
+
+@responses.activate
+def test_direct_rate_limit_slows_down_later_requests(wiki_client: WikiClient) -> None:
+    waits: list[float] = []
+    wiki_client._sleep = waits.append
+    wiki_client.base_interval = wiki_client.request_interval = 1.0
+    responses.get(API_URL, status=503)
+    responses.get(API_URL, status=429)
+    responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
+
+    wiki_client.current_patch(today=date(2026, 11, 11))
+
+    assert [w for w in waits if w >= 5] == [5.0, 10.0]  # backoff doubles per retry
+    assert wiki_client.request_interval == pytest.approx(4.0 * 0.95)
+
+
+@responses.activate
+def test_direct_cloudflare_challenge_stops_immediately(wiki_client: WikiClient) -> None:
+    responses.get(API_URL, status=429, headers={"cf-mitigated": "challenge"}, body="<html>")
+
+    with pytest.raises(WikiBlockedError):
         wiki_client.current_patch(today=date(2026, 11, 11))
     assert len(responses.calls) == 1
+
+
+def test_from_settings_direct_ignores_proxies(settings) -> None:
+    settings.WIKI_PROXIES = ["http://p1:8080"]
+
+    assert len(WikiClient.from_settings().proxy_pool) == 1
+    assert len(WikiClient.from_settings(direct=True).proxy_pool) == 0
 
 
 def test_all_proxies_failing_gives_up(tmp_path) -> None:

@@ -240,3 +240,17 @@ def test_parallel_failures_are_recorded_and_others_stored() -> None:
 
     assert result.failed == ["B"]
     assert sorted(Document.objects.values_list("title", flat=True)) == ["A", "C", "D"]
+
+
+def test_direct_uses_a_single_worker(settings) -> None:
+    settings.WIKI_WORKERS = 4
+    titles = [f"Gem {i}" for i in range(4)]
+    fake = SlowWorkerClient(
+        titles={DocumentType.GEM: titles},
+        revisions={t: i for i, t in enumerate(titles, 1)},
+        html={t: f"<p>{t}</p>" for t in titles},
+    )
+
+    ingest([DocumentType.GEM], client=fake, direct=True)
+
+    assert len(fake.threads) == 1

@@ -17,7 +17,7 @@ def test_fetch_wiki_runs_ingest(mocker) -> None:
 
     call_command("fetch_wiki", "--type", "gem", "--limit", "3", stdout=out)
 
-    run.assert_called_once_with(doc_types=["gem"], limit=3, refresh=False)
+    run.assert_called_once_with(doc_types=["gem"], limit=3, refresh=False, direct=False)
     assert "3 created" in out.getvalue()
     assert "failed: X" in out.getvalue()
 
@@ -29,8 +29,18 @@ def test_fetch_wiki_async_queues_task(mocker) -> None:
 
     call_command("fetch_wiki", "--async", stdout=out)
 
-    delay.assert_called_once_with(doc_types=None, limit=None, refresh=False)
+    delay.assert_called_once_with(doc_types=None, limit=None, refresh=False, direct=False)
     assert "abc" in out.getvalue()
+
+
+def test_fetch_wiki_direct_flag(mocker) -> None:
+    run = mocker.patch(
+        "wiki.management.commands.fetch_wiki.ingest", return_value=IngestResult(patch="x")
+    )
+
+    call_command("fetch_wiki", "--direct", stdout=StringIO())
+
+    assert run.call_args.kwargs["direct"] is True
 
 
 def test_celery_task_returns_result_dict(mocker) -> None:
