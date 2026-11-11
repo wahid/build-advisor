@@ -175,10 +175,44 @@ def test_attached_build_is_loaded_before_the_model_runs(embedder, toolbox) -> No
     events = list(answer_stream("q", provider=provider, embedder=embedder, build="eNrCODE"))
 
     assert toolbox.calls[:2] == [("load_build", {"source": "eNrCODE"}), ("get_build_summary", {})]
-    assert events[1]["name"] == "load_build"
+    assert [e["type"] for e in events[:3]] == ["tool_call", "tool_result", "sources"]
+    assert events[0]["name"] == "load_build"
     system = provider.calls[0][0][0]["content"]
     assert "already loaded" in system
     assert '"ascendancy": "Chieftain"' in system
+
+
+def test_attached_build_steers_the_wiki_search(embedder, toolbox, mocker) -> None:
+    toolbox.results["get_skills"] = {
+        "groups": [
+            {"isMain": False, "gems": [{"name": "Frenzy", "enabled": True}]},
+            {
+                "isMain": True,
+                "gems": [
+                    {"name": "Righteous Fire", "enabled": True},
+                    {"name": "Burning Damage", "enabled": True},
+                    {"name": "Chain", "enabled": False},
+                ],
+            },
+        ]
+    }
+    toolbox.results["get_items"] = {
+        "items": [
+            {"name": "New Item, Spine Bow", "rarity": "RARE"},
+            {"name": "Darkray Vectors, Dragonscale Boots", "rarity": "UNIQUE"},
+        ]
+    }
+    search = mocker.patch("advisor.rag.hybrid_search", return_value=[])
+
+    list(
+        answer_stream(
+            "is this strong?", provider=FakeProvider(["ok"]), embedder=embedder, build="eNrCODE"
+        )
+    )
+
+    expected = ["Righteous Fire", "Chieftain", "Darkray Vectors", "Burning Damage"]
+    assert search.call_args.kwargs["pinned"] == expected
+    assert search.call_args.args[0] == "is this strong?\n" + ", ".join(expected)
 
 
 def test_attached_build_that_fails_to_load_stops_with_an_error(embedder, toolbox) -> None:

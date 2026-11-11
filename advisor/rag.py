@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 CITATION_RE = re.compile(r"\[(\d+)\]")
 MAX_TOOL_RESULT_CHARS = 8000  # per tool result sent back to the model
 MAX_EVENT_ARGUMENT_CHARS = 300  # per argument value shown to the user
+MAX_BUILD_TERMS = 12  # names from an attached build added to the wiki search
 FINAL_ANSWER_NUDGE = (
     "Write your final answer to my question now, based on the sources and tool results above."
 )
@@ -221,12 +222,6 @@ def answer_stream(
         use_tools = bool(build) or needs_build_tools is not False
     if expansion:
         yield {"type": "rewrite", "terms": expansion, "tools": use_tools}
-    hits = hybrid_search(
-        question, top_k=top_k, filters=filters, embedder=embedder, expansion=expansion
-    )
-    sources = [Source.from_hit(n, hit) for n, hit in enumerate(hits, start=1)]
-    yield {"type": "sources", "sources": [asdict(s) for s in sources]}
-    patch = ", ".join(sorted({s.patch for s in sources}))
 
     pool = get_pool() if use_tools else None
     if build and pool is None:
@@ -234,10 +229,6 @@ def answer_stream(
             "type": "error",
             "message": "Path of Building isn't available, so builds can't be loaded.",
         }
-        return
-    if not hits and pool is None:
-        yield {"type": "delta", "text": NO_SOURCES_ANSWER}
-        yield {"type": "done", "cited": [], "patch": patch}
         return
 
     with ExitStack() as stack:
@@ -251,7 +242,10 @@ def answer_stream(
                     yield {"type": "error", "message": f"{exc} Try again in a minute."}
                     return
 
+        # An attached build is loaded before searching, so the search can use what
+        # is in it: "is this build strong?" says nothing about Tornado Shot or Slayer.
         build_summary = None
+        query, pinned = question, []
         if build and toolbox is not None:
             runner = _ToolRunner(toolbox)
             call = ToolCall("attached-build", "load_build", json.dumps({"source": build}))
@@ -264,8 +258,53 @@ def answer_stream(
                 }
                 return
             build_summary = toolbox.call("get_build_summary", {}).data
+            pinned = build_search_terms(toolbox, build_summary)
+            if pinned:
+                query = f"{question}\n{', '.join(pinned)}"
+
+        hits = hybrid_search(
+            query,
+            top_k=top_k,
+            filters=filters,
+            embedder=embedder,
+            expansion=expansion,
+            pinned=pinned,
+        )
+        sources = [Source.from_hit(n, hit) for n, hit in enumerate(hits, start=1)]
+        yield {"type": "sources", "sources": [asdict(s) for s in sources]}
+        patch = ", ".join(sorted({s.patch for s in sources}))
+
+        if not hits and toolbox is None:
+            yield {"type": "delta", "text": NO_SOURCES_ANSWER}
+            yield {"type": "done", "cited": [], "patch": patch}
+            return
 
         yield from _converse(question, hits, sources, patch, provider, toolbox, build_summary)
+
+
+def build_search_terms(toolbox: PobToolbox, summary: Any) -> list[str]:
+    """Wiki page names for a loaded build, most telling first.
+
+    Main skill, ascendancy, the uniques it wears, then the main skill's supports.
+    """
+    summary = summary if isinstance(summary, dict) else {}
+    names: list[Any] = [summary.get("mainSkill"), summary.get("ascendancy")]
+    supports: list[Any] = []
+    try:
+        items = toolbox.call("get_items", {}).data.get("items", [])
+        names += [
+            str(item.get("name", "")).split(",")[0]
+            for item in items
+            if str(item.get("rarity", "")).upper() == "UNIQUE"
+        ]
+        groups = toolbox.call("get_skills", {}).data.get("groups", [])
+        main = next((g for g in groups if g.get("isMain")), None)
+        if main:
+            supports = [gem.get("name") for gem in main.get("gems", []) if gem.get("enabled")]
+    except (PobToolError, AttributeError, TypeError) as exc:
+        logger.info("Couldn't read the build's skills or items: %s", exc)
+    unique = dict.fromkeys(str(n).strip() for n in [*names, *supports] if n and str(n).strip())
+    return list(unique)[:MAX_BUILD_TERMS]
 
 
 def _converse(

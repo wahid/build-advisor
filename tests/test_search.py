@@ -193,3 +193,40 @@ def test_intro_of_a_found_page_is_included(embedder: FakeEmbedder) -> None:
 
     intro = next(h for h in hits if h.chunk.document.title == "Freeze" and h.chunk.section == "")
     assert "intro" in intro.ranks
+
+
+def test_pinned_titles_come_first_in_order(embedder: FakeEmbedder) -> None:
+    _aim_at(embedder, "Ice Nova")
+
+    hits = hybrid_search(
+        "is this strong?",
+        embedder=embedder,
+        pinned=["chieftain", "Righteous Fire", "Not A Page", "Cast when Damage Taken"],
+        top_k=4,
+    )
+
+    titles = ["Chieftain", "Righteous Fire", "Cast when Damage Taken Support"]
+    assert [h.title for h in hits[:3]] == titles  # supports match without the suffix
+    assert all(h.chunk.section == "" for h in hits[:3])
+    assert hits[0].ranks["pinned"] == 1
+    assert len(hits) == 4
+
+
+def test_pinned_titles_take_at_most_half_the_results(embedder: FakeEmbedder) -> None:
+    pinned = ["Ice", "Ice Nova", "Chieftain", "Righteous Fire"]
+
+    hits = hybrid_search("cold", embedder=embedder, pinned=pinned, top_k=2)
+
+    assert sum("pinned" in h.ranks for h in hits) == 2  # top_k // 2 + 1
+
+
+def test_a_title_inside_a_longer_named_title_is_not_counted(embedder: FakeEmbedder) -> None:
+    make_document("Tornado", "Tornado is a spell that creates a moving whirlwind." + LONG)
+    make_document("Tornado Shot", "Tornado Shot fires an arrow that splits into more." + LONG)
+    build_chunks()
+    embed_pending(embedder)
+    _aim_at(embedder, "Chieftain")
+
+    hits = hybrid_search("Is Tornado Shot good?", embedder=embedder)
+
+    assert {h.title for h in hits if "title" in h.ranks} == {"Tornado Shot"}

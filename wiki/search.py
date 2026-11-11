@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from django.conf import settings
@@ -73,12 +74,17 @@ def hybrid_search(
     candidates: int | None = None,
     max_per_document: int | None = None,
     expansion: str = "",
+    pinned: Sequence[str] = (),
 ) -> list[SearchHit]:
     """Search chunks for a question.
 
     `expansion` holds extra search terms (e.g. wiki terms an LLM derived from
     the question). They feed the keyword and title lists and a fourth vector
     list; the original question's vector list is kept, so they only add.
+
+    `pinned` holds page titles that must come first (e.g. the skills and items
+    of an attached build): the intro of each exactly matching page, in the
+    given order, up to half of the results. The search fills the rest.
     """
     top_k = top_k or settings.SEARCH_TOP_K
     candidates = candidates or settings.SEARCH_CANDIDATES
@@ -99,7 +105,30 @@ def hybrid_search(
         expanded_vector = embedder.embed_query(text)
         ranked_lists["rewrite"] = _vector_ids(base, expanded_vector, candidates)
     ranked_lists["intro"] = _intro_ids(base, ranked_lists, candidates)
-    return _fuse(ranked_lists, top_k, max_per_document)
+    first = _pinned_ids(base, pinned, top_k // 2 + 1) if pinned else []
+    return _fuse(ranked_lists, top_k, max_per_document, first=first)
+
+
+def _pinned_ids(base: QuerySet[Chunk], titles: Sequence[str], limit: int) -> list[int]:
+    """Intro chunks of the pages titled exactly (ignoring case) as given, in that order.
+
+    Path of Building names support gems without the wiki's " Support" suffix
+    ("Volatility" is the page "Volatility Support"), so that title counts too.
+    """
+    wanted = list(dict.fromkeys(t.strip().lower() for t in titles if t.strip()))
+    variants = {t: (t, f"{t} support") for t in wanted}
+    intros: dict[str, int] = {}
+    rows = (
+        base.filter(section="")
+        .annotate(lower_title=Lower("document__title"))
+        .filter(lower_title__in=[v for pair in variants.values() for v in pair])
+        .order_by("document_id", "-position")
+        .values_list("lower_title", "id")
+    )
+    for title, chunk_id in rows:  # the last row per page is its lowest position
+        intros[title] = chunk_id
+    found = [next((intros[v] for v in variants[t] if v in intros), None) for t in wanted]
+    return [chunk_id for chunk_id in found if chunk_id is not None][:limit]
 
 
 def _intro_ids(base: QuerySet[Chunk], ranked_lists: dict[str, list[int]], limit: int) -> list[int]:
@@ -211,7 +240,16 @@ def _title_ids(base: QuerySet[Chunk], question: str, vector: list[float], limit:
     Each named page contributes its most similar chunk first, then its second,
     and so on, so a long page can't push a shorter named page out of the list.
     """
-    matching = [d.id for d in titles_in(question) if not _generic_title(base, d.title)]
+    named = [d for d in titles_in(question) if not _generic_title(base, d.title)]
+    # "Tornado Shot" also contains the page "Tornado"; only the longer title was meant.
+    matching = [
+        d.id
+        for d in named
+        if not any(
+            d.title.lower() in o.title.lower() and d.id != o.id and len(o.title) > len(d.title)
+            for o in named
+        )
+    ]
     rows = (
         base.filter(document_id__in=matching)
         .order_by(CosineDistance("embedding", vector))
@@ -231,15 +269,23 @@ def _title_ids(base: QuerySet[Chunk], question: str, vector: list[float], limit:
     return interleaved[:limit]
 
 
-def _fuse(ranked_lists: dict[str, list[int]], top_k: int, max_per_document: int) -> list[SearchHit]:
+def _fuse(
+    ranked_lists: dict[str, list[int]],
+    top_k: int,
+    max_per_document: int,
+    first: Sequence[int] = (),
+) -> list[SearchHit]:
     scores: dict[int, float] = defaultdict(float)
     ranks: dict[int, dict[str, int]] = defaultdict(dict)
     for name, ids in ranked_lists.items():
         for rank, chunk_id in enumerate(ids, start=1):
             scores[chunk_id] += 1 / (RRF_K + rank)
             ranks[chunk_id][name] = rank
+    for rank, chunk_id in enumerate(first, start=1):
+        ranks[chunk_id]["pinned"] = rank
 
-    ordered = sorted(scores, key=lambda cid: (-scores[cid], cid))
+    fused = sorted(scores, key=lambda cid: (-scores[cid], cid))
+    ordered = list(dict.fromkeys([*first, *fused]))
     chunks = Chunk.objects.select_related("document").in_bulk(ordered)
 
     hits: list[SearchHit] = []
