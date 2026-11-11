@@ -99,3 +99,15 @@ def test_llm_error_type_is_caught() -> None:
             yield
 
     assert rewrite_query("q", Broken()) == ""
+
+
+@pytest.mark.django_db
+def test_given_expansion_skips_the_rewrite_call(embedder: FakeEmbedder) -> None:
+    provider = FakeProvider(["A totem uses skills for you [1]."])
+
+    events = list(
+        answer_stream("q", provider=provider, embedder=embedder, expansion="Totem", rewrite=True)
+    )
+
+    assert events[0] == {"type": "rewrite", "terms": "Totem"}
+    assert len(provider.calls) == 1  # only the answer

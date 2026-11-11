@@ -158,13 +158,16 @@ def answer_stream(
     build: str = "",
     use_tools: bool = True,
     rewrite: bool | None = None,
+    expansion: str | None = None,
 ) -> Iterator[Event]:
-    expansion = ""
-    if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
-        provider = provider or get_provider()
-        expansion = rewrite_query(question, provider)
-        if expansion:
-            yield {"type": "rewrite", "terms": expansion}
+    """`expansion` passes search terms that were already worked out (skips rewriting)."""
+    if expansion is None:
+        expansion = ""
+        if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
+            provider = provider or get_provider()
+            expansion = rewrite_query(question, provider)
+    if expansion:
+        yield {"type": "rewrite", "terms": expansion}
     hits = hybrid_search(
         question, top_k=top_k, filters=filters, embedder=embedder, expansion=expansion
     )

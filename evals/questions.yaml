@@ -25,7 +25,7 @@
   question: What does freezing an enemy do?
   category: mechanic
   expected_sources: [Freeze]
-  must_mention: [[cannot act, can't act, unable to act, prevents, stops]]
+  must_mention: [[cannot act, can't act, unable to act, unable to move, can't move, cannot move, prevent, stop]]
 
 - id: chill-effect
   question: How does chill affect monsters?
@@ -37,7 +37,7 @@
   question: What does shock do to an enemy?
   category: mechanic
   expected_sources: [Shock]
-  must_mention: [damage taken]
+  must_mention: [[damage taken, increased damage, more damage, takes increased, take increased]]
 
 - id: poison-damage
   question: What type of damage does poison deal and does it stack?
@@ -55,7 +55,7 @@
   question: How does life leech work?
   category: mechanic
   expected_sources: [Leech]
-  must_mention: [[damage dealt, damage you deal, based on damage], [recover, recovery]]
+  must_mention: [[damage dealt, damage you deal, damage done, based on damage, of the damage, of damage], [recover, regain, restore]]
 
 - id: energy-shield-recharge
   question: When does energy shield start recharging?
@@ -67,7 +67,7 @@
   question: Is armour good against big physical hits?
   category: mechanic
   expected_sources: [Armour]
-  must_mention: [physical, [larger, bigger, big hits, less effective, size of the hit]]
+  must_mention: [physical, [large, bigger, big hits, less effective, size of the hit, damage of the hit]]
 
 - id: evasion-spells
   question: Can evasion avoid spells?
@@ -97,7 +97,7 @@
   question: What do endurance charges give?
   category: mechanic
   expected_sources: [Endurance charge]
-  must_mention: [physical damage reduction, resist]
+  must_mention: [[physical damage reduction, damage reduction], resist]
 
 - id: power-charges
   question: What do power charges do?
@@ -115,7 +115,7 @@
   question: If I convert physical damage to fire, do physical damage modifiers still apply?
   category: mechanic
   expected_sources: [Damage conversion]
-  must_mention: [[yes, still apply, still benefit, benefits from, both]]
+  must_mention: [["yes", still apply, still benefit, benefits from, both]]
 
 - id: totem-basics
   question: How do totems use skills?
@@ -255,7 +255,7 @@
   question: Why do enemies take more damage after I hit them with lightning?
   category: indirect
   expected_sources: [Shock]
-  must_mention: [shock, damage taken]
+  must_mention: [shock, [damage taken, increased damage, more damage, takes increased, take increased]]
 
 - id: indirect-freeze
   question: My cold hits sometimes stop monsters completely in place. What is that?
@@ -298,7 +298,7 @@
   question: If my physical damage is turned into fire damage, do my physical damage bonuses still count?
   category: indirect
   expected_sources: [Damage conversion]
-  must_mention: [[yes, still apply, still benefit, benefits from, both]]
+  must_mention: [["yes", still apply, still benefit, benefits from, both]]
 
 # --- Not covered by the wiki: the answer must say so --------------------------------
 

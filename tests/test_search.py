@@ -179,3 +179,17 @@ def test_generic_one_word_titles_dont_count_as_named(embedder: FakeEmbedder, mon
     titled = {h.title for h in hits if "title" in h.ranks}
     assert "Righteous Fire" in titled
     assert "Fire" not in titled  # "fire" is in most chunks: not a meaningful match
+
+
+def test_intro_of_a_found_page_is_included(embedder: FakeEmbedder) -> None:
+    sections = "\n\n".join(f"## Detail {i}\n\nFreeze detail number {i}." + LONG for i in range(6))
+    make_document("Freeze", "Freeze stops the enemy from acting." + LONG + "\n\n" + sections)
+    build_chunks()
+    embed_pending(embedder)
+    detail = Chunk.objects.get(document__title="Freeze", section="Detail 4")
+    embedder.query_vector = vector_for(detail.text)  # the question matches a later section
+
+    hits = hybrid_search("what does it do?", embedder=embedder, top_k=4)
+
+    intro = next(h for h in hits if h.chunk.document.title == "Freeze" and h.chunk.section == "")
+    assert "intro" in intro.ranks

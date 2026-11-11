@@ -98,7 +98,32 @@ def hybrid_search(
     if expansion:
         expanded_vector = embedder.embed_query(text)
         ranked_lists["rewrite"] = _vector_ids(base, expanded_vector, candidates)
+    ranked_lists["intro"] = _intro_ids(base, ranked_lists, candidates)
     return _fuse(ranked_lists, top_k, max_per_document)
+
+
+def _intro_ids(base: QuerySet[Chunk], ranked_lists: dict[str, list[int]], limit: int) -> list[int]:
+    """The opening chunk of each page that the other lists found, best page first.
+
+    A page's intro says what the thing is or does ("Freeze prevents ..."), but
+    questions often match a later section better, so the intro can be missed.
+    """
+    best_rank: dict[int, int] = {}
+    for ids in ranked_lists.values():
+        for rank, chunk_id in enumerate(ids):
+            best_rank[chunk_id] = min(rank, best_rank.get(chunk_id, rank))
+    documents: dict[int, int] = {}
+    for chunk_id, document_id in Chunk.objects.filter(id__in=best_rank).values_list(
+        "id", "document_id"
+    ):
+        documents[document_id] = min(best_rank[chunk_id], documents.get(document_id, limit))
+    ordered = sorted(documents, key=lambda d: (documents[d], d))[:limit]
+    intros = dict(
+        base.filter(document_id__in=ordered, section="")
+        .order_by("document_id", "-position")
+        .values_list("document_id", "id")
+    )  # dict() keeps the last row per document: the lowest position
+    return [intros[d] for d in ordered if d in intros]
 
 
 def _vector_ids(base: QuerySet[Chunk], vector: list[float], limit: int) -> list[int]:

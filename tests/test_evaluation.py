@@ -49,6 +49,14 @@ def test_question_set_is_valid() -> None:
             assert not case.must_mention, case.id
 
 
+def test_unquoted_yes_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "q.yaml"
+    path.write_text("- {id: a, question: q, category: gem, must_mention: [[yes, both]]}\n")
+
+    with pytest.raises(ValueError, match="quote yes"):
+        load_cases(path)
+
+
 def test_duplicate_ids_are_rejected(tmp_path: Path) -> None:
     path = tmp_path / "q.yaml"
     path.write_text(

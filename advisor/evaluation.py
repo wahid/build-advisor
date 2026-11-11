@@ -73,7 +73,7 @@ class EvalCase:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvalCase:
         mentions = tuple(
-            tuple(item) if isinstance(item, list) else (str(item),)
+            tuple(_phrase(a, data["id"]) for a in (item if isinstance(item, list) else [item]))
             for item in data.get("must_mention", [])
         )
         return cls(
@@ -87,6 +87,17 @@ class EvalCase:
             expect_tools=tuple(data.get("expect_tools", [])),
             doc_types=tuple(data.get("doc_types", [])),
         )
+
+
+def _phrase(value: Any, case_id: str) -> str:
+    # YAML turns bare yes/no/on/off into booleans; demand quotes instead of guessing.
+    if isinstance(value, bool):
+        raise ValueError(f'{case_id}: quote yes/no/true/false in must_mention, e.g. "yes"')
+    if isinstance(value, (int, float)):
+        return str(value)
+    if not isinstance(value, str):
+        raise ValueError(f"{case_id}: must_mention entries must be text, got {value!r}")
+    return value
 
 
 def load_cases(path: Path) -> list[EvalCase]:
@@ -317,7 +328,7 @@ def _run_case(
         embedder=embedder,
         top_k=k,
         use_tools=case.requires_pob,
-        rewrite=rewrite,
+        expansion=expansion,  # same terms as the retrieval score; no second rewrite
     )
     result.answer = produced.text
     result.tools_called = [t["name"] for t in produced.tools]
