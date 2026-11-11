@@ -21,7 +21,7 @@ support gems, test changes, or create a build and hand you the share code.
 | 3 | RAG pipeline + React frontend with sources | ✅ done |
 | 4 | Tool calling with pob-mcp | ✅ done |
 | 5 | Evaluation set in CI | ✅ done |
-| 6 | Public demo on Railway | ⏳ next |
+| 6 | Public demo (Hetzner) | 🚧 deploy setup ready |
 
 ## Quick start (Docker)
 
@@ -254,6 +254,19 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 </details>
 <!-- evals:end -->
 
+## Deployment
+
+Production runs on one Hetzner CX33 (4 vCPU, 8 GB, ~€9/month) with
+[`docker-compose.prod.yml`](docker-compose.prod.yml): Caddy (automatic HTTPS,
+unbuffered streaming) → gunicorn (1 worker, 8 threads, 300 s timeout for
+streamed builds) → Postgres + pgvector. The embedding model and a Path of
+Building process are loaded at startup. The public demo is limited to
+`ASK_DAILY_LIMIT` questions per day (default 100) and `ASK_RATE_LIMIT` per
+visitor. Every push to `main` that passes CI is deployed over SSH
+([`deploy.yml`](.github/workflows/deploy.yml)).
+
+Step by step: [docs/deploy-hetzner.md](docs/deploy-hetzner.md).
+
 ## CI
 
 | Workflow | When | What |
@@ -261,6 +274,7 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 | [`ci.yml`](.github/workflows/ci.yml) | every push and PR | ruff, migrations check, pytest against Postgres + pgvector; frontend types, tests and build |
 | [`evals.yml`](.github/workflows/evals.yml) | weekly, on demand, and on retrieval/prompt changes | indexes the eval corpus and scores retrieval; also answers + judge when `LLM_API_KEY` is set |
 | [`docker.yml`](.github/workflows/docker.yml) | when the Dockerfile or dependencies change, and weekly | builds the production image and runs [`scripts/smoke_test.sh`](scripts/smoke_test.sh) in it |
+| [`deploy.yml`](.github/workflows/deploy.yml) | after CI passes on `main`, or by hand | SSH to the server and run [`deploy/deploy.sh`](deploy/deploy.sh) (secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY`) |
 
 Repository settings for the evals: secret `LLM_API_KEY`, and optionally the
 variables `LLM_PROVIDER` and `LLM_MODEL` (default `deepseek` / `deepseek-flash`).
