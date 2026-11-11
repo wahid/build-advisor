@@ -1,8 +1,11 @@
-"""Prompt construction: the model may only answer from numbered sources."""
+"""Prompt construction: wiki sources first, labelled game knowledge to fill gaps."""
 
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from wiki.search import SearchHit
@@ -13,14 +16,19 @@ SYSTEM_PROMPT = """\
 You are Build Advisor, an assistant for Path of Exile 1 build questions.
 
 Rules:
-1. Answer ONLY with information from the numbered sources below. Do not use
-   outside knowledge about Path of Exile, even if you are confident.
+1. Answer the question first, directly. Base the answer on the numbered wiki
+   sources below wherever they cover it.
 2. Cite the sources you use with their number in square brackets, e.g. [2],
-   right after the claim they support. Every factual claim needs a citation.
-   Write citations only as [n]: no links or URLs, the app links them.
-3. If the sources don't contain the answer, say plainly that the wiki pages
-   you found don't cover it. Never guess or invent gems, items, numbers or
-   mechanics. A partial answer is fine if you say what is missing.
+   right after the claim they support. Write citations only as [n]: no links
+   or URLs, the app links them.
+3. When the sources don't cover something, you may fill the gap with
+   well-established Path of Exile 1 game knowledge (how mechanics work, what
+   is commonly known among players). Mark each such sentence with
+   "(general game knowledge)" and never put a [n] on it. Don't invent exact
+   numbers, item or gem names, or modifier values that aren't in the sources
+   or tool results, and say when you're unsure. Questions about the future,
+   player statistics, tier lists or the people who made the game aren't game
+   knowledge: say you can't answer those.
 4. The sources describe game version {patch}. Mention that version when you
    give numbers or mechanics that may change between leagues.
 5. The wiki explains mechanics, not complete builds. When asked for a build,
@@ -56,6 +64,40 @@ The user attached a Path of Building build. It is already loaded, so don't
 call load_build for it. Summary:
 {summary}"""
 
+HISTORY_NOTE = """
+
+This is a follow-up in a conversation. The earlier turns are shown before the
+latest question; use them to understand what it refers to. The sources below
+were found for the latest question: cite only those."""
+
+MAX_HISTORY_TURNS = 6  # earlier question/answer pairs given to the model
+MAX_HISTORY_ANSWER_CHARS = 3000  # of each earlier answer
+CITATION_MARK_RE = re.compile(r"\s?\[\d+\]")
+
+
+@dataclass(frozen=True)
+class Turn:
+    """An earlier question and the answer the app gave."""
+
+    question: str
+    answer: str
+
+
+def recent(history: Sequence[Turn]) -> list[Turn]:
+    return list(history)[-MAX_HISTORY_TURNS:]
+
+
+def history_messages(history: Sequence[Turn]) -> list[Message]:
+    """Earlier turns as chat messages. Their [n] marks pointed at older sources, so
+    they're removed: the model would otherwise mix them up with the new ones."""
+    messages: list[Message] = []
+    for turn in recent(history):
+        answer = CITATION_MARK_RE.sub("", turn.answer).strip()[:MAX_HISTORY_ANSWER_CHARS]
+        messages.append({"role": "user", "content": turn.question})
+        messages.append({"role": "assistant", "content": answer or "(no answer)"})
+    return messages
+
+
 NO_SOURCES_ANSWER = (
     "I couldn't find any wiki pages about this, so I can't answer it without guessing."
 )
@@ -76,6 +118,7 @@ def build_messages(
     hits: list[SearchHit],
     tool_rounds: int = 0,
     build_summary: dict[str, Any] | None = None,
+    history: Sequence[Turn] = (),
 ) -> list[Message]:
     patches = sorted({hit.chunk.patch for hit in hits})
     system = SYSTEM_PROMPT.format(patch=", ".join(patches) or "unknown")
@@ -83,6 +126,12 @@ def build_messages(
         system += TOOLS_PROMPT.format(rounds=tool_rounds)
     if build_summary is not None:
         system += ATTACHED_BUILD.format(summary=json.dumps(build_summary, indent=1)[:4000])
+    if history:
+        system += HISTORY_NOTE
     sources = format_sources(hits) if hits else "(no wiki pages matched)"
     user = f"Sources:\n\n{sources}\n\n===\n\nQuestion: {question}"
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    return [
+        {"role": "system", "content": system},
+        *history_messages(history),
+        {"role": "user", "content": user},
+    ]

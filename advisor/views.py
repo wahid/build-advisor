@@ -15,12 +15,18 @@ from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
 from .limits import take_question
+from .prompts import Turn
 from .rag import Event, answer, answer_stream
 
 DAILY_LIMIT_MESSAGE = (
     "The demo has reached today's limit of {limit} questions. "
     "It resets at midnight UTC, so try again tomorrow."
 )
+
+
+class TurnSerializer(serializers.Serializer):
+    question = serializers.CharField(max_length=500, trim_whitespace=True)
+    answer = serializers.CharField(max_length=20_000, allow_blank=True, trim_whitespace=True)
 
 
 class AskSerializer(serializers.Serializer):
@@ -31,6 +37,8 @@ class AskSerializer(serializers.Serializer):
     stream = serializers.BooleanField(required=False, default=True)
     # A Path of Building share code (often 5-20 KB) or a pobb.in / pastebin link.
     build = serializers.CharField(required=False, allow_blank=True, default="", max_length=200_000)
+    # Earlier turns of the conversation, oldest first; only the last few are used.
+    history = TurnSerializer(many=True, required=False, default=list, max_length=20)
 
 
 class StreamFriendlyNegotiation(BaseContentNegotiation):
@@ -76,15 +84,17 @@ class AskView(APIView):
                 },
                 status=429,
             )
-        filters = SearchFilters(doc_types=tuple(data["doc_types"]))
+        options = {
+            "filters": SearchFilters(doc_types=tuple(data["doc_types"])),
+            "build": data["build"],
+            "history": [Turn(t["question"], t["answer"]) for t in data["history"]],
+        }
 
         if not data["stream"]:
-            return Response(
-                answer(data["question"], filters=filters, build=data["build"]).as_dict()
-            )
+            return Response(answer(data["question"], **options).as_dict())
 
         response = StreamingHttpResponse(
-            sse(answer_stream(data["question"], filters=filters, build=data["build"])),
+            sse(answer_stream(data["question"], **options)),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"

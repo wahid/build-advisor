@@ -49,9 +49,11 @@ describe("ask", () => {
     }) as typeof fetch;
 
     const events = [];
-    for await (const event of ask("RF?", ["gem"], "eNrCODE", undefined, fakeFetch)) events.push(event);
+    const history = [{ question: "What is RF?", answer: "A fire spell [1]." }];
+    const options = { docTypes: ["gem" as const], build: "eNrCODE", history, fetchImpl: fakeFetch };
+    for await (const event of ask("RF?", options)) events.push(event);
 
-    expect(body).toEqual({ question: "RF?", doc_types: ["gem"], build: "eNrCODE" });
+    expect(body).toEqual({ question: "RF?", doc_types: ["gem"], build: "eNrCODE", history });
     expect(events).toEqual([{ type: "delta", text: "Hi" }]);
   });
 
@@ -59,13 +61,13 @@ describe("ask", () => {
     const body = JSON.stringify({ code: "daily_limit", detail: "The demo has reached today's limit." });
     const fakeFetch = (async () => new Response(body, { status: 429 })) as typeof fetch;
 
-    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow("today's limit");
+    await expect(ask("q", { fetchImpl: fakeFetch }).next()).rejects.toThrow("today's limit");
   });
 
   it("explains rate limiting", async () => {
     const fakeFetch = (async () => new Response("{}", { status: 429 })) as typeof fetch;
 
-    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow(AskError);
-    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow(/Wait a few minutes/);
+    await expect(ask("q", { fetchImpl: fakeFetch }).next()).rejects.toThrow(AskError);
+    await expect(ask("q", { fetchImpl: fakeFetch }).next()).rejects.toThrow(/Wait a few minutes/);
   });
 });

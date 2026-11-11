@@ -39,6 +39,22 @@ GENERIC_TITLE_MIN_CHUNKS = 200
 # don't win just by containing more words.
 RANK_NORMALIZATION = 1
 MIN_TITLE_LENGTH = 4  # ignore titles like "Ice" that match inside other words
+# Reference sections (lists of items, mods, passives, patch notes) match many
+# questions by their words but rarely explain anything, so they count for less
+# unless the question asks for that kind of list.
+LISTING_SECTION_RE = re.compile(
+    r"^(version history|item acquisition|related |unique items|items|legacy variants"
+    r"|gem level progression|alternate artwork|design attribution|foulborn modifiers"
+    r"|helmet enchantments|base items|skill gems|support gems|changes from default)",
+    re.IGNORECASE,
+)
+LISTING_QUESTION_RE = re.compile(
+    r"\b(which|what) (uniques?|items?|gems?|supports?|passives?|notables?|mods?|modifiers?"
+    r"|enchant\w*|bases?)\b|\blist\b|\bversion\b|\bhistory\b|\bchanged?\b|\bpatch"
+    r"|\bnerf|\bbuff|\bdrops?\b|\bobtain|\bacquir|\bfarm|\brecipe|\bvendor",
+    re.IGNORECASE,
+)
+LISTING_WEIGHT = 0.5
 WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
 
@@ -106,7 +122,8 @@ def hybrid_search(
         ranked_lists["rewrite"] = _vector_ids(base, expanded_vector, candidates)
     ranked_lists["intro"] = _intro_ids(base, ranked_lists, candidates)
     first = _pinned_ids(base, pinned, top_k // 2 + 1) if pinned else []
-    return _fuse(ranked_lists, top_k, max_per_document, first=first)
+    listing_weight = 1.0 if LISTING_QUESTION_RE.search(text) else LISTING_WEIGHT
+    return _fuse(ranked_lists, top_k, max_per_document, first=first, listing_weight=listing_weight)
 
 
 def _pinned_ids(base: QuerySet[Chunk], titles: Sequence[str], limit: int) -> list[int]:
@@ -274,6 +291,7 @@ def _fuse(
     top_k: int,
     max_per_document: int,
     first: Sequence[int] = (),
+    listing_weight: float = 1.0,
 ) -> list[SearchHit]:
     scores: dict[int, float] = defaultdict(float)
     ranks: dict[int, dict[str, int]] = defaultdict(dict)
@@ -284,9 +302,13 @@ def _fuse(
     for rank, chunk_id in enumerate(first, start=1):
         ranks[chunk_id]["pinned"] = rank
 
+    chunks = Chunk.objects.select_related("document").in_bulk([*scores, *first])
+    if listing_weight != 1.0:
+        for chunk_id in scores:
+            if LISTING_SECTION_RE.match(chunks[chunk_id].section):
+                scores[chunk_id] *= listing_weight
     fused = sorted(scores, key=lambda cid: (-scores[cid], cid))
     ordered = list(dict.fromkeys([*first, *fused]))
-    chunks = Chunk.objects.select_related("document").in_bulk(ordered)
 
     hits: list[SearchHit] = []
     per_document: dict[int, int] = defaultdict(int)

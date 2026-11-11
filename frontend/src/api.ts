@@ -1,4 +1,5 @@
 import { SSEParser } from "./sse";
+import type { HistoryTurn } from "./conversation";
 import type { AskEvent, DocType } from "./types";
 
 export class AskError extends Error {}
@@ -26,18 +27,22 @@ async function errorMessage(response: Response): Promise<string> {
   return `The server returned an error (${response.status}). Try again later.`;
 }
 
+export interface AskOptions {
+  docTypes?: DocType[];
+  build?: string;
+  /** Earlier turns of the conversation, oldest first. */
+  history?: HistoryTurn[];
+  signal?: AbortSignal;
+  fetchImpl?: typeof fetch;
+}
+
 /** Ask a question and yield events as the answer streams in. */
-export async function* ask(
-  question: string,
-  docTypes: DocType[],
-  build = "",
-  signal?: AbortSignal,
-  fetchImpl: typeof fetch = fetch,
-): AsyncGenerator<AskEvent> {
+export async function* ask(question: string, options: AskOptions = {}): AsyncGenerator<AskEvent> {
+  const { docTypes = [], build = "", history = [], signal, fetchImpl = fetch } = options;
   const response = await fetchImpl("/api/ask/", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ question, doc_types: docTypes, build }),
+    body: JSON.stringify({ question, doc_types: docTypes, build, history }),
     signal,
   });
   if (!response.ok || !response.body) throw new AskError(await errorMessage(response));

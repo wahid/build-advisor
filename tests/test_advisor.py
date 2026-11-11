@@ -77,7 +77,8 @@ def test_messages_number_sources_and_state_the_patch(embedder: FakeEmbedder) -> 
     system, user = build_messages("Is RF good on Chieftain?", hits)
 
     assert system["role"] == "system"
-    assert "ONLY with information from the numbered sources" in system["content"]
+    assert "Base the answer on the numbered wiki" in system["content"]
+    assert '"(general game knowledge)"' in system["content"]
     assert "game version 3.29.3c" in system["content"]
     assert user["content"].startswith("Sources:\n\n[1] ")
     assert "[3] " in user["content"]

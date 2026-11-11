@@ -40,6 +40,15 @@ describe("parseInline", () => {
     ]);
   });
 
+  it("finds italic text but leaves lone stars alone", () => {
+    expect(parseInline("an *additional* poison")).toEqual([
+      { kind: "text", text: "an " },
+      { kind: "italic", text: "additional" },
+      { kind: "text", text: " poison" },
+    ]);
+    expect(parseInline("2 * 3 and 4 * 5")).toEqual([{ kind: "text", text: "2 * 3 and 4 * 5" }]);
+  });
+
   it("leaves unfinished bold markers alone while streaming", () => {
     expect(parseInline("**Insp")).toEqual([{ kind: "text", text: "**Insp" }]);
   });

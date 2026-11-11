@@ -230,3 +230,42 @@ def test_a_title_inside_a_longer_named_title_is_not_counted(embedder: FakeEmbedd
     hits = hybrid_search("Is Tornado Shot good?", embedder=embedder)
 
     assert {h.title for h in hits if "title" in h.ranks} == {"Tornado Shot"}
+
+
+@pytest.fixture
+def listing_pages(embedder: FakeEmbedder) -> FakeEmbedder:
+    make_document(
+        "Poison",
+        "Poison is an ailment that deals chaos damage over time."
+        + LONG
+        + "\n\n## Mechanics\n\nEvery poison on an enemy deals its damage at the same time."
+        + LONG
+        + "\n\n## Related passive skills\n\nPoison chance, poison damage and poison duration."
+        + LONG,
+        doc_type=DocumentType.MECHANIC,
+    )
+    build_chunks()
+    embed_pending(embedder)
+    return embedder
+
+
+def _rank_of(hits, section: str) -> int:
+    return next(i for i, h in enumerate(hits) if h.title == "Poison" and h.chunk.section == section)
+
+
+def test_reference_lists_count_for_less(listing_pages: FakeEmbedder) -> None:
+    listing = Chunk.objects.get(document__title="Poison", section="Related passive skills")
+    listing_pages.query_vector = vector_for(listing.text)  # vector prefers the list
+
+    hits = hybrid_search("how does poison damage work", embedder=listing_pages, top_k=20)
+
+    assert _rank_of(hits, "Mechanics") < _rank_of(hits, "Related passive skills")
+
+
+def test_reference_lists_count_fully_when_asked_for(listing_pages: FakeEmbedder) -> None:
+    listing = Chunk.objects.get(document__title="Poison", section="Related passive skills")
+    listing_pages.query_vector = vector_for(listing.text)
+
+    hits = hybrid_search("which passives give poison chance", embedder=listing_pages, top_k=20)
+
+    assert _rank_of(hits, "Related passive skills") < _rank_of(hits, "Mechanics")

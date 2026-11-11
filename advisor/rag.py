@@ -18,7 +18,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -30,7 +30,7 @@ from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
-from .prompts import NO_SOURCES_ANSWER, build_messages
+from .prompts import NO_SOURCES_ANSWER, Turn, build_messages
 from .rewrite import rewrite_question
 
 logger = logging.getLogger(__name__)
@@ -204,20 +204,27 @@ def answer_stream(
     rewrite: bool | None = None,
     expansion: str | None = None,
     needs_build_tools: bool | None = None,
+    history: Sequence[Turn] = (),
 ) -> Iterator[Event]:
     """Answer a question, streaming events.
+
+    history: earlier turns of the conversation, oldest first, for follow-ups.
 
     use_tools: True/False forces the Path of Building tools on or off. None
     decides automatically: on with an attached build, otherwise as the rewrite
     step routed the question (on when there was no routing, e.g. rewrite off).
     expansion / needs_build_tools: pass a rewrite that was already done.
     """
+    # What to search for: a follow-up ("and bleed?") means little on its own.
+    standalone = f"{history[-1].question}\n{question}" if history else question
     if expansion is None:
         expansion = ""
         if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
             provider = provider or get_provider()
-            routed = rewrite_question(question, provider)
+            routed = rewrite_question(question, provider, history)
             expansion, needs_build_tools = routed.terms, routed.needs_build_tools
+            if history and routed.query:
+                standalone = routed.query
     if use_tools is None:
         use_tools = bool(build) or needs_build_tools is not False
     if expansion:
@@ -245,7 +252,7 @@ def answer_stream(
         # An attached build is loaded before searching, so the search can use what
         # is in it: "is this build strong?" says nothing about Tornado Shot or Slayer.
         build_summary = None
-        query, pinned = question, []
+        query, pinned = standalone, []
         if build and toolbox is not None:
             runner = _ToolRunner(toolbox)
             call = ToolCall("attached-build", "load_build", json.dumps({"source": build}))
@@ -260,7 +267,7 @@ def answer_stream(
             build_summary = toolbox.call("get_build_summary", {}).data
             pinned = build_search_terms(toolbox, build_summary)
             if pinned:
-                query = f"{question}\n{', '.join(pinned)}"
+                query = f"{standalone}\n{', '.join(pinned)}"
 
         hits = hybrid_search(
             query,
@@ -279,7 +286,9 @@ def answer_stream(
             yield {"type": "done", "cited": [], "patch": patch}
             return
 
-        yield from _converse(question, hits, sources, patch, provider, toolbox, build_summary)
+        yield from _converse(
+            question, hits, sources, patch, provider, toolbox, build_summary, history
+        )
 
 
 def build_search_terms(toolbox: PobToolbox, summary: Any) -> list[str]:
@@ -315,10 +324,11 @@ def _converse(
     provider: LLMProvider | None,
     toolbox: PobToolbox | None,
     build_summary: dict[str, Any] | None,
+    history: Sequence[Turn] = (),
 ) -> Iterator[Event]:
     provider = provider or get_provider()
     rounds = settings.POB_MAX_TOOL_ROUNDS if toolbox is not None else 0
-    messages: list[Message] = build_messages(question, hits, rounds, build_summary)
+    messages: list[Message] = build_messages(question, hits, rounds, build_summary, history)
     runner = _ToolRunner(toolbox) if toolbox is not None else None
     answer_parts: list[str] = []
 

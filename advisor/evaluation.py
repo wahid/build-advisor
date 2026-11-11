@@ -47,16 +47,19 @@ logger = logging.getLogger(__name__)
 PASSING_SCORE = 4  # judge scores of 4 or 5 pass
 
 JUDGE_PROMPT = """\
-You grade answers of a Path of Exile assistant that must answer only from the
-numbered wiki sources it was given and, for build questions, from Path of
-Building tool results (shown after the sources, possibly truncated).
+You grade answers of a Path of Exile assistant that answers from the numbered
+wiki sources it was given and, for build questions, from Path of Building tool
+results (shown after the sources, possibly truncated). It may add general game
+knowledge only when it marks it "(general game knowledge)" without a citation.
 The app shows exported Path of Building share codes below the answer, so an
 answer that says "the code is below" does deliver it.
 
 Return only a JSON object:
 {
   "grounded": 1-5,      // 5 = every factual claim is supported by the sources
-                        //     (claims explicitly attributed to Path of Building count as supported)
+                        //     (claims explicitly attributed to Path of Building count as supported;
+                        //     a claim marked "(general game knowledge)" counts if it is correct,
+                        //     a cited claim its cited source does not support does not count)
   "relevant": 1-5,      // 5 = directly and fully answers the question
   "admits_gap": true/false,  // says the sources/wiki don't cover (part of) the question
   "unsupported": ["claims not supported by the sources"],

@@ -54,16 +54,19 @@ export function parseBlocks(text: string): Block[] {
 export type Inline =
   | { kind: "text"; text: string }
   | { kind: "bold"; text: string }
+  | { kind: "italic"; text: string }
   | { kind: "cite"; number: number };
 
 export function parseInline(text: string): Inline[] {
   const parts: Inline[] = [];
   // A citation may come as a Markdown link, "[2](https://...)"; the link part is dropped.
-  const pattern = /\*\*(.+?)\*\*|\[(\d+)\](?:\(https?:\/\/[^)\s]*\))?/g;
+  // *italic* needs a non-space after the opening star, so "2 * 3" stays as it is.
+  const pattern = /\*\*(.+?)\*\*|\[(\d+)\](?:\(https?:\/\/[^)\s]*\))?|\*(?!\s)([^*]+?)\*/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     if (match.index > last) parts.push({ kind: "text", text: text.slice(last, match.index) });
     if (match[1] !== undefined) parts.push({ kind: "bold", text: match[1] });
+    else if (match[3] !== undefined) parts.push({ kind: "italic", text: match[3] });
     else parts.push({ kind: "cite", number: Number(match[2]) });
     last = match.index + match[0].length;
   }
@@ -84,6 +87,7 @@ export function AnswerText({ text, sources, onCiteHover }: Props) {
     parseInline(value).map((part, i) => {
       if (part.kind === "text") return part.text;
       if (part.kind === "bold") return <strong key={i}>{inline(part.text)}</strong>;
+      if (part.kind === "italic") return <em key={i}>{inline(part.text)}</em>;
       const source = byNumber.get(part.number);
       if (!source) return `[${part.number}]`;
       const label = source.section ? `${source.title}, ${source.section}` : source.title;
