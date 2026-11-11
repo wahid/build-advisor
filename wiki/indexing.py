@@ -22,7 +22,7 @@ from django.db import transaction
 from django.db.models import F, Q, QuerySet
 from django.utils import timezone
 
-from .chunking import chunk_text
+from .chunking import chunk_text, find_boilerplate
 from .embeddings import Embedder, get_embedder
 from .ingest import content_hash
 from .models import Chunk, Document
@@ -48,8 +48,12 @@ def documents_needing_chunks(force: bool = False) -> QuerySet[Document]:
 def build_chunks(documents: Iterable[Document] | None = None, force: bool = False) -> ChunkResult:
     result = ChunkResult()
     docs = documents if documents is not None else documents_needing_chunks(force)
+    boilerplate = find_boilerplate(
+        Document.objects.values_list("raw_text", flat=True).iterator(chunk_size=200)
+    )
+    logger.info("Found %d boilerplate lines shared by many pages", len(boilerplate))
     for document in docs:
-        chunks, reused = _rebuild(document)
+        chunks, reused = _rebuild(document, boilerplate)
         result.documents += 1
         result.chunks += chunks
         result.reused_embeddings += reused
@@ -58,14 +62,16 @@ def build_chunks(documents: Iterable[Document] | None = None, force: bool = Fals
 
 
 @transaction.atomic
-def _rebuild(document: Document) -> tuple[int, int]:
+def _rebuild(document: Document, boilerplate: frozenset[str] = frozenset()) -> tuple[int, int]:
     previous: dict[str, list[Chunk]] = defaultdict(list)
     for old in document.chunks.exclude(embedding=None):
         previous[old.text_hash].append(old)
 
     new_chunks: list[Chunk] = []
     reused = 0
-    for data in chunk_text(document.title, document.raw_text, settings.CHUNK_MAX_CHARS):
+    for data in chunk_text(
+        document.title, document.raw_text, settings.CHUNK_MAX_CHARS, boilerplate
+    ):
         text_hash = content_hash(data.text)
         chunk = Chunk(
             document=document,

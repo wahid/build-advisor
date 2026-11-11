@@ -28,6 +28,12 @@ from .embeddings import Embedder, get_embedder
 from .models import Chunk, Document
 
 RRF_K = 60  # standard constant; dampens the advantage of the very top ranks
+# Words in more than this share of chunks ("support", "gem") carry no signal.
+KEYWORD_MAX_SHARE = 0.15
+KEYWORD_MIN_TERMS = 2  # always keep at least this many of the rarest words
+# ts_rank normalisation flag 1: divide by 1 + log(length), so long chunks
+# don't win just by containing more words.
+RANK_NORMALIZATION = 1
 MIN_TITLE_LENGTH = 4  # ignore titles like "Ice" that match inside other words
 WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
@@ -86,22 +92,50 @@ def _vector_ids(base: QuerySet[Chunk], vector: list[float], limit: int) -> list[
     return list(qs[:limit])
 
 
-def keyword_query(question: str) -> SearchQuery | None:
-    """OR-query over the question's words; Postgres drops stop words and stems."""
-    words = list(dict.fromkeys(WORD_RE.findall(question.lower())))
-    if not words:
-        return None
-    raw = " | ".join(word.replace("'", "") for word in words)
+def question_words(question: str) -> list[str]:
+    return [w.replace("'", "") for w in dict.fromkeys(WORD_RE.findall(question.lower()))]
+
+
+def _term_query(raw: str) -> SearchQuery:
     return SearchQuery(raw, search_type="raw", config="english")
 
 
+def informative_words(base: QuerySet[Chunk], words: list[str]) -> list[str]:
+    """Drop stop words and words that occur in too many chunks.
+
+    Postgres full-text ranking has no notion of how common a word is, so
+    without this a question full of "support gems" matches every gem page.
+    """
+    total = base.count()
+    if not total:
+        return []
+    frequency = {word: base.filter(search_vector=_term_query(word)).count() for word in words}
+    present = sorted((n, word) for word, n in frequency.items() if n > 0)
+    keep = {word for n, word in present if n / total <= KEYWORD_MAX_SHARE}
+    keep |= {word for _, word in present[:KEYWORD_MIN_TERMS]}
+    return [word for word in words if word in keep]
+
+
+def keyword_query(question: str, base: QuerySet[Chunk] | None = None) -> SearchQuery | None:
+    """OR-query over the question's informative words (stemmed by Postgres)."""
+    words = question_words(question)
+    if base is not None:
+        words = informative_words(base, words)
+    if not words:
+        return None
+    return _term_query(" | ".join(words))
+
+
 def _keyword_ids(base: QuerySet[Chunk], question: str, limit: int) -> list[int]:
-    query = keyword_query(question)
+    query = keyword_query(question, base)
     if query is None:
         return []
+    rank = SearchRank(
+        F("search_vector"), query, cover_density=True, normalization=Value(RANK_NORMALIZATION)
+    )
     qs = (
         base.filter(search_vector=query)
-        .annotate(rank=SearchRank(F("search_vector"), query, cover_density=True))
+        .annotate(rank=rank)
         .order_by("-rank", "id")
         .values_list("id", flat=True)
     )

@@ -67,3 +67,29 @@ def test_hard_wraps_a_single_huge_paragraph() -> None:
 
     assert all(len(c.text) <= 500 for c in chunks)
     assert chunks[-1].text.endswith("499 | value")
+
+
+def test_finds_long_lines_shared_by_many_documents() -> None:
+    from wiki.chunking import find_boilerplate, line_key
+
+    shared = "The Hungry Loop | " + "Has Consumed 1 Gem Socketed Gems are Supported by X " * 10
+    unique_line = "Only on one page. " * 20
+    texts = [f"Intro\n{shared}\nShort tag line" for _ in range(20)] + [unique_line]
+
+    boilerplate = find_boilerplate(texts)
+
+    assert boilerplate == {line_key(shared)}
+    assert find_boilerplate(texts[:19]) == frozenset()  # fewer than 20 documents
+
+
+def test_chunk_text_strips_boilerplate_but_keeps_short_repeats() -> None:
+    from wiki.chunking import line_key
+
+    shared = "x" * 250
+    text = f"## Unique items\n\nNight's Hold supports this gem at level 10.\n{shared}"
+
+    chunks = chunk_text("Added Chaos Damage Support", text, boilerplate={line_key(shared)})
+
+    assert len(chunks) == 1
+    assert shared not in chunks[0].text
+    assert "Night's Hold" in chunks[0].text

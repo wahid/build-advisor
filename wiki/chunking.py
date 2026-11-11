@@ -8,7 +8,10 @@ embedding knows what page and section it came from.
 
 from __future__ import annotations
 
+import hashlib
 import re
+from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 HEADING_RE = re.compile(r"^(#{2,6}) (.+)$")
@@ -16,6 +19,10 @@ HEADING_RE = re.compile(r"^(#{2,6}) (.+)$")
 # Sections that add noise rather than answers.
 SKIP_SECTIONS = {"references", "see also", "navigation", "external links", "gallery"}
 MIN_CHARS = 40
+# Long lines repeated across many pages are templates (e.g. a unique item
+# listing every support gem, shown on every support gem page).
+BOILERPLATE_MIN_CHARS = 200
+BOILERPLATE_MIN_DOCUMENTS = 20
 
 
 @dataclass(frozen=True)
@@ -31,7 +38,39 @@ class _Section:
     lines: list[str]
 
 
-def chunk_text(title: str, text: str, max_chars: int = 1500) -> list[ChunkData]:
+def line_key(line: str) -> str:
+    return hashlib.sha1(line.strip().encode("utf-8")).hexdigest()
+
+
+def find_boilerplate(
+    texts: Iterable[str],
+    min_chars: int = BOILERPLATE_MIN_CHARS,
+    min_documents: int = BOILERPLATE_MIN_DOCUMENTS,
+) -> frozenset[str]:
+    """Keys of long lines that occur in at least `min_documents` texts."""
+    counts: Counter[str] = Counter()
+    for text in texts:
+        counts.update({line_key(line) for line in text.splitlines() if len(line) >= min_chars})
+    return frozenset(key for key, n in counts.items() if n >= min_documents)
+
+
+def strip_boilerplate(text: str, boilerplate: frozenset[str]) -> str:
+    if not boilerplate:
+        return text
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if len(line) < BOILERPLATE_MIN_CHARS or line_key(line) not in boilerplate
+    )
+
+
+def chunk_text(
+    title: str,
+    text: str,
+    max_chars: int = 1500,
+    boilerplate: frozenset[str] = frozenset(),
+) -> list[ChunkData]:
+    text = strip_boilerplate(text, boilerplate)
     chunks: list[ChunkData] = []
     for section in _sections(text):
         if section.path and section.path[0].lower() in SKIP_SECTIONS:

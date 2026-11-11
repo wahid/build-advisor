@@ -126,3 +126,25 @@ def test_search_command_prints_hits(embedder: FakeEmbedder, mocker) -> None:
     assert "1. " in output
     assert "https://wiki.test/wiki/Chieftain" in output
     assert "title #1" in output
+
+
+def test_common_words_are_dropped_from_keyword_query(embedder: FakeEmbedder) -> None:
+    from wiki.search import informative_words
+
+    for i in range(12):
+        make_document(f"Filler Support {i}", f"Filler support gem number {i}." + LONG)
+    build_chunks()
+    base = Chunk.objects.all()
+
+    words = informative_words(base, ["which", "support", "gem", "righteous", "chieftain"])
+
+    # "which" is a stop word; "support" and "gem" appear in most chunks.
+    assert words == ["righteous", "chieftain"]
+
+
+def test_rarest_words_are_kept_even_if_common(embedder: FakeEmbedder) -> None:
+    from wiki.search import informative_words
+
+    base = Chunk.objects.all()
+
+    assert informative_words(base, ["is", "a", "spell"]) == ["spell"]
