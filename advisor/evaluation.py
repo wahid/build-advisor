@@ -40,7 +40,7 @@ from wiki.search import SearchFilters, SearchHit, hybrid_search
 from .llm import LLMProvider, Message
 from .prompts import format_sources
 from .rag import CITATION_RE, answer
-from .rewrite import rewrite_query
+from .rewrite import Rewrite, rewrite_question
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +324,8 @@ def _run_case(
     rewrite: bool = False,
 ) -> CaseResult:
     filters = SearchFilters(doc_types=case.doc_types)
-    expansion = rewrite_query(case.question, provider) if rewrite and provider else ""
+    routed = rewrite_question(case.question, provider) if rewrite and provider else Rewrite()
+    expansion = routed.terms
     hits = hybrid_search(
         case.question, top_k=k, filters=filters, embedder=embedder, expansion=expansion
     )
@@ -342,8 +343,10 @@ def _run_case(
         provider=provider,
         embedder=embedder,
         top_k=k,
-        use_tools=case.requires_pob,
+        # Routing as in production when rewriting; otherwise tools only for build cases.
+        use_tools=None if rewrite else case.requires_pob,
         expansion=expansion,  # same terms as the retrieval score; no second rewrite
+        needs_build_tools=routed.needs_build_tools if rewrite else None,
     )
     result.answer = produced.text
     result.tools_called = [t["name"] for t in produced.tools]

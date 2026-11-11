@@ -327,3 +327,28 @@ def test_reading_a_build_doesnt_trigger_an_export(embedder, toolbox) -> None:
     list(answer_stream("q", provider=provider, embedder=embedder))
 
     assert [name for name, _ in toolbox.calls] == ["get_build_summary"]
+
+
+def test_quick_calls_add_the_quick_request_options() -> None:
+    sent: list[dict] = []
+
+    def create(**kwargs):
+        sent.append(kwargs)
+        return iter([_chunk("ok")])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    provider = OpenAICompatibleProvider(
+        "deepseek",
+        "m",
+        "k",
+        "https://x",
+        extra_body={"user_tag": "a"},
+        quick_extra_body={"thinking": {"type": "disabled"}},
+        client=client,
+    )
+
+    list(provider.stream([]))
+    list(provider.stream([], quick=True))
+
+    assert sent[0]["extra_body"] == {"user_tag": "a"}
+    assert sent[1]["extra_body"] == {"user_tag": "a", "thinking": {"type": "disabled"}}

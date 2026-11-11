@@ -172,11 +172,12 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
 
 ## How answering works
 
-0. **Query rewriting** (`advisor/rewrite.py`, on when an LLM is configured):
-   a short LLM call turns the question into wiki terms ("can something cast
-   my spells for me?" becomes "Spell Totem Support, Totem"), used next to the
-   original question. In the evals this took indirect questions from 7/8 to
-   8/8, at a cost of 2-4 s per question.
+0. **Query rewriting and routing** (`advisor/rewrite.py`, on when an LLM is
+   configured): one quick LLM call, with thinking switched off, turns the
+   question into wiki terms ("can something cast my spells for me?" becomes
+   "Spell Totem Support, Totem") and decides whether it needs Path of
+   Building. Only build questions get the PoB tools (~10k prompt tokens), so
+   the first word of a wiki answer arrives after ~3-4 s instead of ~15 s.
 1. **Hybrid retrieval** (`wiki/search.py`) merges three ranked lists with
    reciprocal rank fusion: vector similarity, Postgres full-text search, and
    chunks of pages whose title appears in the question (one per page first,

@@ -49,9 +49,16 @@ class LLMProvider(Protocol):
     model: str
 
     def stream(
-        self, messages: list[Message], tools: list[dict[str, Any]] | None = None
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]] | None = None,
+        quick: bool = False,
     ) -> Iterator[StreamItem]:
-        """Yield answer text in pieces; after the text, any tool calls (and reasoning)."""
+        """Yield answer text in pieces; after the text, any tool calls (and reasoning).
+
+        `quick` is for short helper tasks (query rewriting): providers apply
+        LLM_QUICK_EXTRA_BODY, e.g. to switch off a reasoning model's thinking.
+        """
         ...
 
 
@@ -74,6 +81,7 @@ class OpenAICompatibleProvider:
         max_tokens: int = 1500,
         timeout: float = 60.0,
         extra_body: dict[str, Any] | None = None,
+        quick_extra_body: dict[str, Any] | None = None,
         client: Any = None,
     ) -> None:
         self.name = name
@@ -81,6 +89,7 @@ class OpenAICompatibleProvider:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.extra_body = extra_body or {}
+        self.quick_extra_body = quick_extra_body or {}
         if client is None:
             from openai import OpenAI
 
@@ -88,10 +97,14 @@ class OpenAICompatibleProvider:
         self.client = client
 
     def stream(
-        self, messages: list[Message], tools: list[dict[str, Any]] | None = None
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]] | None = None,
+        quick: bool = False,
     ) -> Iterator[StreamItem]:
         from openai import OpenAIError
 
+        extra_body = {**self.extra_body, **(self.quick_extra_body if quick else {})}
         options: dict[str, Any] = {}
         if tools:
             options["tools"] = tools
@@ -104,7 +117,7 @@ class OpenAICompatibleProvider:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 stream=True,
-                extra_body=self.extra_body or None,
+                extra_body=extra_body or None,
                 **options,
             )
             for chunk in response:
@@ -155,4 +168,5 @@ def get_provider() -> LLMProvider:
         max_tokens=settings.LLM_MAX_TOKENS,
         timeout=settings.LLM_TIMEOUT,
         extra_body=settings.LLM_EXTRA_BODY,
+        quick_extra_body=settings.LLM_QUICK_EXTRA_BODY,
     )

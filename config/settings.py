@@ -166,6 +166,12 @@ LLM_MAX_TOKENS = env.int("LLM_MAX_TOKENS", default=4000)
 LLM_TIMEOUT = env.float("LLM_TIMEOUT", default=60.0)
 # Provider-specific request options as JSON, e.g. to turn off thinking mode.
 LLM_EXTRA_BODY = env.json("LLM_EXTRA_BODY", default={})
+# Request options for short helper calls (query rewriting). DeepSeek: no thinking,
+# which takes the rewrite from ~3 s to under a second.
+LLM_QUICK_EXTRA_BODY = env.json(
+    "LLM_QUICK_EXTRA_BODY",
+    default={"thinking": {"type": "disabled"}} if LLM_PROVIDER == "deepseek" else {},
+)
 
 # Ask the LLM for wiki terms before searching: one extra short call per question (~2-4 s),
 # finds pages the question describes without naming ("something that casts for me" -> Totem).
@@ -182,6 +188,9 @@ POB_MAX_TOOL_ROUNDS = env.int("POB_MAX_TOOL_ROUNDS", default=8)
 POB_DEBUG = env.bool("POB_DEBUG", default=False)  # show PoB's console output
 # Override the allowlist of pob-mcp tools (comma-separated); empty = advisor.pob.DEFAULT_TOOLS.
 POB_TOOLS = env.list("POB_TOOLS", default=[])
+
+# Load the embedding model and a Path of Building process when the web server starts.
+WARM_UP = env.bool("WARM_UP", default=False)
 
 LOGGING = {
     "version": 1,

@@ -26,7 +26,7 @@ class Command(BaseCommand):
             options["question"],
             filters=filters,
             build=options["build"],
-            use_tools=not options["no_tools"],
+            use_tools=False if options["no_tools"] else None,  # None: routed automatically
         )
         for event in events:
             match event["type"]:

@@ -10,7 +10,7 @@ export interface Source {
 }
 
 export type AskEvent =
-  | { type: "rewrite"; terms: string }
+  | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
   | { type: "delta"; text: string }
   | { type: "tool_call"; id: string; name: string; arguments: Record<string, unknown> }

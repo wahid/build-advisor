@@ -31,13 +31,17 @@ class FakeProvider:
         ]
         self.fail = fail
         self.calls: list[tuple[list[llm.Message], list | None]] = []
+        self.quick: list[bool] = []
 
     @property
     def messages(self) -> list[llm.Message]:
         return self.calls[-1][0] if self.calls else []
 
-    def stream(self, messages: list[llm.Message], tools: list | None = None) -> Iterator:
+    def stream(
+        self, messages: list[llm.Message], tools: list | None = None, quick: bool = False
+    ) -> Iterator:
         self.calls.append(([dict(m) for m in messages], tools))
+        self.quick.append(quick)
         if self.fail:
             raise LLMError("down")
         script = self.rounds[min(len(self.calls), len(self.rounds)) - 1]

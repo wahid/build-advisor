@@ -2,7 +2,7 @@ import pytest
 
 from advisor.llm import LLMError
 from advisor.rag import answer_stream
-from advisor.rewrite import parse_terms, rewrite_query
+from advisor.rewrite import Rewrite, parse_rewrite, parse_terms, rewrite_query, rewrite_question
 from wiki.indexing import build_chunks, embed_pending
 from wiki.search import hybrid_search
 
@@ -26,12 +26,31 @@ def test_rewrite_failure_means_no_terms() -> None:
     assert rewrite_query("q", FakeProvider(fail=True)) == ""
 
 
-def test_rewrite_sends_the_question() -> None:
-    provider = FakeProvider(["Totem, Spell Totem Support"])
+def test_rewrite_sends_the_question_as_a_quick_call() -> None:
+    provider = FakeProvider(['{"terms": ["Totem", "Spell Totem Support"], "build": false}'])
 
-    assert rewrite_query("Can something cast for me?", provider) == "Totem, Spell Totem Support"
+    assert rewrite_question("Can something cast for me?", provider) == Rewrite(
+        "Totem, Spell Totem Support", False
+    )
     assert provider.calls[0][0][1] == {"role": "user", "content": "Can something cast for me?"}
     assert provider.calls[0][1] is None  # no tools
+    assert provider.quick == [True]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            '```json\n{"terms": ["Righteous Fire"], "build": true}\n```',
+            Rewrite("Righteous Fire", True),
+        ),
+        ('{"terms": "Shock, Ailment", "build": false}', Rewrite("Shock, Ailment", False)),
+        ('{"terms": ["Shock"], "build": "maybe"}', Rewrite("Shock", None)),
+        ("Shock, Ailment", Rewrite("Shock, Ailment", None)),  # not JSON: terms, no routing
+    ],
+)
+def test_parse_rewrite(text: str, expected: Rewrite) -> None:
+    assert parse_rewrite(text) == expected
 
 
 @pytest.fixture
@@ -72,7 +91,7 @@ def test_answer_stream_rewrites_when_asked(embedder: FakeEmbedder) -> None:
         )
     )
 
-    assert events[0] == {"type": "rewrite", "terms": "Totem"}
+    assert events[0] == {"type": "rewrite", "terms": "Totem", "tools": True}  # no routing given
     assert events[1]["type"] == "sources"
     assert events[1]["sources"][0]["title"] == "Totem"
     assert len(provider.calls) == 2  # rewrite + answer
@@ -94,7 +113,7 @@ def test_llm_error_type_is_caught() -> None:
         name = "x"
         model = "y"
 
-        def stream(self, messages, tools=None):
+        def stream(self, messages, tools=None, quick=False):
             raise LLMError("down")
             yield
 
@@ -109,5 +128,53 @@ def test_given_expansion_skips_the_rewrite_call(embedder: FakeEmbedder) -> None:
         answer_stream("q", provider=provider, embedder=embedder, expansion="Totem", rewrite=True)
     )
 
-    assert events[0] == {"type": "rewrite", "terms": "Totem"}
+    assert events[0] == {"type": "rewrite", "terms": "Totem", "tools": True}
     assert len(provider.calls) == 1  # only the answer
+
+
+class _Box:
+    definitions = [{"type": "function", "function": {"name": "x"}}]
+
+    def call(self, name, arguments):
+        from advisor.pob import ToolResult
+
+        return ToolResult(ok=True, text="{}", data={})
+
+
+class _Pool:
+    """Records whether the answer step asked for Path of Building."""
+
+    def __init__(self) -> None:
+        self.used = False
+
+    def toolbox(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def checkout():
+            self.used = True
+            yield _Box()
+
+        return checkout()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("rewrite_reply", "build", "expect_tools"),
+    [
+        ('{"terms": ["Shock"], "build": false}', "", False),  # wiki question
+        ('{"terms": ["Righteous Fire"], "build": true}', "", True),  # build question
+        ('{"terms": ["Shock"], "build": false}', "eNrCODE", True),  # attached build wins
+        ("Shock", "", True),  # no routing decision: keep tools available
+    ],
+)
+def test_tools_are_only_offered_when_needed(
+    embedder, mocker, rewrite_reply, build, expect_tools
+) -> None:
+    pool = _Pool()
+    mocker.patch("advisor.rag.get_pool", return_value=pool)
+    provider = FakeProvider([rewrite_reply], ["Answer [1]."])
+
+    list(answer_stream("q", provider=provider, embedder=embedder, rewrite=True, build=build))
+
+    assert pool.used is expect_tools

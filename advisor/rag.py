@@ -31,7 +31,7 @@ from wiki.search import SearchFilters, SearchHit, hybrid_search
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
 from .prompts import NO_SOURCES_ANSWER, build_messages
-from .rewrite import rewrite_query
+from .rewrite import rewrite_question
 
 logger = logging.getLogger(__name__)
 
@@ -199,18 +199,28 @@ def answer_stream(
     embedder: Embedder | None = None,
     top_k: int | None = None,
     build: str = "",
-    use_tools: bool = True,
+    use_tools: bool | None = None,
     rewrite: bool | None = None,
     expansion: str | None = None,
+    needs_build_tools: bool | None = None,
 ) -> Iterator[Event]:
-    """`expansion` passes search terms that were already worked out (skips rewriting)."""
+    """Answer a question, streaming events.
+
+    use_tools: True/False forces the Path of Building tools on or off. None
+    decides automatically: on with an attached build, otherwise as the rewrite
+    step routed the question (on when there was no routing, e.g. rewrite off).
+    expansion / needs_build_tools: pass a rewrite that was already done.
+    """
     if expansion is None:
         expansion = ""
         if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
             provider = provider or get_provider()
-            expansion = rewrite_query(question, provider)
+            routed = rewrite_question(question, provider)
+            expansion, needs_build_tools = routed.terms, routed.needs_build_tools
+    if use_tools is None:
+        use_tools = bool(build) or needs_build_tools is not False
     if expansion:
-        yield {"type": "rewrite", "terms": expansion}
+        yield {"type": "rewrite", "terms": expansion, "tools": use_tools}
     hits = hybrid_search(
         question, top_k=top_k, filters=filters, embedder=embedder, expansion=expansion
     )
