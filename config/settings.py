@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "rest_framework",
     "wiki",
+    "advisor",
 ]
 
 MIDDLEWARE = [
@@ -87,6 +88,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_THROTTLE_RATES": {"ask": env("ASK_RATE_LIMIT", default="60/hour")},
 }
 
 # --- Celery -----------------------------------------------------------------
@@ -140,11 +142,17 @@ SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=8)
 SEARCH_CANDIDATES = env.int("SEARCH_CANDIDATES", default=40)  # per ranked list
 SEARCH_MAX_PER_DOCUMENT = env.int("SEARCH_MAX_PER_DOCUMENT", default=3)
 
-# --- LLM (used from phase 3 onwards) ----------------------------------------
+# --- LLM ------------------------------------------------------------------------
+# deepseek | openai | anthropic (all via their OpenAI-compatible APIs).
 LLM_PROVIDER = env("LLM_PROVIDER", default="deepseek")
-LLM_MODEL = env("LLM_MODEL", default="")
-LLM_BASE_URL = env("LLM_BASE_URL", default="https://api.deepseek.com")
+LLM_MODEL = env("LLM_MODEL", default="")  # required; providers rename models often
 LLM_API_KEY = env("LLM_API_KEY", default="")
+LLM_BASE_URL = env("LLM_BASE_URL", default="")  # empty: the provider's default
+LLM_TEMPERATURE = env.float("LLM_TEMPERATURE", default=0.2)
+LLM_MAX_TOKENS = env.int("LLM_MAX_TOKENS", default=1500)
+LLM_TIMEOUT = env.float("LLM_TIMEOUT", default=60.0)
+# Provider-specific request options as JSON, e.g. to turn off thinking mode.
+LLM_EXTRA_BODY = env.json("LLM_EXTRA_BODY", default={})
 
 LOGGING = {
     "version": 1,

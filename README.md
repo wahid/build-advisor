@@ -14,7 +14,7 @@ LLM behind a provider-agnostic interface (DeepSeek by default).
 |---|---|---|
 | 1 | Collect wiki data (gems, uniques, ascendancies, mechanics) | ✅ done |
 | 2 | Chunking + embeddings | ✅ done |
-| 3 | RAG pipeline + React frontend with sources | ⏳ next |
+| 3 | RAG pipeline + React frontend with sources | 🚧 API done, frontend next |
 | 4 | Tool calling with pob-mcp | |
 | 5 | Evaluation set in CI | |
 | 6 | Public demo on Railway | |
@@ -46,6 +46,25 @@ docker compose exec web python manage.py build_index --async         # same, as 
 ```
 
 The first run downloads `bge-m3` (~2 GB) into a Docker volume.
+
+### Asking questions
+
+Set `LLM_PROVIDER`, `LLM_MODEL` and `LLM_API_KEY` in `.env` (then
+`docker compose up -d` to reload it), and:
+
+```bash
+docker compose exec worker python manage.py search "Cast when Damage Taken"   # retrieval only
+docker compose exec worker python manage.py ask "Which support gems work with Righteous Fire Chieftain?"
+```
+
+Or over HTTP, streamed as Server-Sent Events (`sources`, then `delta`s, then `done`):
+
+```bash
+curl -N -X POST http://localhost:8000/api/ask/ -H "Content-Type: application/json" \
+  -d '{"question": "How does ignite work?", "doc_types": ["mechanic"]}'
+```
+
+Add `"stream": false` for a single JSON response.
 
 ### Using an NVIDIA GPU
 
@@ -100,6 +119,23 @@ document embeddings are already in the database.
 - **Only changed text is re-embedded.** Documents are re-chunked only when
   their text hash changes, and chunks whose text is unchanged keep their
   embedding. Switching `EMBEDDING_MODEL` re-embeds everything.
+
+## How answering works
+
+1. **Hybrid retrieval** (`wiki/search.py`) merges three ranked lists with
+   reciprocal rank fusion: vector similarity, Postgres full-text search, and
+   chunks of pages whose title appears in the question (one per page first,
+   so "Righteous Fire Chieftain" finds both pages). Common words ("support",
+   "gem") are ignored for keyword search, and at most 3 chunks per page are
+   kept.
+2. **Grounded prompt** (`advisor/prompts.py`): the top 8 chunks are numbered
+   and the model is told to use only those, cite them as `[n]`, say when the
+   sources don't cover the question, and mention the game version.
+3. **Provider-independent LLM** (`advisor/llm.py`): DeepSeek, OpenAI and
+   Anthropic through their OpenAI-compatible APIs, chosen by `LLM_PROVIDER`.
+   Model names live only in configuration.
+4. **Streaming** (`POST /api/ask/`): sources are sent first, then the answer
+   token by token, then which sources were actually cited.
 
 ## Development
 
