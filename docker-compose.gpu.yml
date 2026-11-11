@@ -1,0 +1,24 @@
+# GPU override for machines with an NVIDIA card (Docker Desktop + WSL2 on Windows works).
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+# Builds the CUDA variant of PyTorch and gives the Celery worker the GPU.
+services:
+  web:
+    build:
+      args:
+        EMBEDDINGS: cuda
+
+  worker:
+    build:
+      args:
+        EMBEDDINGS: cuda
+    environment:
+      EMBEDDING_DEVICE: cuda
+    # The solo pool runs tasks in the main process: no CUDA-after-fork problems.
+    command: celery -A config worker --loglevel=info --pool=solo
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

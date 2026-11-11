@@ -11,10 +11,15 @@ RUN pip install --no-cache-dir uv==0.13.4
 WORKDIR /app
 
 # Install dependencies first so they're cached between code changes.
+# EMBEDDINGS: cpu (default, e.g. Railway) | cuda (local GPU) | none (no torch)
 ARG INSTALL_DEV=false
+ARG EMBEDDINGS=cpu
 COPY pyproject.toml uv.lock .python-version ./
-RUN if [ "$INSTALL_DEV" = "true" ]; then uv sync --frozen --no-install-project; \
-    else uv sync --frozen --no-install-project --no-dev; fi
+RUN set -e; \
+    flags="--frozen --no-install-project"; \
+    [ "$INSTALL_DEV" = "true" ] || flags="$flags --no-dev"; \
+    [ "$EMBEDDINGS" = "none" ] || flags="$flags --extra $EMBEDDINGS"; \
+    uv sync $flags
 
 COPY . .
 

@@ -16,6 +16,30 @@ dependencies = [
     "requests>=2.34.2",
 ]
 
+[project.optional-dependencies]
+# Embedding runtime. Pick exactly one: `uv sync --extra cpu` or `uv sync --extra cuda`.
+cpu = ["torch>=2.15", "sentence-transformers>=6.2"]
+cuda = ["torch>=2.15", "sentence-transformers>=6.2"]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu132", extra = "cuda" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",

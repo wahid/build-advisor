@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     "rest_framework",
     "wiki",
 ]
@@ -97,6 +98,14 @@ WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=3)
 WIKI_CACHE_DIR = Path(env("WIKI_CACHE_DIR", default=str(BASE_DIR / "data" / "raw")))
 # Leave empty to use the latest released version from the wiki's version table.
 POE_PATCH = env("POE_PATCH", default="")
+
+# --- Embeddings ---------------------------------------------------------------
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="BAAI/bge-m3")
+# Changing this needs a migration and re-embedding everything.
+EMBEDDING_DIMENSIONS = 1024
+EMBEDDING_DEVICE = env("EMBEDDING_DEVICE", default="auto")  # auto | cuda | cpu
+EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
+CHUNK_MAX_CHARS = env.int("CHUNK_MAX_CHARS", default=1500)
 
 # --- LLM (used from phase 3 onwards) ----------------------------------------
 LLM_PROVIDER = env("LLM_PROVIDER", default="deepseek")

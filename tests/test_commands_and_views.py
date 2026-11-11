@@ -46,3 +46,38 @@ def test_health_endpoint(client) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "documents": 0}
+
+
+def test_build_index_command(mocker) -> None:
+    from wiki.indexing import ChunkResult
+
+    chunks = mocker.patch(
+        "wiki.management.commands.build_index.build_chunks",
+        return_value=ChunkResult(documents=2, chunks=9, reused_embeddings=1),
+    )
+    embed = mocker.patch("wiki.management.commands.build_index.embed_pending", return_value=8)
+    out = StringIO()
+
+    call_command("build_index", "--limit", "8", stdout=out)
+
+    chunks.assert_called_once_with(force=False)
+    embed.assert_called_once_with(limit=8)
+    assert "9 chunks" in out.getvalue()
+    assert "Embedded 8" in out.getvalue()
+
+
+def test_build_index_no_embed_and_async(mocker) -> None:
+    from wiki.indexing import ChunkResult
+
+    mocker.patch("wiki.management.commands.build_index.build_chunks", return_value=ChunkResult())
+    embed = mocker.patch("wiki.management.commands.build_index.embed_pending")
+    delay = mocker.patch("wiki.management.commands.build_index.build_index.delay")
+    delay.return_value.id = "xyz"
+
+    call_command("build_index", "--no-embed", stdout=StringIO())
+    embed.assert_not_called()
+
+    out = StringIO()
+    call_command("build_index", "--async", "--force", stdout=out)
+    delay.assert_called_once_with(force=True, embed=True)
+    assert "xyz" in out.getvalue()

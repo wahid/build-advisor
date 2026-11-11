@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db import models
+from pgvector.django import HnswIndex, VectorField
 
 
 class DocumentType(models.TextChoices):
@@ -37,6 +39,9 @@ class Document(models.Model):
     raw_text = models.TextField()
     patch = models.CharField(max_length=20, help_text="Game version the text applies to.")
     content_hash = models.CharField(max_length=64, help_text="SHA-256 of raw_text.")
+    chunked_hash = models.CharField(
+        max_length=64, blank=True, help_text="content_hash at the time chunks were last built."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,3 +50,41 @@ class Document(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.get_doc_type_display()}, {self.patch})"
+
+
+class Chunk(models.Model):
+    """A section-sized piece of a document with its embedding.
+
+    Metadata (type, patch, URL) is copied from the document so retrieval
+    can filter and cite without joins.
+    """
+
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="chunks")
+    position = models.PositiveIntegerField(help_text="Order of the chunk within the document.")
+    section = models.CharField(max_length=255, blank=True)
+    text = models.TextField(help_text="Chunk text, prefixed with page title and section.")
+    text_hash = models.CharField(max_length=64, db_index=True)
+    doc_type = models.CharField(max_length=20, choices=DocumentType.choices, db_index=True)
+    patch = models.CharField(max_length=20, db_index=True)
+    url = models.URLField(max_length=500)
+    embedding = VectorField(dimensions=settings.EMBEDDING_DIMENSIONS, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, blank=True)
+    embedded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["document", "position"]
+        constraints = [
+            models.UniqueConstraint(fields=["document", "position"], name="unique_chunk_position"),
+        ]
+        indexes = [
+            HnswIndex(
+                name="chunk_embedding_hnsw",
+                fields=["embedding"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document.title} #{self.position} ({self.section or 'intro'})"

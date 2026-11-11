@@ -12,7 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .client import WikiClient, WikiError
-from .models import Document, DocumentType, Source
+from .models import Chunk, Document, DocumentType, Source
 from .parsing import html_to_text
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,7 @@ def _ingest_page(
         if existing.document.patch != result.patch:
             # Page wasn't edited since the patch changed: still current.
             Document.objects.filter(pk=existing.document.pk).update(patch=result.patch)
+            Chunk.objects.filter(document_id=existing.document.pk).update(patch=result.patch)
         result.unchanged += 1
         return
 
