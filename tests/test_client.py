@@ -327,3 +327,42 @@ def test_read_proxy_file(tmp_path) -> None:
 
     assert read_proxy_file(path) == ["http://a:1", "http://b:2"]
     assert read_proxy_file(tmp_path / "missing.txt") == []
+
+
+@responses.activate
+def test_mechanics_follow_subcategories_once(wiki_client: WikiClient) -> None:
+    def members(*items):
+        return {"query": {"categorymembers": [{"title": t, "ns": ns} for t, ns in items]}}
+
+    responses.get(
+        API_URL,
+        json=members(("Leech", 0), ("Category:Ailments", 14), ("Category:Charges", 14)),
+    )
+    responses.get(API_URL, json=members(("Ignite", 0), ("Category:Game mechanics", 14)))
+    responses.get(API_URL, json=members(("Endurance charge", 0), ("Leech", 0)))
+
+    titles = wiki_client.list_titles(DocumentType.MECHANIC)
+
+    assert titles == ["Endurance charge", "Ignite", "Leech"]
+    assert _params(responses.calls[0])["cmnamespace"] == "0|14"
+    assert _params(responses.calls[1])["cmtitle"] == "Category:Ailments"
+    assert _params(responses.calls[1])["cmnamespace"] == "0"  # depth used up: articles only
+    assert len(responses.calls) == 3  # the cycle back to Game mechanics isn't followed
+
+
+@responses.activate
+def test_anubis_block_page_stops_the_run(wiki_client: WikiClient) -> None:
+    html = "<html><title>Oh noes!</title>Protected by Anubis. Access Denied</html>"
+    responses.get(API_URL, status=403, body=html, content_type="text/html")
+
+    with pytest.raises(WikiBlockedError, match="Anubis"):
+        wiki_client.current_patch(today=date(2026, 11, 11))
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_non_json_response_is_a_clear_error(wiki_client: WikiClient) -> None:
+    responses.get(API_URL, status=200, body="<html>maintenance</html>", content_type="text/html")
+
+    with pytest.raises(WikiError, match="web page instead of API data"):
+        wiki_client.current_patch(today=date(2026, 11, 11))

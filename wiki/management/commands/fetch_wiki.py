@@ -32,6 +32,11 @@ class Command(BaseCommand):
         parser.add_argument(
             "--async", dest="run_async", action="store_true", help="Queue as a Celery task."
         )
+        parser.add_argument(
+            "--list-only",
+            action="store_true",
+            help="Only show how many pages each type has; download nothing.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         kwargs = {
@@ -40,6 +45,9 @@ class Command(BaseCommand):
             "refresh": options["refresh"],
             "direct": options["direct"],
         }
+        if options["list_only"]:
+            self._list(options["doc_types"] or DocumentType.values)
+            return
         if options["run_async"]:
             task = ingest_wiki.delay(**kwargs)
             self.stdout.write(f"Queued ingest task {task.id}")
@@ -59,3 +67,18 @@ class Command(BaseCommand):
         )
         for title in result.failed:
             self.stdout.write(self.style.WARNING(f"  failed: {title}"))
+
+    def _list(self, doc_types: list[str]) -> None:
+        from wiki.client import WikiClient
+        from wiki.models import Source
+
+        client = WikiClient.from_settings()
+        saved = set(Source.objects.values_list("page_title", flat=True))
+        for doc_type in doc_types:
+            titles = client.list_titles(doc_type)
+            new = [t for t in titles if t not in saved]
+            self.stdout.write(f"{doc_type}: {len(titles)} pages, {len(new)} not saved yet")
+            for title in new[:15]:
+                self.stdout.write(f"  + {title}")
+            if len(new) > 15:
+                self.stdout.write(f"  ... and {len(new) - 15} more")

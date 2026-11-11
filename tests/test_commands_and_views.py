@@ -104,3 +104,24 @@ def test_fetch_wiki_reports_block_as_command_error(mocker) -> None:
 
     with pytest.raises(CommandError, match="continues where it stopped"):
         call_command("fetch_wiki", stdout=StringIO())
+
+
+def test_fetch_wiki_list_only_downloads_nothing(mocker) -> None:
+    from django.utils import timezone
+
+    from wiki.models import Source
+
+    Source.objects.create(
+        page_title="Leech", url="https://wiki.test/wiki/Leech", fetched_at=timezone.now()
+    )
+    client = mocker.Mock()
+    client.list_titles.return_value = ["Ignite", "Leech"]
+    mocker.patch("wiki.client.WikiClient.from_settings", return_value=client)
+    run = mocker.patch("wiki.management.commands.fetch_wiki.ingest")
+    out = StringIO()
+
+    call_command("fetch_wiki", "--list-only", "--type", "mechanic", stdout=out)
+
+    run.assert_not_called()
+    assert "mechanic: 2 pages, 1 not saved yet" in out.getvalue()
+    assert "+ Ignite" in out.getvalue()

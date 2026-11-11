@@ -149,6 +149,7 @@ class CargoListing:
 @dataclass(frozen=True)
 class CategoryListing:
     category: str
+    depth: int = 0  # how many levels of subcategories to follow
 
 
 # How each document type maps to pages on the wiki.
@@ -162,7 +163,8 @@ LISTINGS: dict[str, CargoListing | CategoryListing] = {
         where='items.rarity_id = "unique" AND items.class_id NOT IN ("Map", "Relic")',
     ),
     DocumentType.ASCENDANCY: CategoryListing("Category:Ascendancy classes"),
-    DocumentType.MECHANIC: CategoryListing("Category:Game mechanics"),
+    # Core pages like Ignite or Endurance charge sit in subcategories (ailments, charges).
+    DocumentType.MECHANIC: CategoryListing("Category:Game mechanics", depth=1),
 }
 
 
@@ -245,7 +247,7 @@ class WikiClient:
         if isinstance(listing, CargoListing):
             titles = self._cargo_titles(listing)
         else:
-            titles = self._category_titles(listing.category)
+            titles = self._category_titles(listing.category, listing.depth, set())
         return sorted(set(titles))
 
     def revision_ids(self, titles: Iterable[str]) -> dict[str, int]:
@@ -339,22 +341,32 @@ class WikiClient:
                 return
             offset += CARGO_PAGE_SIZE
 
-    def _category_titles(self, category: str) -> Iterator[str]:
+    def _category_titles(self, category: str, depth: int, seen: set[str]) -> Iterator[str]:
+        """Articles in a category, and in its subcategories up to `depth` levels down."""
+        if category in seen:
+            return
+        seen.add(category)
         params: dict[str, Any] = {
             "action": "query",
             "list": "categorymembers",
             "cmtitle": category,
-            "cmnamespace": 0,
+            "cmnamespace": "0|14" if depth > 0 else 0,
             "cmlimit": "max",
         }
+        subcategories: list[str] = []
         while True:
             data = self._get(params)
             for member in data["query"]["categorymembers"]:
-                yield member["title"]
+                if member.get("ns", 0) == 14:
+                    subcategories.append(member["title"])
+                else:
+                    yield member["title"]
             cont = data.get("continue")
             if not cont:
-                return
+                break
             params = {**params, **cont}
+        for subcategory in subcategories:
+            yield from self._category_titles(subcategory, depth - 1, seen)
 
     def _cargo(self, **query: Any) -> list[dict[str, str]]:
         params = {"action": "cargoquery", **{k: v for k, v in query.items() if v != ""}}
@@ -418,6 +430,11 @@ class WikiClient:
                         "Cloudflare is blocking requests from this connection with a bot "
                         "challenge. Stop for a few hours and try again with a lower request rate."
                     )
+                if _is_bot_challenge(response):
+                    raise WikiBlockedError(
+                        "The wiki's bot protection (Anubis) is blocking requests from this "
+                        "connection. Stop for a few hours and try again with a lower request rate."
+                    )
                 if response.status_code in (429, 503):
                     self._slow_down()
                     wait = max(_retry_after(response, default=backoff), backoff)
@@ -434,7 +451,10 @@ class WikiClient:
             if response.status_code != 200:
                 raise WikiError(f"HTTP {response.status_code} from wiki")
 
-            data: dict[str, Any] = response.json()
+            try:
+                data: dict[str, Any] = response.json()
+            except ValueError as exc:
+                raise WikiError("The wiki returned a web page instead of API data.") from exc
             error = data.get("error")
             if error and error.get("code") in ("maxlag", "ratelimited"):
                 if proxy is None:
@@ -492,6 +512,13 @@ class WikiClient:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         path = self._cache_path(page.title, page.revision_id)
         path.write_text(json.dumps(page.__dict__, ensure_ascii=False), encoding="utf-8")
+
+
+def _is_bot_challenge(response: requests.Response) -> bool:
+    """An HTML block or challenge page (e.g. Anubis) where the API should return JSON."""
+    if "html" not in response.headers.get("Content-Type", ""):
+        return False
+    return "anubis" in response.text[:20000].lower()
 
 
 def _retry_after(response: requests.Response, default: float) -> float:
