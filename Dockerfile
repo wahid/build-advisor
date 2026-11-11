@@ -1,8 +1,9 @@
+# syntax=docker/dockerfile:1
 # --- Frontend: build the React app -----------------------------------------
 FROM node:22-slim AS frontend
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
@@ -32,9 +33,10 @@ ENV POB_PATH=/opt/PathOfBuilding \
     PYTHONUNBUFFERED=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy \
+    UV_CACHE_DIR=/root/.cache/uv \
     PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir uv==0.13.4
+RUN --mount=type=cache,target=/root/.cache/pip pip install uv==0.13.4
 
 WORKDIR /app
 
@@ -43,7 +45,10 @@ WORKDIR /app
 ARG INSTALL_DEV=false
 ARG EMBEDDINGS=cpu
 COPY pyproject.toml uv.lock .python-version ./
-RUN set -e; \
+# The cache mount keeps downloaded wheels between builds: adding one small package
+# no longer re-downloads PyTorch (several GB for the CUDA build).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    set -e; \
     flags="--frozen --no-install-project"; \
     [ "$INSTALL_DEV" = "true" ] || flags="$flags --no-dev"; \
     [ "$EMBEDDINGS" = "none" ] || flags="$flags --extra $EMBEDDINGS"; \

@@ -65,6 +65,8 @@ services:
 
   worker:
     <<: *app
+    build: !reset null # reuses the image built for web instead of building it twice
+    pull_policy: never
     command: celery -A config worker --loglevel=info --concurrency=1
     ports: []
 

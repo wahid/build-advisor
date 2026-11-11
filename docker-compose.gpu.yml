@@ -10,9 +10,6 @@ services:
 
   worker:
     image: build-advisor:cuda
-    build:
-      args:
-        EMBEDDINGS: cuda
     environment:
       EMBEDDING_DEVICE: cuda
     # The solo pool runs tasks in the main process: no CUDA-after-fork problems.
