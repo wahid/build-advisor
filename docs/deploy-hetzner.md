@@ -96,6 +96,20 @@ After that, every push to `main` that passes CI is deployed
 ([`deploy.yml`](../.github/workflows/deploy.yml)); you can also run it by hand
 under Actions → Deploy.
 
+## What survives a deploy
+
+Deploys rebuild the app container; data lives in named Docker volumes that are
+kept: `pgdata` (the database, including the daily question counter and admin
+accounts), `hf_cache` (the bge-m3 download) and `caddy_data` (HTTPS
+certificates). `.env.prod` and `backups/` are ignored by git, so the
+`git reset` in `deploy.sh` leaves them alone. Data is only lost with
+`docker compose down -v`, `docker volume rm`, deleting the server, or
+restoring a dump with `--clean`.
+
+The nightly dumps in `backups/` are on the same server. Enable Hetzner's
+Backups, or copy a dump off the server now and then:
+`scp root@<ip>:/srv/build-advisor/backups/nightly-Mon.dump .`
+
 ## Day to day
 
 ```bash

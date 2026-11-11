@@ -1,6 +1,10 @@
 # Production on a single server (e.g. Hetzner CX33): Caddy (HTTPS) -> gunicorn -> Postgres.
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # No Redis/Celery: wiki imports and indexing run locally; the database is copied over.
+#
+# Data lives in named volumes (database, model cache, certificates) and survives
+# deploys. Never use `down -v`: that deletes them.
+name: build-advisor # fixed, so the volume names don't depend on the folder name
 services:
   db:
     image: pgvector/pgvector:pg17
