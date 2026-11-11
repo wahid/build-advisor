@@ -44,27 +44,27 @@ nano .env.prod     # DOMAIN, DJANGO_SECRET_KEY, POSTGRES_PASSWORD, LLM_API_KEY
 
 ## 3. Copy your database
 
-The 27k chunks with their embeddings come from your local database.
+The wiki pages and the 27k chunks with their embeddings come from your local
+database (about 140 MB as a dump).
 
 ```powershell
-# local (PowerShell): dump inside the container, then copy the file out
-docker compose exec -T db pg_dump -U build_advisor -Fc -f /tmp/build_advisor.dump build_advisor
-docker compose cp db:/tmp/build_advisor.dump .\build_advisor.dump
-scp .\build_advisor.dump root@<ip>:/srv/build-advisor/backups/
+# local (PowerShell, in the project folder)
+powershell -ExecutionPolicy Bypass -File scripts\export_db.ps1
+scp backups\build_advisor-<date>.dump root@<ip>:/srv/build-advisor/backups/
 ```
 
 ```bash
 # server
 cd /srv/build-advisor
-chown deploy:deploy backups/build_advisor.dump
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d db
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T db \
-  pg_restore -U build_advisor -d build_advisor --no-owner --clean --if-exists /backups/build_advisor.dump
+chown deploy:deploy backups/*.dump
+bash deploy/restore_db.sh backups/build_advisor-<date>.dump
 ```
 
-(`--clean` drops existing tables first, so you can repeat this after
-re-indexing locally.) Your local admin account comes along; to make a new one:
-`docker compose -f docker-compose.prod.yml --env-file .env.prod exec web python manage.py createsuperuser`.
+[`restore_db.sh`](../deploy/restore_db.sh) stops the app, replaces the
+database, rebuilds the search indexes (a few minutes), checks that they exist
+and starts the app again. Run the same two steps whenever you've re-imported
+or re-indexed locally. Your local admin account comes along; to make a new
+one: `docker compose -f docker-compose.prod.yml --env-file .env.prod exec web python manage.py createsuperuser`.
 
 ## 4. Start it
 
