@@ -55,6 +55,14 @@ class WikiBlockedError(WikiError):
     """The wiki's bot protection (Cloudflare) is challenging us; retrying won't help."""
 
 
+def _socks_supported() -> bool:
+    try:
+        import socks  # noqa: F401  (PySocks, installed by requests[socks])
+    except ImportError:
+        return False
+    return True
+
+
 class ProxyPool:
     """A thread-safe list of proxies with a cooldown for ones that failed recently.
 
@@ -67,8 +75,17 @@ class ProxyPool:
         proxies: Iterable[str],
         cooldown: float = PROXY_COOLDOWN,
         clock: Callable[[], float] = time.monotonic,
+        socks_supported: Callable[[], bool] = _socks_supported,
     ) -> None:
         self.proxies = list(dict.fromkeys(p.strip() for p in proxies if p.strip()))
+        socks_proxies = [p for p in self.proxies if p.lower().startswith("socks")]
+        if socks_proxies and not socks_supported():
+            logger.warning(
+                "Skipping %d SOCKS proxies: SOCKS support isn't installed (PySocks). "
+                "Run `uv sync`, or rebuild the Docker image with `docker compose build`.",
+                len(socks_proxies),
+            )
+            self.proxies = [p for p in self.proxies if p not in set(socks_proxies)]
         self._positions = {proxy: i for i, proxy in enumerate(self.proxies)}
         self.cooldown = cooldown
         self._clock = clock

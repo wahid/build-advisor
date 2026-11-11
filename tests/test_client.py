@@ -284,6 +284,13 @@ def test_pool_falls_back_to_soonest_recovering_proxy() -> None:
     assert pool.pick(1) == "a"  # b is still cooling down
 
 
+def test_socks_proxies_are_skipped_without_pysocks(caplog) -> None:
+    pool = ProxyPool(["socks5://a:1", "http://b:2"], socks_supported=lambda: False)
+
+    assert pool.proxies == ["http://b:2"]
+    assert "Skipping 1 SOCKS proxies" in caplog.text
+
+
 def test_redact_hides_credentials() -> None:
     assert client_module._redact("http://user:secret@host:8080") == "http://host:8080"
     assert client_module._redact("http://host:8080") == "http://host:8080"
