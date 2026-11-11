@@ -253,6 +253,17 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 </details>
 <!-- evals:end -->
 
+## CI
+
+| Workflow | When | What |
+|---|---|---|
+| [`ci.yml`](.github/workflows/ci.yml) | every push and PR | ruff, migrations check, pytest against Postgres + pgvector; frontend types, tests and build |
+| [`evals.yml`](.github/workflows/evals.yml) | weekly, on demand, and on retrieval/prompt changes | indexes the eval corpus and scores retrieval; also answers + judge when `LLM_API_KEY` is set |
+| [`docker.yml`](.github/workflows/docker.yml) | when the Dockerfile or dependencies change, and weekly | builds the production image and runs [`scripts/smoke_test.sh`](scripts/smoke_test.sh) in it |
+
+Repository settings for the evals: secret `LLM_API_KEY`, and optionally the
+variables `LLM_PROVIDER` and `LLM_MODEL` (default `deepseek` / `deepseek-flash`).
+
 ## Development
 
 ```bash

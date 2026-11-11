@@ -1,0 +1,51 @@
+name: Docker
+
+# Builds the production image (CPU embeddings, as deployed on Railway) and
+# smoke-tests it. Only when the image's inputs change, and weekly to catch
+# upstream breakage (base images, Path of Building).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1" # Mondays
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - uv.lock
+      - frontend/package.json
+      - frontend/package-lock.json
+      - .github/workflows/docker.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - uv.lock
+      - frontend/package.json
+      - frontend/package-lock.json
+      - .github/workflows/docker.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: build-advisor:ci
+          build-args: EMBEDDINGS=cpu
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: |
+          docker run --rm \
+            -e DJANGO_SECRET_KEY=ci-only-but-long-enough-for-the-deploy-checks-0123456789 \
+            -e DJANGO_ALLOWED_HOSTS=example.com \
+            -e DATABASE_URL=sqlite:////tmp/ci.sqlite3 \
+            build-advisor:ci sh scripts/smoke_test.sh
