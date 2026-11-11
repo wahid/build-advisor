@@ -132,8 +132,11 @@ document embeddings are already in the database.
 
 ## Frontend
 
-React + TypeScript (Vite) in `frontend/`. Sources are drawn like in-game item
-tooltips, coloured by page type (gems teal, uniques orange, ascendancies
+React + TypeScript (Vite) in `frontend/`, laid out as a chat: ask follow-ups
+in the same conversation, attach a build once and it stays attached, start
+over with "New chat" (the last conversation is kept in the browser). Each
+answer has its sources below it, drawn like in-game item tooltips, coloured
+by page type (gems teal, uniques orange, ascendancies
 blue, mechanics gold); citation markers in the answer share their source's
 colour, highlight it on hover and link to the wiki page.
 
@@ -184,15 +187,25 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    "Spell Totem Support, Totem") and decides whether it needs Path of
    Building. Only build questions get the PoB tools (~10k prompt tokens), so
    the first word of a wiki answer arrives after ~3-4 s instead of ~15 s.
+   For a follow-up it also gets the earlier turns and rewrites the question to
+   stand on its own ("and bleed?" becomes "how do multiple bleeds stack?").
 1. **Hybrid retrieval** (`wiki/search.py`) merges three ranked lists with
    reciprocal rank fusion: vector similarity, Postgres full-text search, and
    chunks of pages whose title appears in the question (one per page first,
    so "Righteous Fire Chieftain" finds both pages; one-word titles that are
    common words, like "Damage", don't count). Common words ("support", "gem")
    are ignored for keyword search, and at most 3 chunks per page are kept.
-2. **Grounded prompt** (`advisor/prompts.py`): the top 8 chunks are numbered
-   and the model is told to use only those, cite them as `[n]`, say when the
-   sources don't cover the question, and mention the game version.
+   Reference sections (version history, item acquisition, lists of related
+   mods and passives) count half unless the question asks for a list, so
+   they don't crowd out the sections that explain a mechanic. With an
+   attached build, the pages of its main skill, ascendancy, uniques and
+   supports come first.
+2. **Grounded prompt** (`advisor/prompts.py`): the top 8 chunks are numbered;
+   the model answers from them and cites them as `[n]`. Where they fall short
+   it may add well-established game knowledge, marked "(general game
+   knowledge)" and never cited, but no invented numbers or item names.
+   Earlier turns of the conversation come before the question (last 6, their
+   old citation marks removed).
 3. **Provider-independent LLM** (`advisor/llm.py`): DeepSeek, OpenAI and
    Anthropic through their OpenAI-compatible APIs, chosen by `LLM_PROVIDER`,
    with streamed tool calls. Model names live only in configuration.
@@ -233,13 +246,13 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 | Metric | Score |
 |---|---|
 | Expected page in top 8 | 100% |
-| Expected pages found (recall@8) | 100% |
-| Mean reciprocal rank | 0.88 |
+| Expected pages found (recall@8) | 98% |
+| Mean reciprocal rank | 0.90 |
 | Cases passed | 96% |
 | Required facts mentioned | 98% |
 | Answers with only valid citations | 100% |
-| Groundedness (judge, 1-5) | 4.60 |
-| Relevance (judge, 1-5) | 4.94 |
+| Groundedness (judge, 1-5) | 4.48 |
+| Relevance (judge, 1-5) | 4.96 |
 | Says so when the wiki doesn't cover it | 100% |
 
 | Category | Cases | Hit@8 | Passed |
@@ -254,8 +267,8 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 
 <details><summary>2 failing cases</summary>
 
-- `leech-recovery`: missing: damage dealt / damage you deal / damage done / based on damage / of the damage / of damage
-- `build-create-rf`: judge: grounded 2, relevant 2 (The RF mechanics and Chieftain/Rise of the Phoenix/Purity of Fire points are grounded in the wiki and PoB data, but the answer's headline build numbers (DPS, regen, EHP, mana, auras, gem links) are invented and the requested PoB code is never actually included.)
+- `leech-recovery`: missing: damage dealt / damage you deal / damage done / damage the enemy takes / damage taken / based on damage / of the damage / of damage
+- `build-create-rf`: judge: grounded 2, relevant 3 (The answer cites wiki mechanics correctly but fabricates most build specifics (gems, ascendancy, gear, passives, DPS) that the Path of Building results do not show, and the export is a near-empty skeleton.)
 
 </details>
 <!-- evals:end -->
