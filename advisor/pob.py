@@ -71,6 +71,8 @@ DEFAULT_TOOLS = (
 
 SHARE_CODE_RE = re.compile(r"^[A-Za-z0-9_\-+/=]{100,}$")
 BUILD_LINK_HOSTS = {"pobb.in", "pastebin.com", "www.pastebin.com"}
+BUILD_LINK_RE = re.compile(r"https?://(?:www\.)?(?:pobb\.in|pastebin\.com)/[\w\-/]+", re.IGNORECASE)
+LINK_ONLY_QUESTION = "What do you think of this build?"
 MAX_DESCRIPTION = 2000
 
 
@@ -97,6 +99,19 @@ def validate_build_source(source: str) -> str:
         "Only Path of Building share codes and https links to pobb.in or pastebin.com "
         "can be loaded."
     )
+
+
+def split_build_link(question: str) -> tuple[str, str]:
+    """Take a pobb.in / pastebin link out of a question: (question without it, link).
+
+    A question that was only the link becomes a general question about the build.
+    """
+    match = BUILD_LINK_RE.search(question)
+    if not match:
+        return question, ""
+    link = re.sub(r"^http://", "https://", match.group(0).rstrip("/"), flags=re.IGNORECASE)
+    rest = re.sub(r"\s{2,}", " ", question[: match.start()] + question[match.end() :]).strip()
+    return (rest if re.search(r"\w", rest) else LINK_ONLY_QUESTION), link
 
 
 def sanitize_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

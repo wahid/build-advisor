@@ -24,6 +24,14 @@ export interface HistoryTurn {
   answer: string;
 }
 
+const BUILD_LINK = /https?:\/\/(?:www\.)?(?:pobb\.in|pastebin\.com)\/[\w\-/]+/i;
+
+/** A pobb.in or pastebin link in the question, which the server loads as the build. */
+export function findBuildLink(question: string): string {
+  const match = BUILD_LINK.exec(question);
+  return match ? match[0].replace(/^http:/i, "https:").replace(/\/+$/, "") : "";
+}
+
 export const MAX_HISTORY = 6; // the server uses no more than this
 const STORAGE_KEY = "build-advisor:conversation";
 

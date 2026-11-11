@@ -70,7 +70,7 @@ export function Composer({ busy, followUp, docTypes, onDocTypesChange, build, on
         rows={1}
         maxLength={500}
         autoFocus
-        placeholder={followUp ? "Ask a follow-up" : "Ask about a skill, item, ascendancy or mechanic"}
+        placeholder={followUp ? "Ask a follow-up" : "Ask about a skill, item or mechanic, or paste a pobb.in link"}
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         onKeyDown={(e) => {

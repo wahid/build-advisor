@@ -4,6 +4,7 @@ import { ask, AskError } from "./api";
 import { Composer } from "./Composer";
 import {
   applyEvent,
+  findBuildLink,
   loadConversation,
   newTurn,
   saveConversation,
@@ -59,11 +60,15 @@ export default function App() {
     controller.current = current;
     const id = `turn-${Date.now()}-${nextId.current++}`;
     const history = toHistory(turns);
+    // A build link in the question becomes the attached build, so follow-ups use it too.
+    const link = findBuildLink(question);
+    if (link) setBuild(link);
     following.current = true;
     setTurns((prev) => [...prev, newTurn(id, question)]);
 
     try {
-      const events = ask(question, { docTypes, build: build.trim(), history, signal: current.signal });
+      const options = { docTypes, build: link || build.trim(), history, signal: current.signal };
+      const events = ask(question, options);
       for await (const event of events) update(id, (turn) => applyEvent(turn, event as AskEvent));
     } catch (err) {
       if (current.signal.aborted) return;

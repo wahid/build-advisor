@@ -118,3 +118,39 @@ def test_ask_endpoint_validates_history(client) -> None:
     bad = {"question": "q", "history": [{"question": "x" * 501, "answer": ""}]}
 
     assert client.post("/api/ask/", bad, content_type="application/json").status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        (
+            "Is this build tanky? https://pobb.in/uGQdbD7BJnVS",
+            ("Is this build tanky?", "https://pobb.in/uGQdbD7BJnVS"),
+        ),
+        (
+            "check http://pastebin.com/abc123/ for me",
+            ("check for me", "https://pastebin.com/abc123"),
+        ),
+        (
+            "https://pobb.in/uGQdbD7BJnVS",
+            ("What do you think of this build?", "https://pobb.in/uGQdbD7BJnVS"),
+        ),
+        ("How does poison work?", ("How does poison work?", "")),
+        ("see https://evil.example/pobb.in/x", ("see https://evil.example/pobb.in/x", "")),
+    ],
+)
+def test_build_links_are_taken_out_of_the_question(question, expected) -> None:
+    from advisor.pob import split_build_link
+
+    assert split_build_link(question) == expected
+
+
+@pytest.mark.django_db
+def test_ask_endpoint_loads_a_build_link_from_the_question(client, mocker) -> None:
+    stream = mocker.patch("advisor.views.answer", return_value=mocker.Mock(as_dict=dict))
+    body = {"question": "Is it tanky? https://pobb.in/abc", "stream": False, "build": "eNrOLD"}
+
+    assert client.post("/api/ask/", body, content_type="application/json").status_code == 200
+
+    assert stream.call_args.args[0] == "Is it tanky?"
+    assert stream.call_args.kwargs["build"] == "https://pobb.in/abc"

@@ -15,6 +15,7 @@ from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
 from .limits import take_question
+from .pob import split_build_link
 from .prompts import Turn
 from .rag import Event, answer, answer_stream
 
@@ -84,17 +85,20 @@ class AskView(APIView):
                 },
                 status=429,
             )
+        # A build link pasted into the question is the build to load (it wins over
+        # an attached one: it's what the user just pointed at).
+        question, link = split_build_link(data["question"])
         options = {
             "filters": SearchFilters(doc_types=tuple(data["doc_types"])),
-            "build": data["build"],
+            "build": link or data["build"],
             "history": [Turn(t["question"], t["answer"]) for t in data["history"]],
         }
 
         if not data["stream"]:
-            return Response(answer(data["question"], **options).as_dict())
+            return Response(answer(question, **options).as_dict())
 
         response = StreamingHttpResponse(
-            sse(answer_stream(data["question"], **options)),
+            sse(answer_stream(question, **options)),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"

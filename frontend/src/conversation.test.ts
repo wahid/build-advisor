@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyEvent, MAX_HISTORY, newTurn, toHistory, type ChatTurn } from "./conversation";
+import { applyEvent, findBuildLink, MAX_HISTORY, newTurn, toHistory, type ChatTurn } from "./conversation";
 
 const source = {
   number: 1,
@@ -53,5 +53,14 @@ describe("toHistory", () => {
     const history = toHistory(turns);
     expect(history).toHaveLength(MAX_HISTORY);
     expect(history[0].question).toBe("q2");
+  });
+});
+
+describe("findBuildLink", () => {
+  it("finds pobb.in and pastebin links in a question", () => {
+    expect(findBuildLink("Is this tanky? https://pobb.in/uGQdbD7BJnVS")).toBe("https://pobb.in/uGQdbD7BJnVS");
+    expect(findBuildLink("see http://pastebin.com/abc123/ please")).toBe("https://pastebin.com/abc123");
+    expect(findBuildLink("How does poison work?")).toBe("");
+    expect(findBuildLink("https://evil.example/pobb.in/x")).toBe("");
   });
 });
