@@ -50,6 +50,8 @@ JUDGE_PROMPT = """\
 You grade answers of a Path of Exile assistant that must answer only from the
 numbered wiki sources it was given and, for build questions, from Path of
 Building tool results (shown after the sources, possibly truncated).
+The app shows exported Path of Building share codes below the answer, so an
+answer that says "the code is below" does deliver it.
 
 Return only a JSON object:
 {

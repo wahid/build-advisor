@@ -55,7 +55,7 @@
   question: How does life leech work?
   category: mechanic
   expected_sources: [Leech]
-  must_mention: [[damage dealt, damage you deal, damage done, based on damage, of the damage, of damage], [recover, regain, restore]]
+  must_mention: [[damage dealt, damage you deal, damage done, damage the enemy takes, damage taken, based on damage, of the damage, of damage], [recover, regain, restore]]
 
 - id: energy-shield-recharge
   question: When does energy shield start recharging?
