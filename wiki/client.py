@@ -156,7 +156,14 @@ class CategoryListing:
 
 # Subcategories of Category:Game mechanics worth importing; see
 # `fetch_wiki --subcategories mechanic` for the full list with page counts.
-MECHANIC_SUBCATEGORIES: tuple[str, ...] = ()
+MECHANIC_SUBCATEGORIES: tuple[str, ...] = (
+    "Category:Ailments",
+    "Category:Attributes",
+    "Category:Charges",
+    "Category:Damage",
+    "Category:Modifiers",
+    "Category:Projectile behaviors",
+)
 
 
 # How each document type maps to pages on the wiki.
