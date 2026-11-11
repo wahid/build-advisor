@@ -38,6 +38,47 @@ logger = logging.getLogger(__name__)
 CITATION_RE = re.compile(r"\[(\d+)\]")
 MAX_TOOL_RESULT_CHARS = 8000  # per tool result sent back to the model
 MAX_EVENT_ARGUMENT_CHARS = 300  # per argument value shown to the user
+FINAL_ANSWER_NUDGE = (
+    "Write your final answer to my question now, based on the sources and tool results above."
+)
+OUT_OF_ROUNDS = (
+    "You have used all your tool calls. Don't call any more tools: write your final answer "
+    "to my question now, based on the sources and tool results above."
+)
+TOOL_PREVIEW_CHARS = 1500  # of each tool result, for clients and the eval judge
+# Tools that change the loaded build; if any ran and nothing was exported, export at the end.
+MODIFYING_TOOLS = {"new_build", "apply_changes", "auto_allocate_passives", "fix_gaps"}
+# DeepSeek's own tool-call markup ("<｜｜DSML｜｜ ...", "<｜tool▁calls▁begin｜>") can leak
+# into the text when it wants a tool it wasn't offered.
+MARKUP_START = "<\uff5c"
+
+
+class _MarkupFilter:
+    """Drops model-internal markup from streamed text, even when split across chunks."""
+
+    def __init__(self) -> None:
+        self._held = ""
+        self._dropping = False
+
+    def feed(self, text: str) -> str:
+        if self._dropping:
+            return ""
+        text = self._held + text
+        self._held = ""
+        start = text.find(MARKUP_START)
+        if start != -1:
+            self._dropping = True
+            return text[:start]
+        # Hold back a trailing "<" that might be the start of markup.
+        if text.endswith(MARKUP_START[0]):
+            self._held = text[-1]
+            return text[:-1]
+        return text
+
+    def flush(self) -> str:
+        held, self._held = self._held, ""
+        return "" if self._dropping else held
+
 
 Event = dict[str, Any]
 
@@ -123,6 +164,7 @@ class _ToolRunner:
             elapsed,
         )
         events = self._events(call, arguments, ok=result.ok, error="" if result.ok else result.text)
+        events[1]["preview"] = result.text[:TOOL_PREVIEW_CHARS]
         if result.ok and call.name == "export_build" and isinstance(result.data, dict):
             code = result.data.get("code")
             if code:
@@ -230,28 +272,38 @@ def _converse(
     runner = _ToolRunner(toolbox) if toolbox is not None else None
     answer_parts: list[str] = []
 
+    final_text = ""
+    changed = exported = False
     try:
         for round_number in range(rounds + 1):
+            last_round = round_number == rounds
             # The last round gets no tools, so the model has to answer.
-            tools = toolbox.definitions if toolbox is not None and round_number < rounds else None
+            tools = toolbox.definitions if toolbox is not None and not last_round else None
+            if toolbox is not None and rounds and last_round:
+                messages.append({"role": "user", "content": OUT_OF_ROUNDS})
             text: list[str] = []
             calls: list[ToolCall] = []
             reasoning = ""
+            markup = _MarkupFilter()
             for item in provider.stream(messages, tools):
                 if isinstance(item, ToolCall):
                     calls.append(item)
                 elif isinstance(item, Reasoning):
                     reasoning = item.text
-                else:
-                    text.append(item)
-                    yield {"type": "delta", "text": item}
+                elif clean := markup.feed(item):
+                    text.append(clean)
+                    yield {"type": "delta", "text": clean}
+            if tail := markup.flush():
+                text.append(tail)
+                yield {"type": "delta", "text": tail}
+            final_text = "".join(text)
             answer_parts.extend(text)
             if not calls or runner is None:
                 break
 
             assistant: Message = {
                 "role": "assistant",
-                "content": "".join(text) or None,
+                "content": final_text or None,
                 "tool_calls": [
                     {
                         "id": c.id,
@@ -266,11 +318,31 @@ def _converse(
             messages.append(assistant)
             for call in calls:
                 events, result = runner.run(call)
+                changed |= call.name in MODIFYING_TOOLS and events[1]["ok"]
+                exported |= any(e["type"] == "pob_export" for e in events)
                 yield from events
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+            final_text = ""
             if text:
                 answer_parts.append("\n\n")
                 yield {"type": "delta", "text": "\n\n"}
+
+        if not final_text.strip():
+            # Reasoning models sometimes end a tool session without a final answer.
+            messages.append({"role": "user", "content": FINAL_ANSWER_NUDGE})
+            markup = _MarkupFilter()
+            for item in provider.stream(messages, None):
+                if isinstance(item, str) and (clean := markup.feed(item)):
+                    answer_parts.append(clean)
+                    yield {"type": "delta", "text": clean}
+            if tail := markup.flush():
+                answer_parts.append(tail)
+                yield {"type": "delta", "text": tail}
+
+        if runner is not None and changed and not exported:
+            # The model changed the build but didn't export it: give the user the code anyway.
+            events, _ = runner.run(ToolCall("auto-export", "export_build", "{}"))
+            yield from events
     except LLMError as exc:
         logger.error("LLM failed for %r: %s", question, exc)
         yield {"type": "error", "message": "The language model is unavailable. Try again later."}
@@ -297,7 +369,9 @@ def answer(question: str, **kwargs: Any) -> Answer:
             case "delta":
                 result.text += event["text"]
             case "tool_result":
-                result.tools.append({"name": event["name"], "ok": event["ok"]})
+                result.tools.append(
+                    {"name": event["name"], "ok": event["ok"], "preview": event.get("preview", "")}
+                )
             case "pob_export":
                 result.pob_export = event["code"]
             case "done":

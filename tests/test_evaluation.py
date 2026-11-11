@@ -318,3 +318,14 @@ def test_judge_retries_once_when_it_returns_no_json() -> None:
 
     assert verdict.grounded == 5
     assert len(provider.calls) == 2
+
+
+def test_judge_sees_path_of_building_results() -> None:
+    from advisor.evaluation import judge
+
+    provider = FakeProvider([GOOD])
+
+    judge(provider, "q", "[1] Source", "answer", tools='- get_stats: {"Life": 5110}')
+
+    content = provider.calls[0][0][1]["content"]
+    assert "Path of Building tool results:\n- get_stats" in content

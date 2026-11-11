@@ -44,8 +44,8 @@ PASSING_SCORE = 4  # judge scores of 4 or 5 pass
 
 JUDGE_PROMPT = """\
 You grade answers of a Path of Exile assistant that must answer only from the
-numbered wiki sources it was given (and, for build questions, from Path of
-Building tool results that you don't see).
+numbered wiki sources it was given and, for build questions, from Path of
+Building tool results (shown after the sources, possibly truncated).
 
 Return only a JSON object:
 {
@@ -176,13 +176,17 @@ def parse_verdict(text: str) -> Verdict:
         return Verdict(error=f"judge returned invalid JSON: {exc}")
 
 
-def judge(provider: LLMProvider, question: str, sources: str, answer_text: str) -> Verdict:
+def judge(
+    provider: LLMProvider, question: str, sources: str, answer_text: str, tools: str = ""
+) -> Verdict:
     messages: list[Message] = [
         {"role": "system", "content": JUDGE_PROMPT},
         {
             "role": "user",
             "content": (
-                f"Question: {question}\n\nSources:\n{sources}\n\nAnswer to grade:\n{answer_text}"
+                f"Question: {question}\n\nSources:\n{sources}\n\n"
+                + (f"Path of Building tool results:\n{tools}\n\n" if tools else "")
+                + f"Answer to grade:\n{answer_text}"
             ),
         },
     ]
@@ -344,7 +348,14 @@ def _run_case(
     result.missing = missing_mentions(produced.text, case.must_mention)
     result.invalid_citations = invalid_citations(produced.text, len(produced.sources))
     result.missing_tools = [t for t in case.expect_tools if t not in result.tools_called]
-    verdict = judge(judge_provider or provider, case.question, format_sources(hits), produced.text)  # type: ignore[arg-type]
+    tool_results = "\n".join(f"- {t['name']}: {t['preview']}" for t in produced.tools)
+    verdict = judge(
+        judge_provider or provider,  # type: ignore[arg-type]
+        case.question,
+        format_sources(hits),
+        produced.text,
+        tool_results,
+    )
     result.verdict = verdict
 
     if verdict.error:

@@ -97,7 +97,7 @@ def test_model_calls_a_tool_and_answers_with_the_result(embedder, toolbox) -> No
     assert "Path of Building tools" in messages[0]["content"]
 
 
-def test_last_round_has_no_tools_so_the_model_must_answer(embedder, toolbox) -> None:
+def test_last_round_has_no_tools_and_says_so(embedder, toolbox) -> None:
     provider = FakeProvider(
         [ToolCall("a", "get_build_summary", "{}")],
         [ToolCall("b", "get_build_summary", "{}")],
@@ -110,6 +110,7 @@ def test_last_round_has_no_tools_so_the_model_must_answer(embedder, toolbox) -> 
     assert [tools is None for _, tools in provider.calls] == [False, False, False, True]
     assert len(toolbox.calls) == 3
     assert result.text == "Final answer."
+    assert provider.calls[-1][0][-1]["content"].startswith("You have used all your tool calls")
 
 
 def test_invalid_arguments_and_rejected_calls_go_back_to_the_model(embedder, toolbox) -> None:
@@ -255,7 +256,9 @@ def test_ask_endpoint_passes_an_attached_build(client, embedder, toolbox, mocker
     )
 
     assert response.status_code == 200
-    assert response.json()["tools"][0] == {"name": "load_build", "ok": True}
+    tool = response.json()["tools"][0]
+    assert (tool["name"], tool["ok"]) == ("load_build", True)
+    assert '"ascendancy": "Chieftain"' in tool["preview"]
     assert toolbox.calls[0] == ("load_build", {"source": "eNrCODE"})
 
 
@@ -276,3 +279,51 @@ def test_ask_command_shows_tool_calls_and_the_export(embedder, toolbox, mocker) 
 
     assert "[PoB] export_build()" in err.getvalue()
     assert "Path of Building code:\neNrEXPORT" in out.getvalue()
+
+
+def test_empty_final_answer_gets_one_more_turn(embedder, toolbox) -> None:
+    provider = FakeProvider(
+        [ToolCall("c", "get_build_summary", "{}")],
+        [],  # the model ends without text
+        ["Your build has 6200 life according to Path of Building."],
+    )
+
+    result = answer("How much life?", provider=provider, embedder=embedder)
+
+    assert result.text == "Your build has 6200 life according to Path of Building."
+    last_messages, tools = provider.calls[-1]
+    assert tools is None
+    assert last_messages[-1]["content"].startswith("Write your final answer")
+
+
+def test_leaked_tool_markup_is_removed_and_the_model_asked_again(embedder, toolbox) -> None:
+    provider = FakeProvider(
+        ["I'll build this.", ToolCall("c", "get_build_summary", "{}")],
+        ["<", "\uff5c\uff5cDSML\uff5c\uff5c calls>", '<invoke name="get_stats">'],
+        ["It has 6200 life."],
+    )
+
+    result = answer("q", provider=provider, embedder=embedder)
+
+    assert "DSML" not in result.text and "invoke" not in result.text
+    assert result.text.endswith("It has 6200 life.")
+    assert provider.calls[-1][0][-1]["content"].startswith("Write your final answer")
+
+
+def test_changed_build_is_exported_even_if_the_model_forgets(embedder, toolbox) -> None:
+    toolbox.results["new_build"] = {"ascendancy": "Chieftain"}
+    toolbox.results["export_build"] = {"code": "eNrAUTO"}
+    provider = FakeProvider([ToolCall("n", "new_build", "{}")], ["Here is your Chieftain."])
+
+    events = list(answer_stream("make a build", provider=provider, embedder=embedder))
+
+    assert {"type": "pob_export", "code": "eNrAUTO"} in events
+    assert toolbox.calls[-1] == ("export_build", {})
+
+
+def test_reading_a_build_doesnt_trigger_an_export(embedder, toolbox) -> None:
+    provider = FakeProvider([ToolCall("s", "get_build_summary", "{}")], ["6200 life."])
+
+    list(answer_stream("q", provider=provider, embedder=embedder))
+
+    assert [name for name, _ in toolbox.calls] == ["get_build_summary"]
