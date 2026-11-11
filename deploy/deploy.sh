@@ -12,18 +12,23 @@ if [ -n "$(find . -path ./backups -prune -o ! -user "$(id -un)" -print -quit)" ]
   exit 1
 fi
 
+[ -f .env.prod ] || { echo "Create .env.prod first (see .env.prod.example)." >&2; exit 1; }
+# Every compose call needs the same file and variables.
+compose=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
+
 git fetch --quiet origin main
 git reset --hard origin/main
 
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --remove-orphans
+"${compose[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
 
-echo "Waiting for the app to become healthy..."
-for _ in $(seq 1 60); do
-  status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose -f docker-compose.prod.yml ps -q web)")
+echo "Waiting for the app to become healthy (the first start downloads the model)..."
+for _ in $(seq 1 72); do
+  container=$("${compose[@]}" ps -q web)
+  status=$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null || echo missing)
   [ "$status" = "healthy" ] && echo "Deployed $(git rev-parse --short HEAD)" && exit 0
   sleep 5
 done
-echo "The app didn't become healthy; recent logs:" >&2
-docker compose -f docker-compose.prod.yml logs --tail 50 web >&2
+echo "The app didn't become healthy within 6 minutes; recent logs:" >&2
+"${compose[@]}" logs --tail 50 web >&2
 exit 1
