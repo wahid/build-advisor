@@ -156,11 +156,18 @@ class CategoryListing:
 
 # Subcategories of Category:Game mechanics worth importing; see
 # `fetch_wiki --subcategories mechanic` for the full list with page counts.
+# League content (Heist, Delve, Sanctum, ...) and removed Prophecies are left out.
 MECHANIC_SUBCATEGORIES: tuple[str, ...] = (
     "Category:Ailments",
     "Category:Attributes",
+    "Category:Buffs",
     "Category:Charges",
     "Category:Damage",
+    "Category:Debuffs",
+    "Category:Gem tag mechanics",
+    "Category:Ground effects",
+    "Category:Item mechanics",
+    "Category:Keywords",
     "Category:Modifiers",
     "Category:Projectile behaviors",
 )
