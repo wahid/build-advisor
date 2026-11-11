@@ -212,7 +212,15 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
 4. **Tools** (`advisor/rag.py`): when the model calls Path of Building tools,
    results go back to it until it answers; numbers from PoB are reported as
    such, wiki facts keep their `[n]` citations.
-5. **Streaming** (`POST /api/ask/`): sources first, then tool steps, the
+5. **Web search** (`advisor/websearch.py`, DeepSeek only): the model can call
+   `web_search` for what the wiki doesn't cover, like the current league or
+   recent patch notes. It goes through DeepSeek's Search API with the same key,
+   at most twice per question, and only results from a few Path of Exile sites
+   are kept (official site, wiki, maxroll, mobalytics, Reddit; translations and
+   duplicates dropped). Results become numbered sources the model cites like
+   the wiki, shown as "Web page" cards with their site and date. The evals run
+   without it, so scores don't change with the web.
+6. **Streaming** (`POST /api/ask/`): sources first, then tool steps, the
    answer token by token, an exported share code if any, and finally which
    sources were cited.
 

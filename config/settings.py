@@ -208,6 +208,26 @@ POB_ENABLED = env.bool("POB_ENABLED", default=bool(POB_PATH) and Path(POB_PATH).
 POB_POOL_SIZE = env.int("POB_POOL_SIZE", default=1)  # PoB processes per web/worker process
 POB_TOOL_TIMEOUT = env.float("POB_TOOL_TIMEOUT", default=90.0)
 POB_MAX_TOOL_ROUNDS = env.int("POB_MAX_TOOL_ROUNDS", default=8)
+
+# Web search through DeepSeek's Search API (same key); off for other providers.
+WEB_SEARCH_ENABLED = env.bool(
+    "WEB_SEARCH_ENABLED", default=LLM_PROVIDER == "deepseek" and bool(LLM_API_KEY)
+)
+WEB_SEARCH_URL = env("WEB_SEARCH_URL", default="https://api.deepseek.com/v1/tools/search")
+WEB_SEARCH_SITES = env.list(
+    "WEB_SEARCH_SITES",
+    default=[
+        "pathofexile.com",
+        "poewiki.net",
+        "maxroll.gg",
+        "mobalytics.gg",
+        "reddit.com",
+    ],
+)  # empty list: any site
+WEB_SEARCH_CANDIDATES = env.int("WEB_SEARCH_CANDIDATES", default=20)  # asked for; price is per call
+WEB_SEARCH_RESULTS = env.int("WEB_SEARCH_RESULTS", default=5)  # kept after the site filter
+WEB_SEARCH_MAX_CALLS = env.int("WEB_SEARCH_MAX_CALLS", default=2)  # searches per question
+WEB_SEARCH_TIMEOUT = env.float("WEB_SEARCH_TIMEOUT", default=15)
 POB_DEBUG = env.bool("POB_DEBUG", default=False)  # show PoB's console output
 # Override the allowlist of pob-mcp tools (comma-separated); empty = advisor.pob.DEFAULT_TOOLS.
 POB_TOOLS = env.list("POB_TOOLS", default=[])

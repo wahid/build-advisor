@@ -353,6 +353,7 @@ def _run_case(
         use_tools=None if rewrite else case.requires_pob,
         expansion=expansion,  # same terms as the retrieval score; no second rewrite
         needs_build_tools=routed.needs_build_tools if rewrite else None,
+        web_search=False,  # the web changes from day to day; keep scores comparable
     )
     result.answer = produced.text
     result.tools_called = [t["name"] for t in produced.tools]

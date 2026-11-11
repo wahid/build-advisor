@@ -6,7 +6,8 @@ export interface Source {
   section: string;
   url: string;
   patch: string;
-  doc_type: DocType;
+  /** "web": a page found by web search; `section` then names the site and date. */
+  doc_type: DocType | "web";
 }
 
 export type AskEvent =

@@ -36,26 +36,33 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   fix_gaps: ["Fixed resistance and attribute gaps", "fix resistance and attribute gaps"],
   export_build: ["Exported the build", "export the build"],
   price_check: ["Checked prices on poe.ninja", "check prices on poe.ninja"],
+  web_search: ["Searched the web", "search the web"],
 };
 
-export function stepLabel(name: string, failed = false): string {
+export function stepLabel(name: string, failed = false, args: Record<string, unknown> = {}): string {
+  if (name === "web_search" && typeof args.query === "string" && args.query) {
+    return failed ? `Couldn't search the web for “${args.query}”` : `Searched the web for “${args.query}”`;
+  }
   const label = LABELS[name];
   if (!label) return `${failed ? "Couldn't run " : ""}${name.replace(/_/g, " ")}`;
   return failed ? `Couldn't ${label[1]}` : label[0];
 }
 
-/** What Path of Building did for this answer, step by step. */
+/** What the tools (Path of Building, web search) did for this answer, step by step. */
 export function PobSteps({ steps }: { steps: ToolStep[] }) {
   if (!steps.length) return null;
+  const pob = steps.some((step) => step.name !== "web_search");
+  const web = steps.some((step) => step.name === "web_search");
+  const heading = pob && web ? "Path of Building and the web" : pob ? "Calculated with Path of Building" : "Searched the web";
   return (
-    <section className="pob" aria-label="Path of Building steps">
-      <h3 className="pob-heading">Calculated with Path of Building</h3>
+    <section className="pob" aria-label={heading}>
+      <h3 className="pob-heading">{heading}</h3>
       <ol className="pob-steps">
         {steps.map((step) => (
           <li key={step.id} className="pob-step" data-status={step.status}>
             <span className="pob-marker" aria-hidden="true" />
             <span>
-              {stepLabel(step.name, step.status === "failed")}
+              {stepLabel(step.name, step.status === "failed", step.arguments)}
               {step.status === "running" && <span className="visually-hidden"> (running)</span>}
               {step.status === "failed" && <span className="pob-error">: {step.error || "failed"}</span>}
             </span>

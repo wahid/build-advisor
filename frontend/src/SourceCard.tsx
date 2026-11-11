@@ -1,6 +1,6 @@
 import { DOC_TYPES, type Source } from "./types";
 
-const KIND = Object.fromEntries(DOC_TYPES.map((t) => [t.value, t.singular]));
+const KIND: Record<string, string> = Object.fromEntries(DOC_TYPES.map((t) => [t.value, t.singular]));
 
 export interface SourceGroup {
   url: string;
@@ -45,7 +45,7 @@ export function SourceCard({ group, cited, hovered, answered }: Props) {
         <span className="tooltip-header">
           <span className="tooltip-title">{group.title}</span>
           <span className="tooltip-meta">
-            {KIND[group.doc_type]}, patch {group.patch}
+            {group.doc_type === "web" ? "Web page" : `${KIND[group.doc_type]}, patch ${group.patch}`}
           </span>
         </span>
         <span className="tooltip-body">
@@ -57,7 +57,7 @@ export function SourceCard({ group, cited, hovered, answered }: Props) {
               data-highlighted={entry.number === hovered || undefined}
             >
               <span className="tooltip-number">{entry.number}</span>
-              <span>{entry.section || "Introduction"}</span>
+              <span>{entry.section || (entry.doc_type === "web" ? new URL(entry.url).hostname : "Introduction")}</span>
             </span>
           ))}
           {unused && <span className="tooltip-unused">Found, but not used in the answer</span>}

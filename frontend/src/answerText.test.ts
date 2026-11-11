@@ -83,4 +83,11 @@ describe("stepLabel", () => {
     expect(stepLabel("fix_gaps", true)).toBe("Couldn't fix resistance and attribute gaps");
     expect(stepLabel("brand_new_tool")).toBe("brand new tool");
   });
+
+  it("says what the web search looked for", async () => {
+    const { stepLabel } = await import("./PobPanel");
+
+    expect(stepLabel("web_search", false, { query: "3.29 patch notes" })).toBe("Searched the web for “3.29 patch notes”");
+    expect(stepLabel("web_search", true, { query: "x" })).toBe("Couldn't search the web for “x”");
+  });
 });

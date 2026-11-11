@@ -9,6 +9,7 @@
   --unique: #c16d2c;
   --ascendancy: #8f8fff;
   --mechanic: #b8a77e;
+  --web: #9db4c6;
   --danger: #d86a5a;
 
   --serif: "Alegreya", Georgia, serif;
@@ -332,6 +333,7 @@ a {
 [data-type="unique"] { --type-colour: var(--unique); }
 [data-type="ascendancy"] { --type-colour: var(--ascendancy); }
 [data-type="mechanic"] { --type-colour: var(--mechanic); }
+[data-type="web"] { --type-colour: var(--web); }
 
 .send-button {
   flex: none;

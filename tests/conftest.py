@@ -45,3 +45,9 @@ def _fresh_pob_pool(settings):
 def _no_query_rewrite(settings):
     """Tests opt in to query rewriting explicitly."""
     settings.SEARCH_QUERY_REWRITE = False
+
+
+@pytest.fixture(autouse=True)
+def _no_web_search(settings):
+    """Tests opt in to the web search tool explicitly."""
+    settings.WEB_SEARCH_ENABLED = False
