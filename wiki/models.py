@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
 from pgvector.django import HnswIndex, VectorField
 
@@ -70,6 +72,12 @@ class Chunk(models.Model):
     embedding = VectorField(dimensions=settings.EMBEDDING_DIMENSIONS, null=True, blank=True)
     embedding_model = models.CharField(max_length=100, blank=True)
     embedded_at = models.DateTimeField(null=True, blank=True)
+    # Maintained by Postgres for keyword search (exact gem and item names).
+    search_vector = models.GeneratedField(
+        expression=SearchVector("text", config="english"),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
 
     class Meta:
         ordering = ["document", "position"]
@@ -84,6 +92,7 @@ class Chunk(models.Model):
                 ef_construction=64,
                 opclasses=["vector_cosine_ops"],
             ),
+            GinIndex(name="chunk_search_vector_gin", fields=["search_vector"]),
         ]
 
     def __str__(self) -> str:

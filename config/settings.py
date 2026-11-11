@@ -135,6 +135,11 @@ EMBEDDING_DEVICE = env("EMBEDDING_DEVICE", default="auto")  # auto | cuda | cpu
 EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
 CHUNK_MAX_CHARS = env.int("CHUNK_MAX_CHARS", default=1500)
 
+# --- Retrieval -----------------------------------------------------------------
+SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=8)
+SEARCH_CANDIDATES = env.int("SEARCH_CANDIDATES", default=40)  # per ranked list
+SEARCH_MAX_PER_DOCUMENT = env.int("SEARCH_MAX_PER_DOCUMENT", default=3)
+
 # --- LLM (used from phase 3 onwards) ----------------------------------------
 LLM_PROVIDER = env("LLM_PROVIDER", default="deepseek")
 LLM_MODEL = env("LLM_MODEL", default="")
