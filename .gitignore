@@ -1,0 +1,34 @@
+# Agent instructions (kept local)
+AGENTS.md
+CLAUDE.md
+.claude/
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Django
+staticfiles/
+*.sqlite3
+
+# Cached raw wiki pages
+data/raw/*
+!data/raw/.gitkeep
+
+# Frontend (React, phase 3)
+node_modules/
+frontend/dist/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

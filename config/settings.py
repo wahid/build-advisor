@@ -1,0 +1,112 @@
+"""Django settings for build-advisor.
+
+All configuration comes from environment variables (see `.env.example`).
+"""
+
+from pathlib import Path
+
+import environ
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
+
+SECRET_KEY = env("DJANGO_SECRET_KEY", default="insecure-dev-key-change-me")
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
+
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "wiki",
+]
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "config.wsgi.application"
+
+DATABASES = {
+    "default": env.db(
+        "DATABASE_URL",
+        default="postgres://build_advisor:build_advisor@localhost:5432/build_advisor",
+    )
+}
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
+
+# --- Celery -----------------------------------------------------------------
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+
+# --- Path of Exile wiki ingestion -------------------------------------------
+WIKI_NAME = "poewiki"
+WIKI_API_URL = env("WIKI_API_URL", default="https://www.poewiki.net/w/api.php")
+WIKI_PAGE_URL = env("WIKI_PAGE_URL", default="https://www.poewiki.net/wiki/")
+# The wiki asks bots to identify themselves with a contact address.
+WIKI_USER_AGENT = env(
+    "WIKI_USER_AGENT",
+    default="build-advisor/0.1 (non-commercial portfolio project; set WIKI_USER_AGENT)",
+)
+WIKI_REQUEST_INTERVAL = env.float("WIKI_REQUEST_INTERVAL", default=1.0)  # seconds
+WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=3)
+WIKI_CACHE_DIR = Path(env("WIKI_CACHE_DIR", default=str(BASE_DIR / "data" / "raw")))
+# Leave empty to use the latest released version from the wiki's version table.
+POE_PATCH = env("POE_PATCH", default="")
+
+# --- LLM (used from phase 3 onwards) ----------------------------------------
+LLM_PROVIDER = env("LLM_PROVIDER", default="deepseek")
+LLM_MODEL = env("LLM_MODEL", default="")
+LLM_BASE_URL = env("LLM_BASE_URL", default="https://api.deepseek.com")
+LLM_API_KEY = env("LLM_API_KEY", default="")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
+}

@@ -1,0 +1,53 @@
+# Local development: `docker compose up` starts Django, Celery, Postgres (pgvector) and Redis.
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: build_advisor
+      POSTGRES_PASSWORD: build_advisor
+      POSTGRES_DB: build_advisor
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U build_advisor"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web: &app
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "true"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://build_advisor:build_advisor@db:5432/build_advisor
+      CELERY_BROKER_URL: redis://redis:6379/0
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: "*"
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    <<: *app
+    command: celery -A config worker --loglevel=info
+    ports: []
+
+volumes:
+  pgdata:
