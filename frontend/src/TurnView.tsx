@@ -7,11 +7,11 @@ import { groupSources, SourceCard } from "./SourceCard";
 
 interface Props {
   turn: ChatTurn;
-  /** The latest turn shows its sources open; earlier ones fold them away. */
+  /** Only the latest turn announces its streaming text to screen readers. */
   isLatest: boolean;
 }
 
-/** One exchange: the question as a bubble, then the answer with its sources. */
+/** One exchange: the question as a bubble, then the answer; its sources fold out once it's done. */
 export function TurnView({ turn, isLatest }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
   const busy = turn.status === "searching" || turn.status === "answering";
@@ -41,8 +41,8 @@ export function TurnView({ turn, isLatest }: Props) {
           </p>
         )}
 
-        {groups.length > 0 && (
-          <details className="sources" open={isLatest}>
+        {groups.length > 0 && !busy && (
+          <details className="sources">
             <summary className="sources-summary">
               Sources: {groups.length} wiki {groups.length === 1 ? "page" : "pages"}
               {turn.patch && `, patch ${turn.patch}`}
