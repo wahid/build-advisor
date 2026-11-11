@@ -43,11 +43,11 @@ SLOWDOWN_FACTOR = 2.0  # interval multiplier after a rate-limit response
 SPEEDUP_FACTOR = 0.95  # interval multiplier after each successful request
 REVISION_BATCH_SIZE = 50  # MediaWiki's limit for titles per query for normal clients.
 PROXY_COOLDOWN = 300.0  # seconds a failed proxy is skipped before it's tried again
-PROXY_SWITCHES_PER_REQUEST = 10  # other proxies tried before failures count as retries
-CONNECT_TIMEOUT = 10.0  # seconds; dead proxies should fail fast
-READ_TIMEOUT = 30.0
+PROXY_SWITCHES_PER_REQUEST = 100  # other proxies tried before failures count as retries
+CONNECT_TIMEOUT = 2.0  # seconds; dead proxies should fail fast
+READ_TIMEOUT = 5.0
 # Statuses that come from a broken proxy rather than from the wiki.
-PROXY_ERROR_STATUSES = frozenset({407, 502, 504})
+PROXY_ERROR_STATUSES = frozenset({407, 502, 504, 429})
 
 
 class WikiError(RuntimeError):
@@ -366,8 +366,8 @@ class WikiClient:
         attempt = 0
         while attempt < self.max_retries:
             attempt += 1
-            self._throttle()
-            backoff = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP)
+            # self._throttle()
+            # backoff = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP)
             proxy = self.proxy_pool.pick(self.proxy_index)
             try:
                 response = self.session.get(
@@ -387,7 +387,7 @@ class WikiClient:
                     raise WikiError(f"Request failed: {exc}") from exc
                 if proxy:
                     self.proxy_pool.mark_failed(proxy)
-                self._sleep(backoff)
+                # self._sleep(backoff)
                 continue
 
             if proxy and response.status_code in PROXY_ERROR_STATUSES:
@@ -398,30 +398,14 @@ class WikiClient:
                     continue
                 raise WikiError(f"All proxies failed (last: HTTP {response.status_code})")
 
-            if response.headers.get("cf-mitigated") == "challenge":
-                raise WikiBlockedError(
-                    "Cloudflare is blocking requests from this connection with a bot "
-                    "challenge. Stop for a few hours and try again with a lower request rate."
-                )
-            if response.status_code in (429, 503):
-                self._slow_down()
-                wait = max(_retry_after(response, default=backoff), backoff)
-                logger.warning(
-                    "Wiki asked us to slow down (HTTP %s); waiting %.0fs, then 1 request per %.1fs",
-                    response.status_code,
-                    wait,
-                    self.request_interval,
-                )
-                self._sleep(wait)
-                continue
             if response.status_code != 200:
                 raise WikiError(f"HTTP {response.status_code} from wiki")
 
             data: dict[str, Any] = response.json()
             error = data.get("error")
             if error and error.get("code") in ("maxlag", "ratelimited"):
-                self._slow_down()
-                self._sleep(max(_retry_after(response, default=backoff), backoff))
+                # self._slow_down()
+                #  self._sleep(max(_retry_after(response, default=backoff), backoff))
                 continue
             if error:
                 raise WikiError(f"{error.get('code')}: {error.get('info')}")
@@ -436,9 +420,8 @@ class WikiClient:
             # The replacement becomes this client's new home proxy.
             self.proxy_index = self.proxy_pool.index_of(replacement)
         logger.warning(
-            "Proxy %s failed (%s); switching to %s",
+            "Proxy %s failed; switching to %s",
             _redact(proxy),
-            reason,
             _redact(replacement or "direct connection"),
         )
 
