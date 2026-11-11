@@ -27,12 +27,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
-import urllib3
-urllib3.disable_warnings()
-    
 import requests
+import urllib3
 
 from .models import DocumentType
+
+# Requests use verify=False (see WikiClient._get), so silence urllib3's warning.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -373,7 +374,8 @@ class WikiClient:
                     params=params,
                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
                     proxies={"http": proxy, "https": proxy} if proxy else None,
-                    verify=False,  # The wiki's TLS cert is valid but the chain is incomplete; skip verification.
+                    # The wiki's TLS cert is valid but its chain is incomplete.
+                    verify=False,
                 )
             except requests.RequestException as exc:
                 if proxy and proxy_switches_left > 0:

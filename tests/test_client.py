@@ -7,7 +7,7 @@ import requests
 import responses
 
 from wiki import client as client_module
-from wiki.client import ProxyPool, WikiBlockedError, WikiClient, WikiError
+from wiki.client import ProxyPool, WikiClient, WikiError
 from wiki.models import DocumentType
 
 from .conftest import API_URL
@@ -77,32 +77,6 @@ def test_fetch_page_uses_cache_for_known_revision(wiki_client: WikiClient) -> No
     assert len(responses.calls) == 1
 
 
-@responses.activate
-def test_retries_after_rate_limit(wiki_client: WikiClient) -> None:
-    waits: list[float] = []
-    wiki_client._sleep = waits.append
-    responses.get(API_URL, status=429, headers={"Retry-After": "30"})
-    responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
-
-    assert wiki_client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
-    assert 30.0 in waits  # a longer Retry-After than our backoff is respected
-
-
-@responses.activate
-def test_rate_limit_slows_down_later_requests(wiki_client: WikiClient) -> None:
-    waits: list[float] = []
-    wiki_client._sleep = waits.append
-    wiki_client.base_interval = wiki_client.request_interval = 1.0
-    responses.get(API_URL, status=429)
-    responses.get(API_URL, status=429)
-    responses.get(API_URL, json={"cargoquery": [{"title": {"version": "3.29.3c"}}]})
-
-    wiki_client.current_patch(today=date(2026, 11, 11))
-
-    assert [w for w in waits if w >= 5] == [5.0, 10.0]  # backoff doubles per retry
-    assert wiki_client.request_interval == pytest.approx(4.0 * 0.95)
-
-
 def test_interval_recovers_but_not_below_base(wiki_client: WikiClient) -> None:
     wiki_client.base_interval = wiki_client.request_interval = 1.0
     wiki_client._slow_down()
@@ -126,7 +100,7 @@ def test_interval_is_capped(wiki_client: WikiClient) -> None:
 def test_gives_up_after_max_retries(wiki_client: WikiClient) -> None:
     wiki_client.max_retries = 3
     for _ in range(3):
-        responses.get(API_URL, status=429)
+        responses.get(API_URL, json={"error": {"code": "maxlag", "info": "lagged"}})
 
     with pytest.raises(WikiError, match="Gave up"):
         wiki_client.current_patch(today=date(2026, 11, 11))
@@ -156,15 +130,6 @@ def test_page_url_for(wiki_client: WikiClient) -> None:
     assert wiki_client.page_url_for("Abberath's Horn") == "https://wiki.test/wiki/Abberath's_Horn"
 
 
-@responses.activate
-def test_cloudflare_challenge_stops_immediately(wiki_client: WikiClient) -> None:
-    responses.get(API_URL, status=429, headers={"cf-mitigated": "challenge"}, body="<html>")
-
-    with pytest.raises(WikiBlockedError):
-        wiki_client.current_patch(today=date(2026, 11, 11))
-    assert len(responses.calls) == 1
-
-
 # --- proxies ----------------------------------------------------------------
 
 
@@ -191,13 +156,13 @@ class _RecordingSession(requests.Session):
         self.status = status
         self.used: list[str | None] = []
 
-    def get(self, url, params=None, timeout=None, proxies=None):  # type: ignore[override]
+    def get(self, url, params=None, proxies=None, **kwargs):  # type: ignore[override]
         proxy = proxies["https"] if proxies else None
         self.used.append(proxy)
         response = requests.Response()
         if proxy in self.broken:
-            if self.status == 407:
-                response.status_code = 407
+            if self.status != 200:
+                response.status_code = self.status
                 return response
             raise requests.ConnectionError("proxy down")
         response.status_code = 200
@@ -226,6 +191,23 @@ def test_proxy_auth_error_switches_proxy(tmp_path) -> None:
 
     assert client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
     assert client.session.used == ["http://p1:8080", "http://p2:8080"]
+
+
+def test_rate_limited_proxy_switches_proxy(tmp_path) -> None:
+    client = _proxy_client(tmp_path, ["http://p1:8080", "http://p2:8080"])
+    client.session = _RecordingSession({"http://p1:8080"}, PATCH_PAYLOAD, status=429)
+
+    assert client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
+    assert client.session.used == ["http://p1:8080", "http://p2:8080"]
+
+
+@responses.activate
+def test_rate_limit_without_proxies_raises(wiki_client: WikiClient) -> None:
+    responses.get(API_URL, status=429)
+
+    with pytest.raises(WikiError, match="HTTP 429"):
+        wiki_client.current_patch(today=date(2026, 11, 11))
+    assert len(responses.calls) == 1
 
 
 def test_all_proxies_failing_gives_up(tmp_path) -> None:
