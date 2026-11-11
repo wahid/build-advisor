@@ -149,7 +149,14 @@ class CargoListing:
 @dataclass(frozen=True)
 class CategoryListing:
     category: str
-    depth: int = 0  # how many levels of subcategories to follow
+    # Subcategories whose articles are included too. Explicit, because following all
+    # of them pulls in quests and missions (Game mechanics has ~45 subcategories).
+    subcategories: tuple[str, ...] = ()
+
+
+# Subcategories of Category:Game mechanics worth importing; see
+# `fetch_wiki --subcategories mechanic` for the full list with page counts.
+MECHANIC_SUBCATEGORIES: tuple[str, ...] = ()
 
 
 # How each document type maps to pages on the wiki.
@@ -164,7 +171,7 @@ LISTINGS: dict[str, CargoListing | CategoryListing] = {
     ),
     DocumentType.ASCENDANCY: CategoryListing("Category:Ascendancy classes"),
     # Core pages like Ignite or Endurance charge sit in subcategories (ailments, charges).
-    DocumentType.MECHANIC: CategoryListing("Category:Game mechanics", depth=1),
+    DocumentType.MECHANIC: CategoryListing("Category:Game mechanics", MECHANIC_SUBCATEGORIES),
 }
 
 
@@ -247,8 +254,20 @@ class WikiClient:
         if isinstance(listing, CargoListing):
             titles = self._cargo_titles(listing)
         else:
-            titles = self._category_titles(listing.category, listing.depth, set())
+            titles = list(self._category_titles(listing.category))
+            for subcategory in listing.subcategories:
+                titles += self._category_titles(subcategory)
         return sorted(set(titles))
+
+    def subcategory_sizes(self, category: str) -> dict[str, int]:
+        """Subcategories of a category with their number of articles."""
+        subcategories = list(self._category_members(category, namespace=14))
+        sizes: dict[str, int] = {}
+        for batch in _batched(subcategories, REVISION_BATCH_SIZE):
+            data = self._get({"action": "query", "prop": "categoryinfo", "titles": "|".join(batch)})
+            for page in data.get("query", {}).get("pages", []):
+                sizes[page["title"]] = page.get("categoryinfo", {}).get("pages", 0)
+        return dict(sorted(sizes.items(), key=lambda item: -item[1]))
 
     def revision_ids(self, titles: Iterable[str]) -> dict[str, int]:
         """Return the latest revision id per title (missing pages are left out)."""
@@ -341,32 +360,25 @@ class WikiClient:
                 return
             offset += CARGO_PAGE_SIZE
 
-    def _category_titles(self, category: str, depth: int, seen: set[str]) -> Iterator[str]:
-        """Articles in a category, and in its subcategories up to `depth` levels down."""
-        if category in seen:
-            return
-        seen.add(category)
+    def _category_titles(self, category: str) -> Iterator[str]:
+        return self._category_members(category, namespace=0)
+
+    def _category_members(self, category: str, namespace: int) -> Iterator[str]:
         params: dict[str, Any] = {
             "action": "query",
             "list": "categorymembers",
             "cmtitle": category,
-            "cmnamespace": "0|14" if depth > 0 else 0,
+            "cmnamespace": namespace,
             "cmlimit": "max",
         }
-        subcategories: list[str] = []
         while True:
             data = self._get(params)
             for member in data["query"]["categorymembers"]:
-                if member.get("ns", 0) == 14:
-                    subcategories.append(member["title"])
-                else:
-                    yield member["title"]
+                yield member["title"]
             cont = data.get("continue")
             if not cont:
-                break
+                return
             params = {**params, **cont}
-        for subcategory in subcategories:
-            yield from self._category_titles(subcategory, depth - 1, seen)
 
     def _cargo(self, **query: Any) -> list[dict[str, str]]:
         params = {"action": "cargoquery", **{k: v for k, v in query.items() if v != ""}}

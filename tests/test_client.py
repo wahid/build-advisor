@@ -330,24 +330,47 @@ def test_read_proxy_file(tmp_path) -> None:
 
 
 @responses.activate
-def test_mechanics_follow_subcategories_once(wiki_client: WikiClient) -> None:
-    def members(*items):
-        return {"query": {"categorymembers": [{"title": t, "ns": ns} for t, ns in items]}}
+def test_listed_subcategories_are_included(wiki_client: WikiClient, monkeypatch) -> None:
+    from wiki import client as client_module
 
+    listing = client_module.CategoryListing("Category:Game mechanics", ("Category:Ailments",))
+    monkeypatch.setitem(client_module.LISTINGS, DocumentType.MECHANIC, listing)
+    responses.get(API_URL, json={"query": {"categorymembers": [{"title": "Leech"}]}})
+    responses.get(
+        API_URL, json={"query": {"categorymembers": [{"title": "Ignite"}, {"title": "Leech"}]}}
+    )
+
+    assert wiki_client.list_titles(DocumentType.MECHANIC) == ["Ignite", "Leech"]
+    assert _params(responses.calls[1])["cmtitle"] == "Category:Ailments"
+    assert _params(responses.calls[1])["cmnamespace"] == "0"
+
+
+@responses.activate
+def test_subcategory_sizes(wiki_client: WikiClient) -> None:
     responses.get(
         API_URL,
-        json=members(("Leech", 0), ("Category:Ailments", 14), ("Category:Charges", 14)),
+        json={
+            "query": {
+                "categorymembers": [{"title": "Category:Quests"}, {"title": "Category:Ailments"}]
+            }
+        },
     )
-    responses.get(API_URL, json=members(("Ignite", 0), ("Category:Game mechanics", 14)))
-    responses.get(API_URL, json=members(("Endurance charge", 0), ("Leech", 0)))
+    responses.get(
+        API_URL,
+        json={
+            "query": {
+                "pages": [
+                    {"title": "Category:Quests", "categoryinfo": {"pages": 300}},
+                    {"title": "Category:Ailments", "categoryinfo": {"pages": 12}},
+                ]
+            }
+        },
+    )
 
-    titles = wiki_client.list_titles(DocumentType.MECHANIC)
+    sizes = wiki_client.subcategory_sizes("Category:Game mechanics")
 
-    assert titles == ["Endurance charge", "Ignite", "Leech"]
-    assert _params(responses.calls[0])["cmnamespace"] == "0|14"
-    assert _params(responses.calls[1])["cmtitle"] == "Category:Ailments"
-    assert _params(responses.calls[1])["cmnamespace"] == "0"  # depth used up: articles only
-    assert len(responses.calls) == 3  # the cycle back to Game mechanics isn't followed
+    assert sizes == {"Category:Quests": 300, "Category:Ailments": 12}
+    assert _params(responses.calls[0])["cmnamespace"] == "14"
 
 
 @responses.activate

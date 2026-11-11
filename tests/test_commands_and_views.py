@@ -125,3 +125,15 @@ def test_fetch_wiki_list_only_downloads_nothing(mocker) -> None:
     run.assert_not_called()
     assert "mechanic: 2 pages, 1 not saved yet" in out.getvalue()
     assert "+ Ignite" in out.getvalue()
+
+
+def test_fetch_wiki_lists_subcategories(mocker) -> None:
+    client = mocker.Mock()
+    client.subcategory_sizes.return_value = {"Category:Quests": 300, "Category:Ailments": 12}
+    mocker.patch("wiki.client.WikiClient.from_settings", return_value=client)
+    out = StringIO()
+
+    call_command("fetch_wiki", "--subcategories", "--type", "mechanic", stdout=out)
+
+    assert "  300  Category:Quests" in out.getvalue()
+    assert "   12  Category:Ailments" in out.getvalue()

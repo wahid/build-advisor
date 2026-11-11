@@ -33,6 +33,11 @@ class Command(BaseCommand):
             "--async", dest="run_async", action="store_true", help="Queue as a Celery task."
         )
         parser.add_argument(
+            "--subcategories",
+            action="store_true",
+            help="List the subcategories of the category types (e.g. mechanic) with page counts.",
+        )
+        parser.add_argument(
             "--list-only",
             action="store_true",
             help="Only show how many pages each type has; download nothing.",
@@ -45,6 +50,9 @@ class Command(BaseCommand):
             "refresh": options["refresh"],
             "direct": options["direct"],
         }
+        if options["subcategories"]:
+            self._subcategories(options["doc_types"] or DocumentType.values)
+            return
         if options["list_only"]:
             self._list(options["doc_types"] or DocumentType.values)
             return
@@ -82,3 +90,17 @@ class Command(BaseCommand):
                 self.stdout.write(f"  + {title}")
             if len(new) > 15:
                 self.stdout.write(f"  ... and {len(new) - 15} more")
+
+    def _subcategories(self, doc_types: list[str]) -> None:
+        from wiki.client import LISTINGS, CategoryListing, WikiClient
+
+        client = WikiClient.from_settings()
+        for doc_type in doc_types:
+            listing = LISTINGS[doc_type]
+            if not isinstance(listing, CategoryListing):
+                continue
+            self.stdout.write(f"{doc_type} ({listing.category}):")
+            for title, pages in client.subcategory_sizes(listing.category).items():
+                mark = "*" if title in listing.subcategories else " "
+                self.stdout.write(f" {mark} {pages:5d}  {title}")
+            self.stdout.write("   (* = imported)")
