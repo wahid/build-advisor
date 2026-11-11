@@ -193,9 +193,10 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
 
 ## Evaluation
 
-45 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,
-uniques, ascendancies, questions the wiki can't answer (the advisor must say so)
-and Path of Building build requests. Each case lists the wiki pages that should
+53 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,
+uniques, ascendancies, indirect questions that don't name the page ("why do
+enemies take more damage after a lightning hit?"), questions the wiki can't
+answer (the advisor must say so) and Path of Building build requests. Each case lists the wiki pages that should
 be retrieved and facts the answer must contain.
 
 - **Retrieval:** is an expected page among the top 8 chunks (hit@8), how many of

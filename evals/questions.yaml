@@ -249,6 +249,56 @@
   expected_sources: [Trickster]
   must_mention: [[energy shield, evasion]]
 
+# --- Indirect: the question doesn't name the page, so retrieval must work on meaning --
+
+- id: indirect-shock
+  question: Why do enemies take more damage after I hit them with lightning?
+  category: indirect
+  expected_sources: [Shock]
+  must_mention: [shock, damage taken]
+
+- id: indirect-freeze
+  question: My cold hits sometimes stop monsters completely in place. What is that?
+  category: indirect
+  expected_sources: [Freeze]
+  must_mention: [freez]
+
+- id: indirect-bleed
+  question: Is it bad to keep running around while I have a bleed on me?
+  category: indirect
+  expected_sources: [Bleeding]
+  must_mention: [[moving, move]]
+
+- id: indirect-es-recharge
+  question: How long do I have to avoid getting hit before my blue defensive bar starts refilling?
+  category: indirect
+  expected_sources: [Energy shield]
+  must_mention: [recharg]
+
+- id: indirect-leech
+  question: How can I get life back by hitting enemies?
+  category: indirect
+  expected_sources: [Leech, Life gain on hit]
+  must_mention: [[leech, gain on hit]]
+
+- id: indirect-poison
+  question: Which ailment deals chaos damage over time and can stack many times on one enemy?
+  category: indirect
+  expected_sources: [Poison]
+  must_mention: [poison]
+
+- id: indirect-totem
+  question: Can I place something on the ground that uses my spells for me?
+  category: indirect
+  expected_sources: [Totem, Spell Totem Support]
+  must_mention: [totem]
+
+- id: indirect-conversion
+  question: If my physical damage is turned into fire damage, do my physical damage bonuses still count?
+  category: indirect
+  expected_sources: [Damage conversion]
+  must_mention: [[yes, still apply, still benefit, benefits from, both]]
+
 # --- Not covered by the wiki: the answer must say so --------------------------------
 
 - id: next-league-starter
