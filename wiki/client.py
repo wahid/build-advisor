@@ -44,9 +44,9 @@ SLOWDOWN_FACTOR = 2.0  # interval multiplier after a rate-limit response
 SPEEDUP_FACTOR = 0.95  # interval multiplier after each successful request
 REVISION_BATCH_SIZE = 50  # MediaWiki's limit for titles per query for normal clients.
 PROXY_COOLDOWN = 300.0  # seconds a failed proxy is skipped before it's tried again
-PROXY_SWITCHES_PER_REQUEST = 30  # other proxies tried before failures count as retries
-CONNECT_TIMEOUT = 2.0  # seconds; dead proxies should fail fast
-READ_TIMEOUT = 5.0
+PROXY_SWITCHES_PER_REQUEST = 100  # other proxies tried before failures count as retries
+CONNECT_TIMEOUT = 1.0  # seconds; dead proxies should fail fast
+READ_TIMEOUT = 2.0
 DIRECT_TIMEOUT = (10.0, 30.0)  # (connect, read) seconds without a proxy
 # Statuses that come from a broken proxy rather than from the wiki.
 PROXY_ERROR_STATUSES = frozenset({407, 429, 502, 503, 504, 403})

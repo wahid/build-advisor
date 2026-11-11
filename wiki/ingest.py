@@ -191,6 +191,7 @@ def _download_and_store(
                         blocked = exc
                     except (WikiError, KeyError) as exc:
                         # Counted in the progress line and listed at the end of the run.
+                        print(f"Failed to ingest {title}: {exc}")
                         logger.debug("Failed to ingest %r: %s", title, exc)
                         result.failed.append(title)
                         progress.step(failed=True)
