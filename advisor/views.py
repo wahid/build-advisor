@@ -1,7 +1,8 @@
 import json
 from collections.abc import Iterator
 
-from django.http import StreamingHttpResponse
+from django.conf import settings
+from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -55,3 +56,16 @@ class AskView(APIView):
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"  # don't let proxies buffer the stream
         return response
+
+
+def frontend(request: HttpRequest) -> HttpResponse:
+    """Serve the built React app; in development use the Vite server instead."""
+    index = settings.FRONTEND_DIST / "index.html"
+    if not index.exists():
+        return HttpResponse(
+            "The frontend isn't built. In development open http://localhost:5173 "
+            "(docker compose runs the Vite dev server); for production run `npm run build`.",
+            content_type="text/plain; charset=utf-8",
+            status=503,
+        )
+    return HttpResponse(index.read_text(encoding="utf-8"))

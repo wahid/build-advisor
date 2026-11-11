@@ -236,3 +236,22 @@ def test_ask_command_prints_answer_and_marks_cited_sources(wired: FakeProvider) 
     assert "Righteous Fire burns you [1] and scales with life [2]." in text
     assert " *[1] " in text
     assert "Sources (patch 3.29.3c)" in text
+
+
+def test_frontend_is_served_when_built(client, settings, tmp_path) -> None:
+    (tmp_path / "index.html").write_text("<div id=root></div>", encoding="utf-8")
+    settings.FRONTEND_DIST = tmp_path
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert b"<div id=root>" in response.content
+
+
+def test_frontend_explains_missing_build(client, settings, tmp_path) -> None:
+    settings.FRONTEND_DIST = tmp_path / "missing"
+
+    response = client.get("/")
+
+    assert response.status_code == 503
+    assert b"localhost:5173" in response.content

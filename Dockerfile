@@ -1,3 +1,12 @@
+# --- Frontend: build the React app -----------------------------------------
+FROM node:22-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# --- Backend -----------------------------------------------------------------
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -22,6 +31,8 @@ RUN set -e; \
     uv sync $flags
 
 COPY . .
+COPY --from=frontend /frontend/dist /app/frontend/dist
+RUN DJANGO_SECRET_KEY=collectstatic python manage.py collectstatic --noinput
 
 EXPOSE 8000
 # Railway (and most PaaS hosts) inject $PORT.

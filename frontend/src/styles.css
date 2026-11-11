@@ -1,0 +1,486 @@
+/* Build Advisor: Wraeclast stone, parchment text, and the game's own item colours. */
+:root {
+  --stone: #211c18;
+  --stone-raised: #2b2520;
+  --stone-edge: #4a3f35;
+  --parchment: #d9cfbd;
+  --parchment-dim: #9c9183;
+  --gem: #1ba29b;
+  --unique: #c16d2c;
+  --ascendancy: #8f8fff;
+  --mechanic: #b8a77e;
+  --danger: #d86a5a;
+
+  --serif: "Alegreya", Georgia, serif;
+  --small-caps: "Alegreya SC", "Alegreya", Georgia, serif;
+
+  /* Modular scale, ratio 1.25 from 17px body text. */
+  --step--1: 0.85rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.33rem;
+  --step-2: 1.66rem;
+  --step-3: 2.6rem;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--stone);
+  color: var(--parchment);
+  font-family: var(--serif);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--mechanic);
+  outline-offset: 3px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2rem;
+}
+
+/* --- Masthead ------------------------------------------------------------ */
+
+.masthead {
+  max-width: 40rem;
+  margin-bottom: 2rem;
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--small-caps);
+  font-weight: 700;
+  font-size: var(--step-3);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--mechanic);
+}
+
+.tagline {
+  margin: 0.4rem 0 0;
+  color: var(--parchment-dim);
+}
+
+/* --- Question form -------------------------------------------------------- */
+
+.ask {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  max-width: 46rem;
+}
+
+.ask-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 3.6rem;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  font-size: var(--step-1);
+  line-height: 1.35;
+  color: var(--parchment);
+  background: var(--stone-raised);
+  border: 1px solid var(--stone-edge);
+  border-radius: 2px;
+}
+
+.ask-input::placeholder {
+  color: var(--parchment-dim);
+  font-style: italic;
+}
+
+.ask-button {
+  align-self: stretch;
+  padding: 0 1.6rem;
+  font-family: var(--small-caps);
+  font-size: var(--step-1);
+  font-weight: 700;
+  color: var(--stone);
+  background: var(--mechanic);
+  border: 1px solid var(--mechanic);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ask-button:hover:not(:disabled) {
+  background: var(--parchment);
+}
+
+.ask-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.filters {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.filters legend {
+  float: left;
+  margin-right: 0.25rem;
+  padding: 0;
+}
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.filter input {
+  accent-color: var(--type-colour);
+}
+
+.filter span {
+  color: var(--type-colour);
+}
+
+.filters-hint {
+  font-style: italic;
+}
+
+[data-type="gem"] { --type-colour: var(--gem); }
+[data-type="unique"] { --type-colour: var(--unique); }
+[data-type="ascendancy"] { --type-colour: var(--ascendancy); }
+[data-type="mechanic"] { --type-colour: var(--mechanic); }
+
+/* --- Examples ------------------------------------------------------------- */
+
+.examples {
+  margin-top: 2.5rem;
+  max-width: 46rem;
+  color: var(--parchment-dim);
+}
+
+.examples ul {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.examples button {
+  padding: 0.35rem 0;
+  font: inherit;
+  font-style: italic;
+  color: var(--parchment);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--stone-edge);
+  cursor: pointer;
+}
+
+.examples button:hover {
+  color: var(--mechanic);
+  border-bottom-color: var(--mechanic);
+}
+
+/* --- Result --------------------------------------------------------------- */
+
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 3rem;
+  margin-top: 2.5rem;
+  align-items: start;
+}
+
+.answer {
+  max-width: 68ch;
+}
+
+.answer-question {
+  margin: 0 0 1rem;
+  font-size: var(--step-2);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.status {
+  color: var(--parchment-dim);
+  font-style: italic;
+}
+
+.answer-text {
+  line-height: 1.7;
+}
+
+.answer-text h3 {
+  margin: 1.6rem 0 0.4rem;
+  font-family: var(--small-caps);
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--mechanic);
+}
+
+.answer-text p,
+.answer-text ul,
+.answer-text ol {
+  margin: 0 0 1rem;
+}
+
+.answer-text ul,
+.answer-text ol {
+  padding-left: 1.3rem;
+}
+
+.answer-text li {
+  margin-bottom: 0.45rem;
+}
+
+.answer-text li::marker {
+  color: var(--parchment-dim);
+}
+
+.answer-text strong {
+  font-weight: 700;
+  color: #efe6d6;
+}
+
+.answer-text[data-streaming] > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: -0.12em;
+  background: var(--mechanic);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Citation markers take the colour of their source's page type. */
+.cite {
+  display: inline-block;
+  min-width: 1.35em;
+  margin: 0 0.1em;
+  padding: 0 0.3em;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: 0.35em;
+  color: var(--type-colour);
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+.cite:hover,
+.cite:focus-visible {
+  color: var(--stone);
+  background: var(--type-colour);
+  border-color: var(--type-colour);
+}
+
+.error {
+  padding: 0.75rem 1rem;
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+  background: rgba(216, 106, 90, 0.08);
+}
+
+/* --- Sources as item tooltips ---------------------------------------------- */
+
+.sources-heading {
+  margin: 0 0 0.8rem;
+  font-family: var(--small-caps);
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--parchment-dim);
+}
+
+.tooltips {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tooltip {
+  border: 1px solid var(--stone-edge);
+  background: #120f0d;
+  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+
+.tooltip-link {
+  display: block;
+  text-decoration: none;
+}
+
+/* The header mimics the game's framed item name: a tinted band above a double rule. */
+.tooltip-header {
+  display: grid;
+  gap: 0.05rem;
+  padding: 0.45rem 0.75rem 0.4rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--type-colour) 14%, #120f0d);
+  border-bottom: 3px double color-mix(in srgb, var(--type-colour) 55%, transparent);
+}
+
+.tooltip-title {
+  font-family: var(--small-caps);
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--type-colour);
+}
+
+.tooltip-meta {
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.tooltip-body {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.55rem 0.75rem 0.6rem;
+  font-size: var(--step--1);
+}
+
+.tooltip-entry {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  align-items: baseline;
+  line-height: 1.35;
+  color: var(--parchment);
+}
+
+.tooltip-entry[data-unused] {
+  color: var(--parchment-dim);
+}
+
+.tooltip-entry[data-highlighted] {
+  color: #efe6d6;
+}
+
+/* Same marker as the citations in the answer, so [2] is easy to find. */
+.tooltip-number {
+  justify-self: start;
+  min-width: 1.35em;
+  padding: 0 0.3em;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--type-colour);
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+.tooltip-entry[data-highlighted] .tooltip-number {
+  color: var(--stone);
+  background: var(--type-colour);
+  border-color: var(--type-colour);
+}
+
+.tooltip-unused {
+  color: var(--parchment-dim);
+  font-style: italic;
+}
+
+.tooltip[data-unused] {
+  opacity: 0.55;
+}
+
+.tooltip:hover,
+.tooltip[data-highlighted] {
+  opacity: 1;
+  border-color: var(--type-colour);
+}
+
+.tooltip[data-highlighted] {
+  transform: translateX(-4px);
+}
+
+/* --- Footer ----------------------------------------------------------------- */
+
+.colophon {
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--stone-edge);
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+/* --- Small screens ----------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .result {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 2rem 1rem 1.5rem;
+  }
+
+  .ask {
+    grid-template-columns: 1fr;
+  }
+
+  .ask-button {
+    padding: 0.7rem;
+  }
+
+  .wordmark {
+    font-size: var(--step-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    transition: none;
+  }
+
+  .tooltip[data-highlighted] {
+    transform: none;
+  }
+
+  .answer-text[data-streaming] > :last-child::after {
+    animation: none;
+  }
+}

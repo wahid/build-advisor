@@ -48,6 +48,21 @@ services:
       redis:
         condition: service_started
 
+  # React dev server with live reload: http://localhost:5173 (forwards /api to Django).
+  frontend:
+    image: node:22-slim
+    working_dir: /frontend
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev"
+    environment:
+      VITE_API_TARGET: http://web:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/frontend
+      - frontend_node_modules:/frontend/node_modules
+    depends_on:
+      - web
+
   worker:
     <<: *app
     command: celery -A config worker --loglevel=info --concurrency=1
@@ -56,3 +71,4 @@ services:
 volumes:
   pgdata:
   hf_cache:
+  frontend_node_modules:

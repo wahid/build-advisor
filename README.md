@@ -14,16 +14,16 @@ LLM behind a provider-agnostic interface (DeepSeek by default).
 |---|---|---|
 | 1 | Collect wiki data (gems, uniques, ascendancies, mechanics) | ✅ done |
 | 2 | Chunking + embeddings | ✅ done |
-| 3 | RAG pipeline + React frontend with sources | 🚧 API done, frontend next |
-| 4 | Tool calling with pob-mcp | |
+| 3 | RAG pipeline + React frontend with sources | ✅ done |
+| 4 | Tool calling with pob-mcp | ⏳ next |
 | 5 | Evaluation set in CI | |
 | 6 | Public demo on Railway | |
 
 ## Quick start (Docker)
 
 ```bash
-cp .env.example .env          # set WIKI_USER_AGENT to include your contact address
-docker compose up --build     # Django on http://localhost:8000, plus Celery, Postgres, Redis
+cp .env.example .env          # set WIKI_USER_AGENT and the LLM_* settings
+docker compose up --build     # app on http://localhost:5173, API on :8000, plus Celery, Postgres, Redis
 ```
 
 In another terminal:
@@ -119,6 +119,19 @@ document embeddings are already in the database.
 - **Only changed text is re-embedded.** Documents are re-chunked only when
   their text hash changes, and chunks whose text is unchanged keep their
   embedding. Switching `EMBEDDING_MODEL` re-embeds everything.
+
+## Frontend
+
+React + TypeScript (Vite) in `frontend/`. Sources are drawn like in-game item
+tooltips, coloured by page type (gems teal, uniques orange, ascendancies
+blue, mechanics gold); citation markers in the answer share their source's
+colour, highlight it on hover and link to the wiki page.
+
+- **Development:** `docker compose up` runs the Vite dev server on
+  http://localhost:5173 with live reload; `/api` is forwarded to Django.
+- **Production:** the Dockerfile builds the app in a Node stage and Django
+  serves it at `/` through WhiteNoise, so one container serves everything.
+- `cd frontend && npm test` runs the parser and streaming tests.
 
 ## How answering works
 

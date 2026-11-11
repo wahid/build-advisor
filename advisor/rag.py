@@ -90,7 +90,7 @@ def answer_stream(
         return
 
     full = "".join(parts)
-    logger.info(
+    logger.debug(
         "Answered %r with %s/%s: %d chars, %d sources",
         question,
         provider.name,
