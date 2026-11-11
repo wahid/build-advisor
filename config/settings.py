@@ -159,7 +159,8 @@ LLM_MODEL = env("LLM_MODEL", default="")  # required; providers rename models of
 LLM_API_KEY = env("LLM_API_KEY", default="")
 LLM_BASE_URL = env("LLM_BASE_URL", default="")  # empty: the provider's default
 LLM_TEMPERATURE = env.float("LLM_TEMPERATURE", default=0.2)
-LLM_MAX_TOKENS = env.int("LLM_MAX_TOKENS", default=1500)
+# Reasoning models count their thinking towards this limit, so leave room.
+LLM_MAX_TOKENS = env.int("LLM_MAX_TOKENS", default=4000)
 LLM_TIMEOUT = env.float("LLM_TIMEOUT", default=60.0)
 # Provider-specific request options as JSON, e.g. to turn off thinking mode.
 LLM_EXTRA_BODY = env.json("LLM_EXTRA_BODY", default={})

@@ -186,8 +186,13 @@ def judge(provider: LLMProvider, question: str, sources: str, answer_text: str) 
             ),
         },
     ]
-    text = "".join(item for item in provider.stream(messages) if isinstance(item, str))
-    return parse_verdict(text)
+    verdict = Verdict(error="judge not run")
+    for _ in range(2):  # one retry: reasoning models sometimes return no final text
+        text = "".join(item for item in provider.stream(messages) if isinstance(item, str))
+        verdict = parse_verdict(text)
+        if not verdict.error:
+            break
+    return verdict
 
 
 # --- running ----------------------------------------------------------------------------

@@ -97,7 +97,8 @@
   question: What do endurance charges give?
   category: mechanic
   expected_sources: [Endurance charge]
-  must_mention: [[physical damage reduction, damage reduction], resist]
+  # Older patches: elemental resistances; 3.29: elemental damage reduction.
+  must_mention: [[physical damage reduction, damage reduction], [resist, elemental damage reduction]]
 
 - id: power-charges
   question: What do power charges do?
