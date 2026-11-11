@@ -278,13 +278,14 @@
 - id: indirect-leech
   question: How can I get life back by hitting enemies?
   category: indirect
-  expected_sources: [Leech, Life gain on hit]
+  expected_sources: [Leech, Gain on hit]
   must_mention: [[leech, gain on hit]]
 
 - id: indirect-poison
   question: Which ailment deals chaos damage over time and can stack many times on one enemy?
   category: indirect
-  expected_sources: [Poison]
+  # The general Ailment page also explains poison, so it's a valid source too.
+  expected_sources: [Poison, Ailment]
   must_mention: [poison]
 
 - id: indirect-totem
