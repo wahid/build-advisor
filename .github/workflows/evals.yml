@@ -1,0 +1,79 @@
+name: Evals
+
+# Indexes the committed wiki slice (evals/corpus.jsonl.gz) with bge-m3 on CPU and
+# scores retrieval. With an LLM_API_KEY secret it also generates and judges answers.
+on:
+  workflow_dispatch:
+    inputs:
+      answers:
+        description: "Also generate and judge answers (uses the LLM_API_KEY secret)"
+        type: boolean
+        default: true
+  schedule:
+    - cron: "17 4 * * 1" # Mondays
+  push:
+    branches: [main]
+    paths:
+      - "wiki/search.py"
+      - "wiki/chunking.py"
+      - "wiki/embeddings.py"
+      - "advisor/prompts.py"
+      - "advisor/rag.py"
+      - "advisor/evaluation.py"
+      - "evals/**"
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: build_advisor
+          POSTGRES_PASSWORD: build_advisor
+          POSTGRES_DB: build_advisor
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U build_advisor"
+          --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://build_advisor:build_advisor@localhost:5432/build_advisor
+      DJANGO_SECRET_KEY: ci-only
+      EMBEDDING_DEVICE: cpu
+      POB_ENABLED: "false"
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'deepseek' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-flash' }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.4"
+      - run: uv sync --frozen --extra cpu
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-bge-m3-v1
+      - name: Load and index the eval corpus
+        run: |
+          uv run python manage.py migrate --noinput
+          uv run python manage.py load_eval_corpus
+          uv run python manage.py build_index
+      - name: Run evals
+        run: |
+          flags=""
+          if [ -n "$LLM_API_KEY" ] && [ "${{ github.event_name != 'workflow_dispatch' || inputs.answers }}" = "true" ]; then
+            flags="--answers"
+          fi
+          uv run python manage.py run_evals $flags
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Eval results" >> "$GITHUB_STEP_SUMMARY"
+          cat evals/results/latest.md >> "$GITHUB_STEP_SUMMARY" || echo "No results." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: evals/results/

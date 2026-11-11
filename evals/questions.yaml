@@ -1,0 +1,294 @@
+# Evaluation set for build-advisor.
+#
+# Fields
+#   id               unique slug
+#   question         what a user would type
+#   category         mechanic | gem | unique | ascendancy | unanswerable | build
+#   expected_sources wiki page titles that should be retrieved (any one counts for hit@k)
+#   must_mention     facts the answer must contain. Each entry is a phrase or a list of
+#                    alternatives; matching is case-insensitive. Keep these to facts that
+#                    have been stable for many leagues, so a patch doesn't break the set.
+#   answerable       false = the wiki doesn't cover it; the answer must say so
+#   requires_pob     true = needs Path of Building tools (skipped when PoB isn't available)
+#   expect_tools     PoB tools the model should call (build cases)
+#   doc_types        optional search filter, as in the UI
+
+# --- Mechanics --------------------------------------------------------------------
+
+- id: ignite-basics
+  question: What is ignite and what kind of damage does it deal?
+  category: mechanic
+  expected_sources: [Ignite]
+  must_mention: [fire, [damage over time, burning, burn]]
+
+- id: freeze-effect
+  question: What does freezing an enemy do?
+  category: mechanic
+  expected_sources: [Freeze]
+  must_mention: [[cannot act, can't act, unable to act, prevents, stops]]
+
+- id: chill-effect
+  question: How does chill affect monsters?
+  category: mechanic
+  expected_sources: [Chill]
+  must_mention: [[action speed, slow]]
+
+- id: shock-effect
+  question: What does shock do to an enemy?
+  category: mechanic
+  expected_sources: [Shock]
+  must_mention: [damage taken]
+
+- id: poison-damage
+  question: What type of damage does poison deal and does it stack?
+  category: mechanic
+  expected_sources: [Poison]
+  must_mention: [chaos, [stack, multiple]]
+
+- id: bleeding-movement
+  question: Does bleeding do more damage when the enemy is moving?
+  category: mechanic
+  expected_sources: [Bleeding]
+  must_mention: [physical, [moving, move]]
+
+- id: leech-recovery
+  question: How does life leech work?
+  category: mechanic
+  expected_sources: [Leech]
+  must_mention: [[damage dealt, damage you deal, based on damage], [recover, recovery]]
+
+- id: energy-shield-recharge
+  question: When does energy shield start recharging?
+  category: mechanic
+  expected_sources: [Energy shield]
+  must_mention: [recharg]
+
+- id: armour-big-hits
+  question: Is armour good against big physical hits?
+  category: mechanic
+  expected_sources: [Armour]
+  must_mention: [physical, [larger, bigger, big hits, less effective, size of the hit]]
+
+- id: evasion-spells
+  question: Can evasion avoid spells?
+  category: mechanic
+  expected_sources: [Evasion]
+  must_mention: [attack]
+
+- id: spell-suppression
+  question: How much spell damage does spell suppression prevent?
+  category: mechanic
+  expected_sources: [Spell suppression]
+  must_mention: ["50%"]
+
+- id: crit-multiplier
+  question: How do critical strike chance and critical strike multiplier work together?
+  category: mechanic
+  expected_sources: [Critical strike]
+  must_mention: [multiplier, chance]
+
+- id: impale-mechanic
+  question: How does impale deal its damage?
+  category: mechanic
+  expected_sources: [Impale]
+  must_mention: [physical, [subsequent hits, later hits, next hits, following hits, hits]]
+
+- id: endurance-charges
+  question: What do endurance charges give?
+  category: mechanic
+  expected_sources: [Endurance charge]
+  must_mention: [physical damage reduction, resist]
+
+- id: power-charges
+  question: What do power charges do?
+  category: mechanic
+  expected_sources: [Power charge]
+  must_mention: [critical]
+
+- id: frenzy-charges
+  question: What bonuses do frenzy charges grant?
+  category: mechanic
+  expected_sources: [Frenzy charge]
+  must_mention: [speed]
+
+- id: damage-conversion
+  question: If I convert physical damage to fire, do physical damage modifiers still apply?
+  category: mechanic
+  expected_sources: [Damage conversion]
+  must_mention: [[yes, still apply, still benefit, benefits from, both]]
+
+- id: totem-basics
+  question: How do totems use skills?
+  category: mechanic
+  expected_sources: [Totem]
+  must_mention: [totem]
+
+# --- Gems -------------------------------------------------------------------------
+
+- id: rf-scaling
+  question: What does Righteous Fire's damage scale with?
+  category: gem
+  expected_sources: [Righteous Fire]
+  must_mention: [life, energy shield]
+
+- id: cwdt-trigger
+  question: How does Cast when Damage Taken decide when to trigger spells?
+  category: gem
+  expected_sources: [Cast when Damage Taken Support]
+  must_mention: [[threshold, total damage, damage taken]]
+
+- id: cyclone-channel
+  question: What kind of skill is Cyclone?
+  category: gem
+  expected_sources: [Cyclone]
+  must_mention: [channel, [melee, attack]]
+
+- id: spell-echo
+  question: What does Spell Echo Support do?
+  category: gem
+  expected_sources: [Spell Echo Support]
+  must_mention: [repeat]
+
+- id: multistrike
+  question: What does Multistrike Support do to attacks?
+  category: gem
+  expected_sources: [Multistrike Support]
+  must_mention: [repeat]
+
+- id: elemental-focus
+  question: What is the downside of Elemental Focus Support?
+  category: gem
+  expected_sources: [Elemental Focus Support]
+  must_mention: [ailment]
+
+- id: arcane-surge
+  question: How do you get the Arcane Surge buff?
+  category: gem
+  expected_sources: [Arcane Surge Support]
+  must_mention: [mana]
+
+- id: blasphemy
+  question: How does Blasphemy Support change a curse?
+  category: gem
+  expected_sources: [Blasphemy Support]
+  must_mention: [aura]
+
+- id: determination
+  question: What does the Determination aura give?
+  category: gem
+  expected_sources: [Determination]
+  must_mention: [armour]
+
+- id: grace
+  question: Which defence does Grace increase?
+  category: gem
+  expected_sources: [Grace]
+  must_mention: [evasion]
+
+# --- Uniques ------------------------------------------------------------------------
+
+- id: kaoms-heart
+  question: What is special about Kaom's Heart?
+  category: unique
+  expected_sources: [Kaom's Heart]
+  must_mention: [life, socket]
+
+- id: tabula-rasa
+  question: What does Tabula Rasa offer?
+  category: unique
+  expected_sources: [Tabula Rasa]
+  must_mention: [[six, "6"], link]
+
+- id: headhunter
+  question: What happens when you kill a rare monster while wearing Headhunter?
+  category: unique
+  expected_sources: [Headhunter]
+  must_mention: [[modifier, mods]]
+
+- id: mageblood
+  question: What does Mageblood do with flasks?
+  category: unique
+  expected_sources: [Mageblood]
+  must_mention: [flask]
+
+- id: shavronnes-wrappings
+  question: Why do people use Shavronne's Wrappings?
+  category: unique
+  expected_sources: [Shavronne's Wrappings]
+  must_mention: [chaos, energy shield]
+
+# --- Ascendancies -------------------------------------------------------------------
+
+- id: chieftain-theme
+  question: What is the Chieftain ascendancy focused on?
+  category: ascendancy
+  expected_sources: [Chieftain]
+  must_mention: [fire]
+
+- id: slayer-leech
+  question: What does the Slayer offer for leech?
+  category: ascendancy
+  expected_sources: [Slayer]
+  must_mention: [leech]
+
+- id: necromancer-minions
+  question: Which kind of builds is the Necromancer made for?
+  category: ascendancy
+  expected_sources: [Necromancer]
+  must_mention: [minion]
+
+- id: juggernaut-charges
+  question: How does the Juggernaut use endurance charges?
+  category: ascendancy
+  expected_sources: [Juggernaut]
+  must_mention: [endurance]
+
+- id: trickster-defence
+  question: Which defences does the Trickster support?
+  category: ascendancy
+  expected_sources: [Trickster]
+  must_mention: [[energy shield, evasion]]
+
+# --- Not covered by the wiki: the answer must say so --------------------------------
+
+- id: next-league-starter
+  question: What will be the best league starter build in the next league?
+  category: unanswerable
+  answerable: false
+
+- id: slayer-popularity
+  question: How many players played Slayer last league?
+  category: unanswerable
+  answerable: false
+
+- id: tier-list
+  question: Where does Cyclone Slayer rank on this league's tier list?
+  category: unanswerable
+  answerable: false
+
+- id: next-patch
+  question: What will Grinding Gear Games nerf in the next patch?
+  category: unanswerable
+  answerable: false
+
+- id: designer
+  question: Which GGG developer designed the Chieftain ascendancy?
+  category: unanswerable
+  answerable: false
+
+# --- Path of Building tools ----------------------------------------------------------
+
+- id: build-create-rf
+  question: Create a level 90 Righteous Fire Chieftain build and give me the Path of Building code.
+  category: build
+  requires_pob: true
+  expected_sources: [Righteous Fire, Chieftain]
+  expect_tools: [new_build, apply_changes, export_build]
+
+- id: build-create-minions
+  question: Make a level 85 Necromancer with Raise Zombie and tell me its life.
+  category: build
+  requires_pob: true
+  expected_sources: [Necromancer, Raise Zombie]
+  expect_tools: [new_build, apply_changes]
+  must_mention: [life]

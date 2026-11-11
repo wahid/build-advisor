@@ -20,7 +20,7 @@ support gems, test changes, or create a build and hand you the share code.
 | 2 | Chunking + embeddings | ✅ done |
 | 3 | RAG pipeline + React frontend with sources | ✅ done |
 | 4 | Tool calling with pob-mcp | ✅ done |
-| 5 | Evaluation set in CI | ⏳ next |
+| 5 | Evaluation set in CI | 🚧 set and CI ready, first scores pending |
 | 6 | Public demo on Railway | |
 
 ## Quick start (Docker)
@@ -190,6 +190,33 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
 5. **Streaming** (`POST /api/ask/`): sources first, then tool steps, the
    answer token by token, an exported share code if any, and finally which
    sources were cited.
+
+## Evaluation
+
+45 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,
+uniques, ascendancies, questions the wiki can't answer (the advisor must say so)
+and Path of Building build requests. Each case lists the wiki pages that should
+be retrieved and facts the answer must contain.
+
+- **Retrieval:** is an expected page among the top 8 chunks (hit@8), how many of
+  the expected pages are found (recall@8), and how high (MRR).
+- **Answers:** required facts present, only valid `[n]` citations, the expected
+  PoB tools called, and an LLM judge that rates groundedness and relevance
+  (1-5) against the retrieved sources.
+
+CI ([`evals.yml`](.github/workflows/evals.yml)) indexes a fixed slice of the
+wiki (`evals/corpus.jsonl.gz`, the expected pages plus distractors) and runs the
+set weekly and on changes to retrieval or prompts; answers are judged when an
+`LLM_API_KEY` secret is set.
+
+```bash
+python manage.py run_evals                              # retrieval only
+python manage.py run_evals --answers --update-readme    # answers + judge, scores below
+```
+
+<!-- evals:start -->
+_No results yet._
+<!-- evals:end -->
 
 ## Development
 
