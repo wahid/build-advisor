@@ -93,3 +93,9 @@ def test_chunk_text_strips_boilerplate_but_keeps_short_repeats() -> None:
     assert len(chunks) == 1
     assert shared not in chunks[0].text
     assert "Night's Hold" in chunks[0].text
+
+
+def test_skips_cosmetic_alternate_skill_effects() -> None:
+    text = "## Alternate skill effects\n\nAuspicious Righteous Fire Effect makes it look golden."
+
+    assert chunk_text("Righteous Fire", text) == []

@@ -148,3 +148,18 @@ def test_rarest_words_are_kept_even_if_common(embedder: FakeEmbedder) -> None:
     base = Chunk.objects.all()
 
     assert informative_words(base, ["is", "a", "spell"]) == ["spell"]
+
+
+def test_every_named_page_gets_a_top_title_rank(embedder: FakeEmbedder) -> None:
+    long_page = "\n\n".join(
+        f"## Section {i}\n\nRighteous Fire detail number {i}." + LONG for i in range(8)
+    )
+    make_document("Righteous Fire Long", long_page)
+    build_chunks()
+    embed_pending(embedder)
+    _aim_at(embedder, "Righteous Fire Long")
+
+    hits = hybrid_search("Righteous Fire Long for Chieftain", embedder=embedder, top_k=8)
+
+    chieftain = next(h for h in hits if h.title == "Chieftain")
+    assert chieftain.ranks["title"] <= 3

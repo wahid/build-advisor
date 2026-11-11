@@ -153,13 +153,29 @@ def titles_in(question: str) -> QuerySet[Document]:
 
 
 def _title_ids(base: QuerySet[Chunk], question: str, vector: list[float], limit: int) -> list[int]:
+    """Chunks of pages named in the question, interleaved per page.
+
+    Each named page contributes its most similar chunk first, then its second,
+    and so on, so a long page can't push a shorter named page out of the list.
+    """
     matching = titles_in(question).values("id")
-    qs = (
+    rows = (
         base.filter(document_id__in=matching)
         .order_by(CosineDistance("embedding", vector))
-        .values_list("id", flat=True)
+        .values_list("id", "document_id")
     )
-    return list(qs[:limit])
+    per_document: dict[int, list[int]] = defaultdict(list)
+    for chunk_id, document_id in rows[: limit * 10]:
+        per_document[document_id].append(chunk_id)
+
+    interleaved: list[int] = []
+    queues = list(per_document.values())  # first-seen order = best chunk first
+    while queues and len(interleaved) < limit:
+        for queue in queues:
+            if queue:
+                interleaved.append(queue.pop(0))
+        queues = [q for q in queues if q]
+    return interleaved[:limit]
 
 
 def _fuse(ranked_lists: dict[str, list[int]], top_k: int, max_per_document: int) -> list[SearchHit]:

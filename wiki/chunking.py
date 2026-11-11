@@ -17,7 +17,14 @@ from dataclasses import dataclass
 HEADING_RE = re.compile(r"^(#{2,6}) (.+)$")
 
 # Sections that add noise rather than answers.
-SKIP_SECTIONS = {"references", "see also", "navigation", "external links", "gallery"}
+SKIP_SECTIONS = {
+    "references",
+    "see also",
+    "navigation",
+    "external links",
+    "gallery",
+    "alternate skill effects",  # cosmetic skins only
+}
 MIN_CHARS = 40
 # Long lines repeated across many pages are templates (e.g. a unique item
 # listing every support gem, shown on every support gem page).
