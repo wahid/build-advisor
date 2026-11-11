@@ -220,7 +220,11 @@ def test_ask_endpoint_json_mode(client, wired: FakeProvider) -> None:
 
 
 def test_ask_endpoint_validates_input(client, wired: FakeProvider) -> None:
-    assert client.post("/api/ask/", {}, content_type="application/json").status_code == 400
+    response = client.post(
+        "/api/ask/", {}, content_type="application/json", HTTP_ACCEPT="text/event-stream"
+    )
+    assert response.status_code == 400
+    assert "question" in response.json()
     too_long = {"question": "x" * 501}
     assert client.post("/api/ask/", too_long, content_type="application/json").status_code == 400
     bad_type = {"question": "q", "doc_types": ["nope"]}

@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from rest_framework import serializers
+from rest_framework.negotiation import BaseContentNegotiation
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -24,6 +25,20 @@ class AskSerializer(serializers.Serializer):
     stream = serializers.BooleanField(required=False, default=True)
 
 
+class StreamFriendlyNegotiation(BaseContentNegotiation):
+    """Don't reject `Accept: text/event-stream`.
+
+    DRF would answer 406 because no renderer produces event streams; the
+    stream is a plain StreamingHttpResponse, and errors are rendered as JSON.
+    """
+
+    def select_parser(self, request, parsers):  # type: ignore[no-untyped-def]
+        return parsers[0]
+
+    def select_renderer(self, request, renderers, format_suffix=None):  # type: ignore[no-untyped-def]
+        return renderers[0], renderers[0].media_type
+
+
 class AskThrottle(AnonRateThrottle):
     scope = "ask"
 
@@ -39,6 +54,7 @@ class AskView(APIView):
     authentication_classes: list = []
     permission_classes = [AllowAny]
     throttle_classes = [AskThrottle]
+    content_negotiation_class = StreamFriendlyNegotiation
 
     def post(self, request: Request) -> Response | StreamingHttpResponse:
         serializer = AskSerializer(data=request.data)
