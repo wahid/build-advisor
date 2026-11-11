@@ -68,7 +68,7 @@ def test_messages_number_sources_and_state_the_patch(embedder: FakeEmbedder) -> 
     assert "game version 3.29.3c" in system["content"]
     assert user["content"].startswith("Sources:\n\n[1] ")
     assert "[3] " in user["content"]
-    assert "https://wiki.test/wiki/" in user["content"]
+    assert "https://" not in user["content"]  # URLs tempt the model to write links
     assert user["content"].endswith("Question: Is RF good on Chieftain?")
 
 

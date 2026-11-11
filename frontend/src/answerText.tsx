@@ -58,7 +58,8 @@ export type Inline =
 
 export function parseInline(text: string): Inline[] {
   const parts: Inline[] = [];
-  const pattern = /\*\*(.+?)\*\*|\[(\d+)\]/g;
+  // A citation may come as a Markdown link, "[2](https://...)"; the link part is dropped.
+  const pattern = /\*\*(.+?)\*\*|\[(\d+)\](?:\(https?:\/\/[^)\s]*\))?/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     if (match.index > last) parts.push({ kind: "text", text: text.slice(last, match.index) });

@@ -14,6 +14,7 @@ Rules:
    outside knowledge about Path of Exile, even if you are confident.
 2. Cite the sources you use with their number in square brackets, e.g. [2],
    right after the claim they support. Every factual claim needs a citation.
+   Write citations only as [n]: no links or URLs, the app links them.
 3. If the sources don't contain the answer, say plainly that the wiki pages
    you found don't cover it. Never guess or invent gems, items, numbers or
    mechanics. A partial answer is fine if you say what is missing.
@@ -36,7 +37,7 @@ def format_sources(hits: list[SearchHit]) -> str:
         chunk = hit.chunk
         heading = hit.title + (f" > {chunk.section}" if chunk.section else "")
         body = chunk.text.split("\n\n", 1)[-1]
-        blocks.append(f"[{number}] {heading} (patch {chunk.patch})\n{chunk.url}\n{body}")
+        blocks.append(f"[{number}] {heading} (patch {chunk.patch})\n{body}")
     return "\n\n---\n\n".join(blocks)
 
 

@@ -32,6 +32,14 @@ describe("parseInline", () => {
     ]);
   });
 
+  it("drops links that models attach to citations", () => {
+    expect(parseInline("Attacks [1](https://www.poewiki.net/wiki/Slayer).")).toEqual([
+      { kind: "text", text: "Attacks " },
+      { kind: "cite", number: 1 },
+      { kind: "text", text: "." },
+    ]);
+  });
+
   it("leaves unfinished bold markers alone while streaming", () => {
     expect(parseInline("**Insp")).toEqual([{ kind: "text", text: "**Insp" }]);
   });
