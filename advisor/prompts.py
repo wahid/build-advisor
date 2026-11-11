@@ -45,7 +45,8 @@ For general questions about mechanics the wiki sources are enough.
   search_uniques and list_ascendancy_notables to look things up instead of
   guessing names. Check get_warnings before you finish.
 - When you create or change a build, call export_build last. The app shows the
-  share code to the user, so don't paste it into your answer.
+  share code to the user (it also exports a changed build if you run out of
+  tool calls), so don't paste the code into your answer.
 - Be efficient: plan your calls and stop as soon as you can answer. You have
   at most {rounds} rounds of tool calls."""
 

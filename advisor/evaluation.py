@@ -13,7 +13,11 @@ Answers (needs an LLM):
   tools          build cases call the expected Path of Building tools
 
 A case passes when its retrieval hit (if it has expected pages) and all answer
-checks that apply to it pass.
+checks that apply to it pass. For build cases the judge's groundedness is
+reported but not required: it only sees truncated Path of Building results,
+so it can't verify most PoB-derived claims. Those cases rely on the objective
+checks (expected tools including the export, citations, required facts) and
+relevance.
 """
 
 from __future__ import annotations
@@ -361,12 +365,13 @@ def _run_case(
     if verdict.error:
         result.error = verdict.error
     elif case.answerable:
+        grounded_ok = case.category == "build" or verdict.grounded >= PASSING_SCORE
         result.passed = (
             retrieval_ok
             and not result.missing
             and not result.invalid_citations
             and not result.missing_tools
-            and verdict.grounded >= PASSING_SCORE
+            and grounded_ok
             and verdict.relevant >= PASSING_SCORE
         )
     else:
@@ -451,9 +456,9 @@ def _why(case: CaseResult) -> str:
     if case.verdict and not case.verdict.error:
         if case.category == "unanswerable" and not case.verdict.admits_gap:
             reasons.append("didn't say the wiki doesn't cover it")
-        elif (
-            case.category != "unanswerable"
-            and min(case.verdict.grounded, case.verdict.relevant) < PASSING_SCORE
+        elif case.category != "unanswerable" and (
+            case.verdict.relevant < PASSING_SCORE
+            or (case.category != "build" and case.verdict.grounded < PASSING_SCORE)
         ):
             v = case.verdict
             reasons.append(f"judge: grounded {v.grounded}, relevant {v.relevant} ({v.reason})")

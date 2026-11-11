@@ -329,3 +329,43 @@ def test_judge_sees_path_of_building_results() -> None:
 
     content = provider.calls[0][0][1]["content"]
     assert "Path of Building tool results:\n- get_stats" in content
+
+
+@pytest.mark.django_db
+def test_build_cases_dont_require_groundedness(indexed: FakeEmbedder, mocker) -> None:
+    from contextlib import contextmanager
+    from types import SimpleNamespace as NS
+
+    from advisor.llm import ToolCall
+    from advisor.pob import ToolResult
+
+    class Box:
+        definitions = [{"type": "function", "function": {"name": "export_build"}}]
+
+        def call(self, name, arguments):
+            return ToolResult(ok=True, text='{"code": "eNr"}', data={"code": "eNr"})
+
+    @contextmanager
+    def checkout():
+        yield Box()
+
+    mocker.patch("advisor.rag.get_pool", return_value=NS(toolbox=checkout))
+    case = EvalCase(
+        "b", "Make a build", "build", ("Ignite",), requires_pob=True, expect_tools=("export_build",)
+    )
+    answers = FakeProvider([ToolCall("e", "export_build", "{}")], ["Built it; the code is below."])
+    judge_says = FakeProvider(
+        ['{"grounded": 2, "relevant": 5, "admits_gap": false, "reason": "PoB data"}']
+    )
+
+    report = run(
+        [case],
+        k=4,
+        answer_questions=True,
+        provider=answers,
+        judge_provider=judge_says,
+        embedder=indexed,
+        pob_available=True,
+    )
+
+    assert report.cases[0].passed

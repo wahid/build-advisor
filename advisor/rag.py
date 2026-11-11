@@ -43,7 +43,8 @@ FINAL_ANSWER_NUDGE = (
 )
 OUT_OF_ROUNDS = (
     "You have used all your tool calls. Don't call any more tools: write your final answer "
-    "to my question now, based on the sources and tool results above."
+    "to my question now, based on the sources and tool results above. If you changed the "
+    "build, the app exports it and shows the share code below your answer, so say that."
 )
 TOOL_PREVIEW_CHARS = 1500  # of each tool result, for clients and the eval judge
 # Tools that change the loaded build; if any ran and nothing was exported, export at the end.
