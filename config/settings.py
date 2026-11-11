@@ -99,6 +99,8 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_THROTTLE_RATES": {"ask": env("ASK_RATE_LIMIT", default="60/hour")},
 }
+# Questions per day for the whole site (UTC days); 0 = no limit. Protects the LLM budget.
+ASK_DAILY_LIMIT = env.int("ASK_DAILY_LIMIT", default=100)
 
 # --- Celery -----------------------------------------------------------------
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")

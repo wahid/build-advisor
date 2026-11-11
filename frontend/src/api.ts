@@ -5,6 +5,12 @@ export class AskError extends Error {}
 
 async function errorMessage(response: Response): Promise<string> {
   if (response.status === 429) {
+    try {
+      const body = (await response.json()) as { code?: string; detail?: string };
+      if (body.code === "daily_limit" && body.detail) return body.detail;
+    } catch {
+      // fall through to the per-visitor message
+    }
     return "You've asked a lot of questions in a short time. Wait a few minutes and try again.";
   }
   if (response.status === 400) {

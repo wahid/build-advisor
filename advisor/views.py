@@ -14,7 +14,13 @@ from rest_framework.views import APIView
 from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
+from .limits import take_question
 from .rag import Event, answer, answer_stream
+
+DAILY_LIMIT_MESSAGE = (
+    "The demo has reached today's limit of {limit} questions. "
+    "It resets at midnight UTC, so try again tomorrow."
+)
 
 
 class AskSerializer(serializers.Serializer):
@@ -62,6 +68,14 @@ class AskView(APIView):
         serializer = AskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        if not take_question():
+            return Response(
+                {
+                    "detail": DAILY_LIMIT_MESSAGE.format(limit=settings.ASK_DAILY_LIMIT),
+                    "code": "daily_limit",
+                },
+                status=429,
+            )
         filters = SearchFilters(doc_types=tuple(data["doc_types"]))
 
         if not data["stream"]:

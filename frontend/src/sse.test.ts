@@ -55,6 +55,13 @@ describe("ask", () => {
     expect(events).toEqual([{ type: "delta", text: "Hi" }]);
   });
 
+  it("shows the site-wide daily limit message", async () => {
+    const body = JSON.stringify({ code: "daily_limit", detail: "The demo has reached today's limit." });
+    const fakeFetch = (async () => new Response(body, { status: 429 })) as typeof fetch;
+
+    await expect(ask("q", [], "", undefined, fakeFetch).next()).rejects.toThrow("today's limit");
+  });
+
   it("explains rate limiting", async () => {
     const fakeFetch = (async () => new Response("{}", { status: 429 })) as typeof fetch;
 
