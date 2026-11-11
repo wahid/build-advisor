@@ -346,7 +346,7 @@ def test_build_cases_dont_require_groundedness(indexed: FakeEmbedder, mocker) ->
             return ToolResult(ok=True, text='{"code": "eNr"}', data={"code": "eNr"})
 
     @contextmanager
-    def checkout():
+    def checkout(**_kwargs):
         yield Box()
 
     mocker.patch("advisor.rag.get_pool", return_value=NS(toolbox=checkout))

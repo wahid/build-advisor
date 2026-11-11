@@ -134,6 +134,10 @@ def test_given_expansion_skips_the_rewrite_call(embedder: FakeEmbedder) -> None:
 
 class _Box:
     definitions = [{"type": "function", "function": {"name": "x"}}]
+    reused = False
+
+    def mark_loaded(self, source):
+        pass
 
     def call(self, name, arguments):
         from advisor.pob import ToolResult
@@ -147,11 +151,11 @@ class _Pool:
     def __init__(self) -> None:
         self.used = False
 
-    def toolbox(self):
+    def toolbox(self, **_kwargs):
         from contextlib import contextmanager
 
         @contextmanager
-        def checkout():
+        def checkout(**_kwargs):
             self.used = True
             yield _Box()
 

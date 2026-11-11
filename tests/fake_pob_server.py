@@ -10,13 +10,19 @@ except ImportError:  # pragma: no cover - SDK 1.x
     from mcp.server.fastmcp import FastMCP
 
 server = FastMCP("fake-pob")
-state: dict = {"ascendancy": None, "log": []}
+state: dict = {"ascendancy": None, "log": [], "resets": 0}
 
 
 @server.tool()
 def new_build(ascendancy: str | None = None) -> dict:
     state["ascendancy"] = ascendancy
+    state["resets"] += 1
     return {"ascendancy": ascendancy}
+
+
+@server.tool()
+def resets() -> int:
+    return state["resets"]
 
 
 @server.tool()

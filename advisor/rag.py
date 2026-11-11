@@ -300,7 +300,7 @@ def answer_stream(
         toolbox: PobToolbox | None = None
         if pool is not None:
             try:
-                toolbox = stack.enter_context(pool.toolbox())
+                toolbox = stack.enter_context(pool.toolbox(build=build))
             except PobUnavailable as exc:
                 logger.warning("Answering without Path of Building: %s", exc)
                 if build:
@@ -312,16 +312,33 @@ def answer_stream(
         build_summary = None
         query, pinned = standalone, []
         if build and toolbox is not None:
-            runner = _ToolRunner(toolbox)
-            call = ToolCall("attached-build", "load_build", json.dumps({"source": build}))
-            events, _ = runner.run(call)
-            yield from events
-            if not events[-1]["ok"]:
+            if toolbox.reused:
+                # Still loaded from the previous question, unchanged: no reload.
                 yield {
-                    "type": "error",
-                    "message": f"The build couldn't be loaded: {events[-1]['error']}",
+                    "type": "tool_call",
+                    "id": "attached-build",
+                    "name": "reuse_build",
+                    "arguments": {},
                 }
-                return
+                yield {
+                    "type": "tool_result",
+                    "id": "attached-build",
+                    "name": "reuse_build",
+                    "ok": True,
+                    "error": "",
+                }
+            else:
+                runner = _ToolRunner(toolbox)
+                call = ToolCall("attached-build", "load_build", json.dumps({"source": build}))
+                events, _ = runner.run(call)
+                yield from events
+                if not events[-1]["ok"]:
+                    yield {
+                        "type": "error",
+                        "message": f"The build couldn't be loaded: {events[-1]['error']}",
+                    }
+                    return
+                toolbox.mark_loaded(build)
             build_summary = toolbox.call("get_build_summary", {}).data
             pinned = build_search_terms(toolbox, build_summary)
             if pinned:

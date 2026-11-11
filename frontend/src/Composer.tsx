@@ -8,6 +8,8 @@ interface Props {
   docTypes: DocType[];
   onDocTypesChange: (types: DocType[]) => void;
   build: string;
+  /** The attached build is the assistant's changed version of it. */
+  buildChanged: boolean;
   onBuildChange: (build: string) => void;
   onSubmit: (question: string) => void;
   onStop: () => void;
@@ -16,7 +18,17 @@ interface Props {
 const MAX_HEIGHT = 220; // px; the box grows with the question up to this
 
 /** The message box: question, an optional Path of Building build, and search filters. */
-export function Composer({ busy, followUp, docTypes, onDocTypesChange, build, onBuildChange, onSubmit, onStop }: Props) {
+export function Composer({
+  busy,
+  followUp,
+  docTypes,
+  onDocTypesChange,
+  build,
+  buildChanged,
+  onBuildChange,
+  onSubmit,
+  onStop,
+}: Props) {
   const [question, setQuestion] = useState("");
   const [editingBuild, setEditingBuild] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -82,8 +94,13 @@ export function Composer({ busy, followUp, docTypes, onDocTypesChange, build, on
         <div className="composer-tools">
           {hasBuild && !editingBuild ? (
             <span className="build-chip">
-              <button type="button" className="build-chip-label" onClick={() => setEditingBuild(true)}>
-                Build attached
+              <button
+                type="button"
+                className="build-chip-label"
+                title={buildChanged ? "Follow-ups use the build as it was changed in this chat" : undefined}
+                onClick={() => setEditingBuild(true)}
+              >
+                {buildChanged ? "Changed build attached" : "Build attached"}
               </button>
               <button type="button" className="build-chip-remove" aria-label="Remove the build" onClick={() => onBuildChange("")}>
                 ×

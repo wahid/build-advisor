@@ -25,9 +25,14 @@ class FakeToolbox:
         for n in ("get_build_summary", "export_build", "load_build", "rank_support_gems")
     ]
 
-    def __init__(self, results: dict | None = None) -> None:
+    def __init__(self, results: dict | None = None, reused: bool = False) -> None:
         self.results = results or {}
         self.calls: list[tuple[str, dict]] = []
+        self.reused = reused
+        self.loaded = ""
+
+    def mark_loaded(self, source: str) -> None:
+        self.loaded = source
 
     def call(self, name: str, arguments: dict) -> ToolResult:
         self.calls.append((name, arguments))
@@ -53,7 +58,7 @@ def toolbox(mocker, settings) -> FakeToolbox:
     box = FakeToolbox()
 
     @contextmanager
-    def checkout():
+    def checkout(**_kwargs):
         yield box
 
     mocker.patch("advisor.rag.get_pool", return_value=SimpleNamespace(toolbox=checkout))
@@ -215,6 +220,28 @@ def test_attached_build_steers_the_wiki_search(embedder, toolbox, mocker) -> Non
     assert search.call_args.args[0] == "is this strong?\n" + ", ".join(expected)
 
 
+def test_a_build_still_loaded_from_the_last_question_isnt_loaded_again(embedder, toolbox) -> None:
+    toolbox.reused = True
+
+    events = list(
+        answer_stream("q", provider=FakeProvider(["ok"]), embedder=embedder, build="eNrC")
+    )
+
+    assert ("load_build", {"source": "eNrC"}) not in toolbox.calls
+    assert events[0] == {
+        "type": "tool_call",
+        "id": "attached-build",
+        "name": "reuse_build",
+        "arguments": {},
+    }
+
+
+def test_a_loaded_build_is_remembered(embedder, toolbox) -> None:
+    list(answer_stream("q", provider=FakeProvider(["ok"]), embedder=embedder, build="eNrC"))
+
+    assert toolbox.loaded == "eNrC"
+
+
 def test_attached_build_that_fails_to_load_stops_with_an_error(embedder, toolbox) -> None:
     provider = FakeProvider(["never"])
 
@@ -232,7 +259,7 @@ def test_without_pob_an_attached_build_is_an_error(embedder) -> None:
 
 def test_busy_pool_falls_back_to_wiki_only(embedder, mocker) -> None:
     @contextmanager
-    def busy():
+    def busy(**_kwargs):
         raise PobUnavailable("busy")
         yield
 

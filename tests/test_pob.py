@@ -22,6 +22,7 @@ ALLOWED = (
     "slow",
     "fail",
     "received",
+    "resets",
 )
 SHARE_CODE = "eNrtW1tz2jgUft" * 10
 
@@ -156,3 +157,61 @@ def test_a_hung_server_is_replaced(pool: PobPool) -> None:
 
     with pool.toolbox() as toolbox:  # a fresh process
         assert toolbox.call("get_build_summary", {}).data == {"ascendancy": None}
+
+
+# --- keeping a loaded build for follow-up questions --------------------------------
+
+
+def _resets(toolbox) -> int:
+    # Straight to the process: the test-only tool would count as a change otherwise.
+    return toolbox._server.call("resets", {}, 5).data
+
+
+def _load(pool: PobPool, source: str) -> None:
+    with pool.toolbox(build=source) as toolbox:
+        assert toolbox.reused is False
+        toolbox.call("load_build", {"source": source})
+        toolbox.mark_loaded(source)
+
+
+def test_a_follow_up_with_the_same_build_keeps_it_loaded(pool: PobPool) -> None:
+    _load(pool, SHARE_CODE)
+
+    with pool.toolbox(build=SHARE_CODE) as toolbox:
+        before = _resets(toolbox)
+        toolbox.call("get_build_summary", {})  # reading doesn't change the build
+    with pool.toolbox(build=SHARE_CODE) as toolbox:
+        assert toolbox.reused is True
+        assert _resets(toolbox) == before
+
+
+def test_another_build_starts_from_a_reset(pool: PobPool) -> None:
+    _load(pool, SHARE_CODE)
+
+    with pool.toolbox(build="https://pobb.in/other") as toolbox:
+        assert toolbox.reused is False
+        resets = _resets(toolbox)
+    with pool.toolbox() as toolbox:  # no build: empty, but already clean
+        assert toolbox.reused is False
+        assert _resets(toolbox) == resets
+
+
+def test_a_changed_build_is_loaded_again(pool: PobPool) -> None:
+    _load(pool, SHARE_CODE)
+    with pool.toolbox(build=SHARE_CODE) as toolbox:
+        toolbox.call("new_build", {"ascendancy": "Slayer"})  # any changing tool
+
+    with pool.toolbox(build=SHARE_CODE) as toolbox:
+        assert toolbox.reused is False
+        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": None}
+
+
+def test_an_exported_build_can_be_continued_without_loading(pool: PobPool) -> None:
+    _load(pool, SHARE_CODE)
+    with pool.toolbox(build=SHARE_CODE) as toolbox:
+        toolbox.call("new_build", {"ascendancy": "Slayer"})
+        code = toolbox.call("export_build", {}).data["code"]
+
+    with pool.toolbox(build=code) as toolbox:
+        assert toolbox.reused is True
+        assert toolbox.call("get_build_summary", {}).data == {"ascendancy": "Slayer"}

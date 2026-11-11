@@ -69,6 +69,33 @@ DEFAULT_TOOLS = (
     "price_check",
 )
 
+# Tools that only read the build, or try a change and put the build back exactly as
+# it was. Any other tool may change the loaded build.
+READ_ONLY_TOOLS = frozenset(
+    {
+        "get_build_summary",
+        "get_stats",
+        "get_skills",
+        "get_items",
+        "get_passive_tree",
+        "get_config",
+        "get_warnings",
+        "explain_stat",
+        "evaluate_scenarios",
+        "rank_support_gems",
+        "rank_passives",
+        "compare_changes",
+        "search_gems",
+        "search_uniques",
+        "list_classes",
+        "list_ascendancy_notables",
+        "list_keystones",
+        "find_passive_nodes",
+        "export_build",
+        "price_check",
+    }
+)
+
 SHARE_CODE_RE = re.compile(r"^[A-Za-z0-9_\-+/=]{100,}$")
 BUILD_LINK_HOSTS = {"pobb.in", "pastebin.com", "www.pastebin.com"}
 BUILD_LINK_RE = re.compile(r"https?://(?:www\.)?(?:pobb\.in|pastebin\.com)/[\w\-/]+", re.IGNORECASE)
@@ -182,6 +209,11 @@ class _Server:
         self.command = command
         self.env = env
         self.broken = False
+        # Which build the process holds, so a follow-up with the same build can skip
+        # reloading it: the source it was loaded from (or the share code it was last
+        # exported as), and whether anything changed it since. "" = unknown.
+        self.build_source = ""
+        self.changed = True
         self.tools: list[Any] = []
         self._requests: asyncio.Queue[Any] | None = None
 
@@ -272,16 +304,37 @@ class _Server:
 class PobToolbox:
     """What the RAG loop sees: tool definitions and a safe `call`."""
 
-    def __init__(self, server: _Server, definitions: list[dict[str, Any]], timeout: float) -> None:
+    def __init__(
+        self,
+        server: _Server,
+        definitions: list[dict[str, Any]],
+        timeout: float,
+        reused: bool = False,
+    ) -> None:
         self._server = server
         self.definitions = definitions
         self._allowed = {d["function"]["name"] for d in definitions}
         self._timeout = timeout
+        # True when the build asked for was already loaded and unchanged.
+        self.reused = reused
 
     def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         if name not in self._allowed:
             raise PobToolError(f"Unknown tool {name!r}.")
-        return self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
+        if name not in READ_ONLY_TOOLS:
+            self._server.changed = True
+        result = self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
+        if name == "export_build" and result.ok and isinstance(result.data, dict):
+            code = result.data.get("code")
+            if isinstance(code, str) and code:
+                # The process now holds exactly this code; a follow-up sending it
+                # back (the app attaches a changed build) needn't load it again.
+                self._server.build_source, self._server.changed = code, False
+        return result
+
+    def mark_loaded(self, source: str) -> None:
+        """The build from `source` was just loaded and nothing has changed it yet."""
+        self._server.build_source, self._server.changed = source, False
 
 
 class PobPool:
@@ -346,13 +399,21 @@ class PobPool:
             self._idle.put(server)
 
     @contextmanager
-    def toolbox(self, wait: float = 60.0) -> Iterator[PobToolbox]:
+    def toolbox(self, wait: float = 60.0, build: str = "") -> Iterator[PobToolbox]:
+        """Check out a Path of Building process.
+
+        Every question starts from a clean state: the build it attached, or an empty
+        build. When the process already holds that build unchanged (a follow-up about
+        the same build), it's kept as it is instead of being reset and loaded again.
+        """
         server = self._acquire(wait)
         try:
-            # Start every question from an empty build.
-            server.call("new_build", {}, self.call_timeout)
+            reused = bool(build) and server.build_source == build and not server.changed
+            if not reused and (server.build_source or server.changed):
+                server.call("new_build", {}, self.call_timeout)
+                server.build_source, server.changed = "", False
             definitions = openai_tool_definitions(server.tools, self.allowed)
-            yield PobToolbox(server, definitions, self.call_timeout)
+            yield PobToolbox(server, definitions, self.call_timeout, reused=reused)
         finally:
             self._release(server)
 

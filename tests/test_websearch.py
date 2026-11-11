@@ -148,7 +148,7 @@ def test_web_searches_are_limited_with_pob_tools_too(web, embedder, settings, mo
     from .test_tool_loop import FakeToolbox
 
     @contextmanager
-    def checkout():
+    def checkout(**_kwargs):
         yield FakeToolbox()
 
     mocker.patch("advisor.rag.get_pool", return_value=SimpleNamespace(toolbox=checkout))

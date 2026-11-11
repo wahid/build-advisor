@@ -27,6 +27,8 @@ export default function App() {
   const [turns, setTurns] = useState<ChatTurn[]>(loadConversation);
   const [docTypes, setDocTypes] = useState<DocType[]>([]);
   const [build, setBuild] = useState("");
+  // The attached build is one the assistant changed (its exported share code).
+  const [buildChanged, setBuildChanged] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const nextId = useRef(0);
   // Keep following the newest text unless the reader scrolled up to read.
@@ -62,14 +64,24 @@ export default function App() {
     const history = toHistory(turns);
     // A build link in the question becomes the attached build, so follow-ups use it too.
     const link = findBuildLink(question);
-    if (link) setBuild(link);
+    if (link) {
+      setBuild(link);
+      setBuildChanged(false);
+    }
     following.current = true;
     setTurns((prev) => [...prev, newTurn(id, question)]);
 
     try {
       const options = { docTypes, build: link || build.trim(), history, signal: current.signal };
       const events = ask(question, options);
-      for await (const event of events) update(id, (turn) => applyEvent(turn, event as AskEvent));
+      for await (const event of events) {
+        update(id, (turn) => applyEvent(turn, event as AskEvent));
+        if (event.type === "pob_export") {
+          // Follow-ups continue from the changed build, not the original one.
+          setBuild(event.code);
+          setBuildChanged(true);
+        }
+      }
     } catch (err) {
       if (current.signal.aborted) return;
       const message = err instanceof AskError ? err.message : UNREACHABLE;
@@ -96,7 +108,11 @@ export default function App() {
       docTypes={docTypes}
       onDocTypesChange={setDocTypes}
       build={build}
-      onBuildChange={setBuild}
+      buildChanged={buildChanged}
+      onBuildChange={(value) => {
+        setBuild(value);
+        setBuildChanged(false);
+      }}
       onSubmit={(q) => void submit(q)}
       onStop={stop}
     />

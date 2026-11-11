@@ -160,6 +160,11 @@ resulting share code to import into PoB.
   pool (`POB_POOL_SIZE` per web/worker process) is kept warm. Each question gets
   its own process, reset with `new_build`, so visitors never see each other's
   builds.
+- **Follow-ups keep the build loaded:** a process remembers which build it holds
+  and whether any tool changed it. A follow-up with the same build reuses it
+  instead of resetting and loading it again. When the model changes a build,
+  the app attaches the exported share code, so the next question continues from
+  the changed build (and the process already holds exactly that code).
 - **Bounded tool loop:** at most `POB_MAX_TOOL_ROUNDS` rounds (default 8); the
   last round has no tools, so the model must answer. Every call is logged with
   its arguments and duration.
