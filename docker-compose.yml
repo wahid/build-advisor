@@ -22,6 +22,7 @@ services:
       - "6379:6379"
 
   web: &app
+    image: build-advisor:cpu
     build:
       context: .
       args:

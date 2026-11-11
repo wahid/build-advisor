@@ -3,11 +3,13 @@
 # Builds the CUDA variant of PyTorch and gives the Celery worker the GPU.
 services:
   web:
+    image: build-advisor:cuda  # separate tag so a CPU build never replaces it
     build:
       args:
         EMBEDDINGS: cuda
 
   worker:
+    image: build-advisor:cuda
     build:
       args:
         EMBEDDINGS: cuda
