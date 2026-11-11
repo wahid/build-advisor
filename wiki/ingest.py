@@ -186,7 +186,8 @@ def _download_and_store(
                         # Still store the other pages that finished; then stop.
                         blocked = exc
                     except (WikiError, KeyError) as exc:
-                        logger.error("Failed to ingest %r: %s", title, exc)
+                        # Counted in the progress line and listed at the end of the run.
+                        logger.debug("Failed to ingest %r: %s", title, exc)
                         result.failed.append(title)
                         progress.step(failed=True)
                     else:

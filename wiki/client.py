@@ -366,8 +366,6 @@ class WikiClient:
         attempt = 0
         while attempt < self.max_retries:
             attempt += 1
-            # self._throttle()
-            # backoff = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP)
             proxy = self.proxy_pool.pick(self.proxy_index)
             try:
                 response = self.session.get(
@@ -387,7 +385,6 @@ class WikiClient:
                     raise WikiError(f"Request failed: {exc}") from exc
                 if proxy:
                     self.proxy_pool.mark_failed(proxy)
-                # self._sleep(backoff)
                 continue
 
             if proxy and response.status_code in PROXY_ERROR_STATUSES:
@@ -404,8 +401,6 @@ class WikiClient:
             data: dict[str, Any] = response.json()
             error = data.get("error")
             if error and error.get("code") in ("maxlag", "ratelimited"):
-                # self._slow_down()
-                #  self._sleep(max(_retry_after(response, default=backoff), backoff))
                 continue
             if error:
                 raise WikiError(f"{error.get('code')}: {error.get('info')}")
@@ -419,7 +414,7 @@ class WikiClient:
         if replacement is not None:
             # The replacement becomes this client's new home proxy.
             self.proxy_index = self.proxy_pool.index_of(replacement)
-        logger.warning(
+        logger.debug(
             "Proxy %s failed; switching to %s",
             _redact(proxy),
             _redact(replacement or "direct connection"),
