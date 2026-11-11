@@ -165,6 +165,12 @@ resulting share code to import into PoB.
   instead of resetting and loading it again. When the model changes a build,
   the app attaches the exported share code, so the next question continues from
   the changed build (and the process already holds exactly that code).
+- **"Which skill is strongest?" is calculated** (`advisor/gemrank.py`): the
+  `rank_skill_gems` tool ranks skill gems by tag (Slam, Bow, Attack...) inside
+  Path of Building. Without a build it uses a level-90 reference character of
+  the asked ascendancy with one well-rolled weapon each skill can use, and
+  reports DPS against a pinnacle boss and a map enemy (~10-45 s for 25-100
+  gems). With a build loaded it swaps the build's main skill for each candidate.
 - **Bounded tool loop:** at most `POB_MAX_TOOL_ROUNDS` rounds (default 8); the
   last round has no tools, so the model must answer. Every call is logged with
   its arguments and duration.

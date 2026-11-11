@@ -28,7 +28,7 @@ from django.conf import settings
 from wiki.embeddings import Embedder
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
-from . import websearch
+from . import gemrank, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
 from .prompts import NO_SOURCES_ANSWER, Turn, build_messages
@@ -158,6 +158,20 @@ class _ToolRunner:
         self.question = question
         self.web_searches = 0
 
+    def _rank_skill_gems(
+        self, call: ToolCall, arguments: dict[str, Any]
+    ) -> tuple[list[Event], str]:
+        assert self.toolbox is not None
+        ranker = gemrank.GemRanker(self.toolbox.call_internal)
+        try:
+            result = ranker.run(arguments, build_loaded=self.toolbox.has_build)
+        except (gemrank.GemRankError, PobToolError) as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = json.dumps(result, ensure_ascii=False)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        return events, _for_model(text)
+
     def _web_search(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
         query = str(arguments.get("query", ""))
         if self.web_searches >= settings.WEB_SEARCH_MAX_CALLS:
@@ -202,6 +216,8 @@ class _ToolRunner:
 
         if call.name == websearch.TOOL_NAME:
             return self._web_search(call, arguments)
+        if call.name == gemrank.TOOL_NAME and self.toolbox is not None:
+            return self._rank_skill_gems(call, arguments)
         if self.toolbox is None:
             error = f"There is no tool called {call.name}."
             return self._events(call, arguments, ok=False, error=error), f"Error: {error}"
@@ -411,6 +427,7 @@ def _converse(
     )
     definitions = [
         *(toolbox.definitions if toolbox is not None else []),
+        *([gemrank.TOOL_DEFINITION] if toolbox is not None else []),
         *([websearch.TOOL_DEFINITION] if web else []),
     ]
     runner = _ToolRunner(toolbox, sources, question) if definitions else None

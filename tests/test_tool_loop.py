@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from advisor import gemrank
 from advisor.llm import OpenAICompatibleProvider, Reasoning, ToolCall
 from advisor.pob import PobToolError, PobUnavailable, ToolResult
 from advisor.rag import MAX_TOOL_RESULT_CHARS, answer, answer_stream
@@ -98,7 +99,7 @@ def test_model_calls_a_tool_and_answers_with_the_result(embedder, toolbox) -> No
     messages, tools = provider.calls[1]
     assert messages[-2]["tool_calls"][0]["function"]["name"] == "get_build_summary"
     assert messages[-1] == {"role": "tool", "tool_call_id": "c1", "content": json.dumps(SUMMARY)}
-    assert tools == FakeToolbox.definitions
+    assert tools == [*FakeToolbox.definitions, gemrank.TOOL_DEFINITION]
     assert "Path of Building tools" in messages[0]["content"]
 
 

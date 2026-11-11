@@ -23,6 +23,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   explain_stat: ["Broke down a stat", "break down a stat"],
   evaluate_scenarios: ["Compared mapping and bossing", "compare mapping and bossing"],
   rank_support_gems: ["Ranked support gems", "rank support gems"],
+  rank_skill_gems: ["Ranked skill gems by damage", "rank skill gems"],
   rank_passives: ["Ranked passive notables", "rank passive notables"],
   compare_changes: ["Tested a change", "test a change"],
   apply_changes: ["Changed the build", "change the build"],

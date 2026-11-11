@@ -356,6 +356,20 @@ class PobToolbox:
                 self._server.build_source, self._server.changed = code, False
         return result
 
+    @property
+    def has_build(self) -> bool:
+        return self._server.has_build
+
+    def call_internal(self, name: str, arguments: dict[str, Any]) -> ToolResult:
+        """A call made by the app's own code (not chosen by the model), e.g. for a
+        composite tool. It skips the allowlist but still tracks changes."""
+        if name not in READ_ONLY_TOOLS:
+            self._server.changed = True
+        result = self._server.call(name, arguments, self._timeout)
+        if name in ("new_build", "load_build") and result.ok:
+            self._server.has_build = True
+        return result
+
     def mark_loaded(self, source: str) -> None:
         """The build from `source` was just loaded and nothing has changed it yet."""
         self._server.build_source, self._server.changed = source, False
