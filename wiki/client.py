@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+import urllib3
+urllib3.disable_warnings()
+    
 import requests
 
 from .models import DocumentType
@@ -372,6 +375,7 @@ class WikiClient:
                     params=params,
                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
                     proxies={"http": proxy, "https": proxy} if proxy else None,
+                    verify=False,  # The wiki's TLS cert is valid but the chain is incomplete; skip verification.
                 )
             except requests.RequestException as exc:
                 if proxy and proxy_switches_left > 0:
