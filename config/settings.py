@@ -93,7 +93,7 @@ WIKI_USER_AGENT = env(
     "WIKI_USER_AGENT",
     default="build-advisor/0.1 (non-commercial portfolio project; set WIKI_USER_AGENT)",
 )
-WIKI_REQUEST_INTERVAL = env.float("WIKI_REQUEST_INTERVAL", default=1.0)  # seconds
+WIKI_REQUEST_INTERVAL = env.float("WIKI_REQUEST_INTERVAL", default=2.5)  # seconds
 # On rate limiting the interval grows (up to this) and slowly shrinks again.
 WIKI_MAX_REQUEST_INTERVAL = env.float("WIKI_MAX_REQUEST_INTERVAL", default=30.0)
 WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=6)

@@ -30,7 +30,7 @@ In another terminal:
 
 ```bash
 docker compose exec web python manage.py fetch_wiki --type gem --limit 20   # small trial run
-docker compose exec web python manage.py fetch_wiki                         # everything (slow, ~1 req/s)
+docker compose exec web python manage.py fetch_wiki                         # everything (slow: one request per 2.5 s)
 docker compose exec web python manage.py fetch_wiki --async                 # run in the Celery worker
 docker compose exec web python manage.py createsuperuser                    # browse data at /admin/
 ```
@@ -66,7 +66,7 @@ document embeddings are already in the database.
   Cargo queries on the `items` table, ascendancies and mechanics via categories.
 - **Only changed pages are fetched.** Revision ids are checked in batches of 50;
   pages whose revision matches the stored `Source.revision_id` are skipped.
-- **Polite to the wiki:** one request per second by default, `maxlag=5`,
+- **Polite to the wiki:** one request per 2.5 s by default (Cloudflare challenges faster clients), `maxlag=5`,
   backing off on `429`/`503` with `Retry-After`, and a descriptive User-Agent.
 - **Raw pages are cached** in `data/raw/` per revision, so re-parsing never
   needs the network.

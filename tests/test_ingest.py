@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from wiki.client import WikiError, WikiPage
+from wiki.client import WikiBlockedError, WikiError, WikiPage
 from wiki.ingest import content_hash, ingest
 from wiki.models import Document, DocumentType, Source
 
@@ -18,6 +18,7 @@ class FakeClient:
     html: dict[str, str]
     patch: str = "3.29.3c"
     broken: set[str] = field(default_factory=set)
+    blocked: set[str] = field(default_factory=set)
     fetched: list[str] = field(default_factory=list)
 
     def current_patch(self) -> str:
@@ -32,6 +33,8 @@ class FakeClient:
     def fetch_page(self, title: str, revision_id: int | None = None) -> WikiPage:
         if title in self.broken:
             raise WikiError("boom")
+        if title in self.blocked:
+            raise WikiBlockedError("cloudflare")
         self.fetched.append(title)
         return WikiPage(title, page_id=1, revision_id=self.revisions[title], html=self.html[title])
 
@@ -119,3 +122,73 @@ def test_limit_and_failures(fake: FakeClient) -> None:
     Document.objects.all().delete()
     limited = ingest([DocumentType.GEM], limit=1, client=fake)
     assert limited.created + limited.updated + len(limited.failed) == 1
+
+
+def test_logs_how_many_pages_need_downloading(fake: FakeClient, caplog) -> None:
+    ingest([DocumentType.GEM], client=fake)
+    fake.revisions["Fire Trap"] = 21
+    fake.html["Fire Trap"] = "<p>Edited.</p>"
+    caplog.clear()
+
+    with caplog.at_level("INFO", logger="wiki.ingest"):
+        ingest([DocumentType.GEM], client=fake)
+
+    assert "gem: 2 pages, 1 to download, 1 unchanged" in caplog.text
+    assert "gem: 2/2 pages (100%), downloaded 1/1" in caplog.text
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_progress_estimates_remaining_time_from_downloads(caplog) -> None:
+    from wiki.ingest import Progress
+
+    clock = FakeClock()
+    progress = Progress("gem", total=100, to_fetch=40, every=10, clock=clock)
+
+    with caplog.at_level("INFO", logger="wiki.ingest"):
+        for _ in range(50):  # skipped pages: instant, no report
+            progress.step()
+        assert caplog.text == ""
+        for _ in range(10):
+            clock.now += 3
+            progress.step(fetched=True)
+
+    # 10 downloads took 30s, so 30 more take ~90s.
+    assert "gem: 60/100 pages (60%), downloaded 10/40, ~2 min left" in caplog.text
+
+
+def test_progress_reports_failures_and_long_gaps(caplog) -> None:
+    from wiki.ingest import Progress
+
+    clock = FakeClock()
+    progress = Progress("unique", total=10, to_fetch=10, every=100, interval=30, clock=clock)
+
+    with caplog.at_level("INFO", logger="wiki.ingest"):
+        clock.now = 31
+        progress.step(failed=True)
+
+    assert "unique: 1/10 pages (10%), downloaded 1/10, 1 failed" in caplog.text
+
+
+def test_duration_formatting() -> None:
+    from wiki.ingest import _duration
+
+    assert _duration(20) == "<1 min"
+    assert _duration(600) == "10 min"
+    assert _duration(4000) == "1 h 07 min"
+
+
+def test_block_stops_the_run_but_keeps_saved_pages(fake: FakeClient) -> None:
+    fake.titles[DocumentType.GEM] = ["Fire Trap", "Righteous Fire"]
+    fake.blocked.add("Righteous Fire")
+
+    with pytest.raises(WikiBlockedError):
+        ingest([DocumentType.GEM, DocumentType.UNIQUE], client=fake)
+
+    assert list(Document.objects.values_list("title", flat=True)) == ["Fire Trap"]

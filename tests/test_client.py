@@ -5,7 +5,7 @@ import pytest
 import responses
 
 from wiki import client as client_module
-from wiki.client import WikiClient, WikiError
+from wiki.client import WikiBlockedError, WikiClient, WikiError
 from wiki.models import DocumentType
 
 from .conftest import API_URL
@@ -152,3 +152,12 @@ def test_api_errors_raise(wiki_client: WikiClient) -> None:
 
 def test_page_url_for(wiki_client: WikiClient) -> None:
     assert wiki_client.page_url_for("Abberath's Horn") == "https://wiki.test/wiki/Abberath's_Horn"
+
+
+@responses.activate
+def test_cloudflare_challenge_stops_immediately(wiki_client: WikiClient) -> None:
+    responses.get(API_URL, status=429, headers={"cf-mitigated": "challenge"}, body="<html>")
+
+    with pytest.raises(WikiBlockedError):
+        wiki_client.current_patch(today=date(2026, 11, 11))
+    assert len(responses.calls) == 1

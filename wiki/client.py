@@ -37,6 +37,10 @@ class WikiError(RuntimeError):
     """Raised when the wiki returns an error or can't be reached."""
 
 
+class WikiBlockedError(WikiError):
+    """The wiki's bot protection (Cloudflare) is challenging us; retrying won't help."""
+
+
 @dataclass(frozen=True)
 class WikiPage:
     title: str
@@ -81,7 +85,7 @@ class WikiClient:
         page_url: str,
         user_agent: str,
         cache_dir: Path,
-        request_interval: float = 1.0,
+        request_interval: float = 2.5,
         max_retries: int = 6,
         max_interval: float = 30.0,
         session: requests.Session | None = None,
@@ -254,6 +258,11 @@ class WikiClient:
                 self._sleep(backoff)
                 continue
 
+            if response.headers.get("cf-mitigated") == "challenge":
+                raise WikiBlockedError(
+                    "Cloudflare is blocking requests from this connection with a bot "
+                    "challenge. Stop for a few hours and try again with a lower request rate."
+                )
             if response.status_code in (429, 503):
                 self._slow_down()
                 wait = max(_retry_after(response, default=backoff), backoff)

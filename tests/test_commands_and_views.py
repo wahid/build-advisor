@@ -81,3 +81,16 @@ def test_build_index_no_embed_and_async(mocker) -> None:
     call_command("build_index", "--async", "--force", stdout=out)
     delay.assert_called_once_with(force=True, embed=True)
     assert "xyz" in out.getvalue()
+
+
+def test_fetch_wiki_reports_block_as_command_error(mocker) -> None:
+    from django.core.management import CommandError
+
+    from wiki.client import WikiBlockedError
+
+    mocker.patch(
+        "wiki.management.commands.fetch_wiki.ingest", side_effect=WikiBlockedError("blocked")
+    )
+
+    with pytest.raises(CommandError, match="continues where it stopped"):
+        call_command("fetch_wiki", stdout=StringIO())

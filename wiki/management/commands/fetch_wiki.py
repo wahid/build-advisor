@@ -1,7 +1,8 @@
 from typing import Any
 
-from django.core.management.base import BaseCommand, CommandParser
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
+from wiki.client import WikiBlockedError
 from wiki.ingest import ingest
 from wiki.models import DocumentType
 from wiki.tasks import ingest_wiki
@@ -37,7 +38,12 @@ class Command(BaseCommand):
             self.stdout.write(f"Queued ingest task {task.id}")
             return
 
-        result = ingest(**kwargs)
+        try:
+            result = ingest(**kwargs)
+        except WikiBlockedError as exc:
+            raise CommandError(
+                f"{exc}\nPages saved so far are kept; rerunning later continues where it stopped."
+            ) from exc
         self.stdout.write(
             self.style.SUCCESS(
                 f"Patch {result.patch}: {result.created} created, {result.updated} updated, "
