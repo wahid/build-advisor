@@ -1,6 +1,6 @@
-# Deploying to a Hetzner CX33
+# Deploying to a Hetzner CX23
 
-One server (4 vCPU, 8 GB RAM, ~€9/month) runs everything with
+One server (2 vCPU, 4 GB RAM, ~€5.49/month excl. VAT) runs everything with
 `docker-compose.prod.yml`: Caddy (HTTPS) → gunicorn → Postgres + pgvector.
 Wiki imports and indexing stay on your own machine; you copy the database over.
 
@@ -13,8 +13,10 @@ commands run over SSH.
    (press Enter for the defaults). Your public key is in
    `~\.ssh\id_ed25519.pub`.
 2. Hetzner Cloud console → *Add server*: location Falkenstein, Nuremberg or
-   Helsinki; image **Ubuntu 24.04**; type **CX33**; add your SSH key. Optional:
-   enable Backups (+20%).
+   Helsinki; image **Ubuntu 24.04**; type **CX23** (cost-optimized); add your
+   SSH key. Optional: enable Backups (+20%). Since mid-2026 many cheap types
+   are often unavailable; `hcloud server-type describe cx23 -o json` shows
+   availability per location. With 8 GB (e.g. CPX32) set `POB_POOL_SIZE=2`.
 3. Note the server's IPv4 address. No domain? Use `<ip>.sslip.io`
    (e.g. `203.0.113.7.sslip.io`), which points to your IP and gets a real HTTPS
    certificate. With a domain, add an `A` record pointing to the IP.
@@ -28,8 +30,8 @@ ssh root@<ip>
 curl -fsSL https://raw.githubusercontent.com/wahid/build-advisor/main/deploy/server-setup.sh | bash
 ```
 
-This installs Docker, a firewall (SSH, HTTP, HTTPS only), automatic security
-updates, a `deploy` user, clones the repo into `/srv/build-advisor` and adds a
+This adds a 4 GB swap file, installs Docker, a firewall (SSH, HTTP, HTTPS
+only), automatic security updates, a `deploy` user, clones the repo into `/srv/build-advisor` and adds a
 nightly database backup. (Private repo? Clone with a deploy key instead and run
 the script with `REPO=git@github.com:wahid/build-advisor.git`.)
 
@@ -103,5 +105,11 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod ps            # s
 ls backups/                                                                   # nightly dumps
 ```
 
-Memory: the app uses ~3-3.5 GB (bge-m3 ~2.3 GB, Path of Building ~300 MB per
-process, `POB_POOL_SIZE=2`), Postgres ~0.5 GB, leaving headroom on 8 GB.
+Memory on a 4 GB CX23 (measured with
+[`scripts/compare_precision.py`](../scripts/compare_precision.py)): the app
+~2 GB (bge-m3 in float32 adds ~1.6 GB once in use; its weights are
+memory-mapped, so unused parts stay on disk), Path of Building ~0.3 GB,
+Postgres ~0.3 GB, Caddy ~30 MB: about 2.6 GB, with 4 GB of swap as a safety
+net. Lower-precision models don't help on this kind of CPU: bfloat16 was 8x
+slower per question without saving memory, and int8 shifted the vectors
+(cosine 0.95) and needed 6 GB while converting. `docker stats` shows live use.

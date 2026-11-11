@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-time setup of a fresh Ubuntu 24.04 server (e.g. Hetzner CX33), run as root:
+# One-time setup of a fresh Ubuntu 24.04 server (e.g. Hetzner CX23), run as root:
 #   curl -fsSL https://raw.githubusercontent.com/<you>/build-advisor/main/deploy/server-setup.sh | bash
 # or copy it over and run: bash server-setup.sh
 set -euo pipefail
@@ -11,6 +11,18 @@ echo "== Updates and basics"
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 apt-get install -y ca-certificates curl git ufw unattended-upgrades fail2ban
+
+echo "== Swap file (4 GB): a safety net for 4 GB servers such as the CX23"
+if ! swapon --show | grep -q /swapfile; then
+  fallocate -l 4G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+# Only swap under real memory pressure.
+sysctl -w vm.swappiness=10
+echo 'vm.swappiness=10' > /etc/sysctl.d/99-build-advisor.conf
 
 echo "== Docker"
 if ! command -v docker >/dev/null; then

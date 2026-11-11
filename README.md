@@ -256,7 +256,7 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 
 ## Deployment
 
-Production runs on one Hetzner CX33 (4 vCPU, 8 GB, ~€9/month) with
+Production runs on one Hetzner CX23 (2 vCPU, 4 GB, ~€5.49/month) with
 [`docker-compose.prod.yml`](docker-compose.prod.yml): Caddy (automatic HTTPS,
 unbuffered streaming) → gunicorn (1 worker, 8 threads, 300 s timeout for
 streamed builds) → Postgres + pgvector. The embedding model and a Path of
