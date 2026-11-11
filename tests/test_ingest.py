@@ -192,3 +192,51 @@ def test_block_stops_the_run_but_keeps_saved_pages(fake: FakeClient) -> None:
         ingest([DocumentType.GEM, DocumentType.UNIQUE], client=fake)
 
     assert list(Document.objects.values_list("title", flat=True)) == ["Fire Trap"]
+
+
+@dataclass
+class SlowWorkerClient(FakeClient):
+    """FakeClient whose workers record which thread fetched each page."""
+
+    threads: set[str] = field(default_factory=set)
+
+    def for_worker(self, index: int, total: int = 1) -> "SlowWorkerClient":
+        return self
+
+    def fetch_page(self, title: str, revision_id: int | None = None) -> WikiPage:
+        import threading
+        import time
+
+        self.threads.add(threading.current_thread().name)
+        time.sleep(0.05)
+        return super().fetch_page(title, revision_id)
+
+
+def test_downloads_in_parallel_with_workers() -> None:
+    titles = [f"Gem {i}" for i in range(8)]
+    fake = SlowWorkerClient(
+        titles={DocumentType.GEM: titles},
+        revisions={t: i for i, t in enumerate(titles, 1)},
+        html={t: f"<p>{t}</p>" for t in titles},
+    )
+
+    result = ingest([DocumentType.GEM], client=fake, workers=4)
+
+    assert result.created == 8
+    assert Document.objects.count() == 8
+    assert len(fake.threads) > 1
+
+
+def test_parallel_failures_are_recorded_and_others_stored() -> None:
+    titles = ["A", "B", "C", "D"]
+    fake = SlowWorkerClient(
+        titles={DocumentType.GEM: titles},
+        revisions={t: 1 for t in titles},
+        html={t: "<p>x</p>" for t in titles},
+        broken={"B"},
+    )
+
+    result = ingest([DocumentType.GEM], client=fake, workers=3)
+
+    assert result.failed == ["B"]
+    assert sorted(Document.objects.values_list("title", flat=True)) == ["A", "C", "D"]

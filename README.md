@@ -68,6 +68,14 @@ document embeddings are already in the database.
   pages whose revision matches the stored `Source.revision_id` are skipped.
 - **Polite to the wiki:** one request per 2.5 s by default (Cloudflare challenges faster clients), `maxlag=5`,
   backing off on `429`/`503` with `Retry-After`, and a descriptive User-Agent.
+- **Optional proxies and parallel downloads:** list proxies in `proxies.txt`
+  (one per line, see `proxies.example.txt`; http, https, socks4 and socks5) or
+  in `WIKI_PROXIES`. Pages are then downloaded by `WIKI_WORKERS` threads
+  (default 4, max 16), each with its own home proxy. When a proxy fails
+  (connection error, timeout, `407`/`502`/`504`) the request moves to another
+  proxy and the failed one is skipped for `WIKI_PROXY_COOLDOWN` seconds. Each
+  worker still keeps its own request interval and backoff, and a Cloudflare
+  challenge stops the whole run.
 - **Raw pages are cached** in `data/raw/` per revision, so re-parsing never
   needs the network.
 - **HTML → text** keeps section headings as `##` lines (for per-section

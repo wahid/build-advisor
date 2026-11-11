@@ -10,6 +10,16 @@ import environ
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
+
+
+def read_proxy_file(path: Path) -> list[str]:
+    """Proxy URLs from a text file, one per line; blank lines and # comments are skipped."""
+    if not path.is_file():
+        return []
+    lines = (line.split("#", 1)[0].strip() for line in path.read_text("utf-8").splitlines())
+    return [line for line in lines if line]
+
+
 environ.Env.read_env(BASE_DIR / ".env", overwrite=False)
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="insecure-dev-key-change-me")
@@ -97,6 +107,22 @@ WIKI_REQUEST_INTERVAL = env.float("WIKI_REQUEST_INTERVAL", default=2.5)  # secon
 # On rate limiting the interval grows (up to this) and slowly shrinks again.
 WIKI_MAX_REQUEST_INTERVAL = env.float("WIKI_MAX_REQUEST_INTERVAL", default=30.0)
 WIKI_MAX_RETRIES = env.int("WIKI_MAX_RETRIES", default=6)
+# Optional comma-separated proxy URLs, e.g. http://user:pass@host:port,socks5://host:1080.
+# Each download worker uses its own proxy and moves to another one only when its proxy fails.
+# Proxies can also be listed in a text file, one per line (blank lines and # comments
+# are ignored). Both sources are combined.
+WIKI_PROXY_FILE = BASE_DIR / env("WIKI_PROXY_FILE", default="proxies.txt")
+WIKI_PROXIES = list(
+    dict.fromkeys(env.list("WIKI_PROXIES", default=[]) + read_proxy_file(WIKI_PROXY_FILE))
+)
+WIKI_PROXY_COOLDOWN = env.float("WIKI_PROXY_COOLDOWN", default=300.0)  # seconds
+# Parallel download threads, each with its own home proxy (the rest are spares for
+# failover). Every worker keeps its own request interval, so the wiki sees roughly
+# WIKI_WORKERS requests per WIKI_REQUEST_INTERVAL; keep this small. Capped at 16.
+WIKI_MAX_WORKERS = 16
+WIKI_WORKERS = min(
+    env.int("WIKI_WORKERS", default=min(len(WIKI_PROXIES), 4) or 1), WIKI_MAX_WORKERS
+)
 WIKI_CACHE_DIR = Path(env("WIKI_CACHE_DIR", default=str(BASE_DIR / "data" / "raw")))
 # Leave empty to use the latest released version from the wiki's version table.
 POE_PATCH = env("POE_PATCH", default="")

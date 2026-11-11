@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import queue
 import time
 from collections.abc import Callable, Iterable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .client import WikiBlockedError, WikiClient, WikiError
+from .client import WikiBlockedError, WikiClient, WikiError, WikiPage
 from .models import Chunk, Document, DocumentType, Source
 from .parsing import html_to_text
 
@@ -102,16 +104,23 @@ def ingest(
     limit: int | None = None,
     refresh: bool = False,
     client: WikiClient | None = None,
+    workers: int | None = None,
 ) -> IngestResult:
     """Import pages for the given document types.
 
     Pages whose wiki revision hasn't changed since the last run are skipped
-    unless `refresh` is set.
+    unless `refresh` is set. Downloads run on `workers` threads (default
+    `WIKI_WORKERS`), each with its own client and home proxy; database writes
+    all happen on the calling thread.
     """
     client = client or WikiClient.from_settings()
+    workers = max(workers or settings.WIKI_WORKERS, 1)
+    clients = [client] if workers == 1 else [client.for_worker(i, workers) for i in range(workers)]
     types = list(doc_types or DocumentType.values)
     result = IngestResult(patch=settings.POE_PATCH or client.current_patch())
-    logger.info("Ingesting %s for patch %s", ", ".join(types), result.patch)
+    logger.info(
+        "Ingesting %s for patch %s with %d worker(s)", ", ".join(types), result.patch, workers
+    )
 
     for doc_type in types:
         titles = client.list_titles(doc_type)
@@ -128,21 +137,66 @@ def ingest(
         )
 
         progress = Progress(doc_type, total=len(titles), to_fetch=to_fetch)
+        downloads: list[str] = []
         for title in titles:
-            try:
-                fetched = _ingest_page(
-                    client, title, doc_type, revisions.get(title), refresh, result
-                )
-            except WikiBlockedError:
-                logger.error("%s: stopped after %d/%d pages", doc_type, progress.done, len(titles))
-                raise
-            except (WikiError, KeyError) as exc:
-                logger.error("Failed to ingest %r: %s", title, exc)
-                result.failed.append(title)
-                progress.step(failed=True)
+            if _skip_unchanged(title, revisions.get(title), refresh, result):
+                progress.step()
             else:
-                progress.step(fetched=fetched)
+                downloads.append(title)
+        try:
+            _download_and_store(clients, downloads, doc_type, revisions, result, progress)
+        except WikiBlockedError:
+            logger.error("%s: stopped after %d/%d pages", doc_type, progress.done, len(titles))
+            raise
     return result
+
+
+def _download_and_store(
+    clients: list[WikiClient],
+    titles: list[str],
+    doc_type: str,
+    revisions: dict[str, int],
+    result: IngestResult,
+    progress: Progress,
+) -> None:
+    """Fetch pages on one thread per client and store each one as it arrives."""
+    idle: queue.Queue[WikiClient] = queue.Queue()
+    for c in clients:
+        idle.put(c)
+
+    def fetch(title: str) -> WikiPage:
+        worker = idle.get()
+        try:
+            return worker.fetch_page(title, revisions.get(title))
+        finally:
+            idle.put(worker)
+
+    with ThreadPoolExecutor(max_workers=len(clients), thread_name_prefix="wiki") as pool:
+        pending: dict[Future[WikiPage], str] = {pool.submit(fetch, t): t for t in titles}
+        try:
+            blocked: WikiBlockedError | None = None
+            while pending and blocked is None:
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    title = pending.pop(future)
+                    try:
+                        page = future.result()
+                        _store_page(clients[0], title, doc_type, page, result)
+                    except WikiBlockedError as exc:
+                        # Still store the other pages that finished; then stop.
+                        blocked = exc
+                    except (WikiError, KeyError) as exc:
+                        logger.error("Failed to ingest %r: %s", title, exc)
+                        result.failed.append(title)
+                        progress.step(failed=True)
+                    else:
+                        progress.step(fetched=True)
+            if blocked is not None:
+                raise blocked
+        except BaseException:
+            # Blocked or interrupted: don't start any more downloads.
+            pool.shutdown(wait=True, cancel_futures=True)
+            raise
 
 
 def _count_to_fetch(titles: list[str], revisions: dict[str, int], refresh: bool) -> int:
@@ -160,37 +214,31 @@ def _count_to_fetch(titles: list[str], revisions: dict[str, int], refresh: bool)
     )
 
 
-def _ingest_page(
-    client: WikiClient,
-    title: str,
-    doc_type: str,
-    revision_id: int | None,
-    refresh: bool,
-    result: IngestResult,
+def _skip_unchanged(
+    title: str, revision_id: int | None, refresh: bool, result: IngestResult
 ) -> bool:
-    """Store one page. Returns True if it was downloaded, False if skipped."""
+    """True if the stored page is still current (and marks it for this patch)."""
+    if refresh or revision_id is None:
+        return False
     existing = (
         Source.objects.select_related("document")
         .filter(wiki=settings.WIKI_NAME, page_title=title)
         .first()
     )
-    if (
-        not refresh
-        and existing is not None
-        and revision_id is not None
-        and existing.revision_id == revision_id
-        and hasattr(existing, "document")
-    ):
-        if existing.document.patch != result.patch:
-            # Page wasn't edited since the patch changed: still current.
-            Document.objects.filter(pk=existing.document.pk).update(patch=result.patch)
-            Chunk.objects.filter(document_id=existing.document.pk).update(patch=result.patch)
-        result.unchanged += 1
+    if existing is None or existing.revision_id != revision_id or not hasattr(existing, "document"):
         return False
+    if existing.document.patch != result.patch:
+        # Page wasn't edited since the patch changed: still current.
+        Document.objects.filter(pk=existing.document.pk).update(patch=result.patch)
+        Chunk.objects.filter(document_id=existing.document.pk).update(patch=result.patch)
+    result.unchanged += 1
+    return True
 
-    page = client.fetch_page(title, revision_id)
+
+def _store_page(
+    client: WikiClient, title: str, doc_type: str, page: WikiPage, result: IngestResult
+) -> None:
     text = html_to_text(page.html)
-
     with transaction.atomic():
         source, _ = Source.objects.update_or_create(
             wiki=settings.WIKI_NAME,
@@ -216,4 +264,3 @@ def _ingest_page(
         result.created += 1
     else:
         result.updated += 1
-    return True

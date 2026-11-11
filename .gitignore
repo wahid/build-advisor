@@ -32,3 +32,6 @@ frontend/dist/
 Thumbs.db
 .idea/
 .vscode/
+
+# Proxy list (may contain credentials)
+proxies.txt

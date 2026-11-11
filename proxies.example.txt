@@ -1,0 +1,5 @@
+# One proxy per line; copy to proxies.txt. Blank lines and # comments are ignored.
+# Each download thread gets its own proxy and switches to another one when it fails.
+# http://user:password@proxy1.example.com:8080
+# http://proxy2.example.com:3128
+# socks5://proxy3.example.com:1080

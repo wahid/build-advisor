@@ -13,6 +13,8 @@ def _wiki_settings(settings, tmp_path: Path) -> None:
     settings.WIKI_PAGE_URL = "https://wiki.test/wiki/"
     settings.WIKI_CACHE_DIR = tmp_path / "cache"
     settings.WIKI_REQUEST_INTERVAL = 0
+    settings.WIKI_PROXIES = []
+    settings.WIKI_WORKERS = 1
     settings.POE_PATCH = ""
 
 

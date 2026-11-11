@@ -3,6 +3,13 @@
 Respects the wiki's rate limits (a minimum interval between requests,
 `maxlag`, and `Retry-After` on 429/503) and caches parsed pages on disk
 per revision so that re-runs don't hit the wiki again.
+
+Requests can optionally go through a list of proxies. Each client has a home
+proxy (see `WikiClient.for_worker`, used for one client per worker thread) and
+sticks to it while it works. When the proxy itself fails (connection error,
+timeout, or an error status from the proxy) the request is retried on the next
+healthy proxy, and the failed one is skipped for a cooldown period. Each client
+keeps its own throttle and backoff for the wiki's rate limiting.
 """
 
 from __future__ import annotations
@@ -11,13 +18,14 @@ import html
 import json
 import logging
 import re
+import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -31,6 +39,12 @@ BACKOFF_CAP = 120.0
 SLOWDOWN_FACTOR = 2.0  # interval multiplier after a rate-limit response
 SPEEDUP_FACTOR = 0.95  # interval multiplier after each successful request
 REVISION_BATCH_SIZE = 50  # MediaWiki's limit for titles per query for normal clients.
+PROXY_COOLDOWN = 300.0  # seconds a failed proxy is skipped before it's tried again
+PROXY_SWITCHES_PER_REQUEST = 10  # other proxies tried before failures count as retries
+CONNECT_TIMEOUT = 10.0  # seconds; dead proxies should fail fast
+READ_TIMEOUT = 30.0
+# Statuses that come from a broken proxy rather than from the wiki.
+PROXY_ERROR_STATUSES = frozenset({407, 502, 504})
 
 
 class WikiError(RuntimeError):
@@ -39,6 +53,58 @@ class WikiError(RuntimeError):
 
 class WikiBlockedError(WikiError):
     """The wiki's bot protection (Cloudflare) is challenging us; retrying won't help."""
+
+
+class ProxyPool:
+    """A thread-safe list of proxies with a cooldown for ones that failed recently.
+
+    Shared by all worker clients, so a proxy that fails for one worker is
+    skipped by the others too.
+    """
+
+    def __init__(
+        self,
+        proxies: Iterable[str],
+        cooldown: float = PROXY_COOLDOWN,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.proxies = list(dict.fromkeys(p.strip() for p in proxies if p.strip()))
+        self._positions = {proxy: i for i, proxy in enumerate(self.proxies)}
+        self.cooldown = cooldown
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._failed_until: dict[str, float] = {}
+
+    def __len__(self) -> int:
+        return len(self.proxies)
+
+    def pick(self, preferred: int) -> str | None:
+        """The first healthy proxy starting at index `preferred` (wrapping around)."""
+        if not self.proxies:
+            return None
+        with self._lock:
+            now = self._clock()
+            for offset in range(len(self.proxies)):
+                proxy = self.proxies[(preferred + offset) % len(self.proxies)]
+                if self._failed_until.get(proxy, 0.0) <= now:
+                    return proxy
+            # Everything failed recently: use the one that comes off cooldown first.
+            return min(self.proxies, key=lambda p: self._failed_until[p])
+
+    def index_of(self, proxy: str) -> int:
+        return self._positions[proxy]
+
+    def mark_failed(self, proxy: str) -> None:
+        with self._lock:
+            self._failed_until[proxy] = self._clock() + self.cooldown
+
+
+def _redact(proxy: str) -> str:
+    """Drop credentials from a proxy URL so it can be logged."""
+    parts = urlsplit(proxy)
+    if parts.username or parts.password:
+        return proxy.replace(parts.netloc, parts.netloc.rsplit("@", 1)[-1], 1)
+    return proxy
 
 
 @dataclass(frozen=True)
@@ -88,6 +154,8 @@ class WikiClient:
         request_interval: float = 2.5,
         max_retries: int = 6,
         max_interval: float = 30.0,
+        proxies: Iterable[str] | ProxyPool = (),
+        proxy_index: int = 0,
         session: requests.Session | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -98,6 +166,9 @@ class WikiClient:
         self.request_interval = request_interval
         self.max_interval = max(max_interval, request_interval)
         self.max_retries = max_retries
+        self.proxy_pool = proxies if isinstance(proxies, ProxyPool) else ProxyPool(proxies)
+        self.proxy_index = proxy_index
+        self.user_agent = user_agent
         self._sleep = sleep
         self._last_request = 0.0
         self.session = session or requests.Session()
@@ -115,6 +186,28 @@ class WikiClient:
             request_interval=settings.WIKI_REQUEST_INTERVAL,
             max_retries=settings.WIKI_MAX_RETRIES,
             max_interval=settings.WIKI_MAX_REQUEST_INTERVAL,
+            proxies=ProxyPool(settings.WIKI_PROXIES, cooldown=settings.WIKI_PROXY_COOLDOWN),
+        )
+
+    def for_worker(self, index: int, total: int = 1) -> WikiClient:
+        """A client for worker `index` of `total`: own session, throttle and home proxy.
+
+        Home proxies are spread evenly over the list so that workers failing over
+        don't all land on the same spare. The proxy pool (and its failure state)
+        and the page cache are shared.
+        """
+        home = index * len(self.proxy_pool) // max(total, 1) if self.proxy_pool else 0
+        return WikiClient(
+            api_url=self.api_url,
+            page_url=self.page_url,
+            user_agent=self.user_agent,
+            cache_dir=self.cache_dir,
+            request_interval=self.base_interval,
+            max_retries=self.max_retries,
+            max_interval=self.max_interval,
+            proxies=self.proxy_pool,
+            proxy_index=home,
+            sleep=self._sleep,
         )
 
     # --- public API ---------------------------------------------------------
@@ -247,16 +340,42 @@ class WikiClient:
 
     def _get(self, params: dict[str, Any]) -> dict[str, Any]:
         params = {**params, "format": "json", "formatversion": 2, "maxlag": 5}
-        for attempt in range(1, self.max_retries + 1):
+        # A few proxy failures per request just move to another proxy; after that,
+        # failures count as normal retries.
+        proxy_switches_left = min(len(self.proxy_pool), PROXY_SWITCHES_PER_REQUEST)
+        attempt = 0
+        while attempt < self.max_retries:
+            attempt += 1
             self._throttle()
             backoff = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP)
+            proxy = self.proxy_pool.pick(self.proxy_index)
             try:
-                response = self.session.get(self.api_url, params=params, timeout=30)
+                response = self.session.get(
+                    self.api_url,
+                    params=params,
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+                    proxies={"http": proxy, "https": proxy} if proxy else None,
+                )
             except requests.RequestException as exc:
+                if proxy and proxy_switches_left > 0:
+                    proxy_switches_left -= 1
+                    attempt -= 1
+                    self._proxy_failed(proxy, str(exc))
+                    continue
                 if attempt == self.max_retries:
                     raise WikiError(f"Request failed: {exc}") from exc
+                if proxy:
+                    self.proxy_pool.mark_failed(proxy)
                 self._sleep(backoff)
                 continue
+
+            if proxy and response.status_code in PROXY_ERROR_STATUSES:
+                if proxy_switches_left > 0:
+                    proxy_switches_left -= 1
+                    attempt -= 1
+                    self._proxy_failed(proxy, f"HTTP {response.status_code}")
+                    continue
+                raise WikiError(f"All proxies failed (last: HTTP {response.status_code})")
 
             if response.headers.get("cf-mitigated") == "challenge":
                 raise WikiBlockedError(
@@ -288,6 +407,19 @@ class WikiClient:
             self._speed_up()
             return data
         raise WikiError("Gave up after repeated rate-limit responses.")
+
+    def _proxy_failed(self, proxy: str, reason: str) -> None:
+        self.proxy_pool.mark_failed(proxy)
+        replacement = self.proxy_pool.pick(self.proxy_index)
+        if replacement is not None:
+            # The replacement becomes this client's new home proxy.
+            self.proxy_index = self.proxy_pool.index_of(replacement)
+        logger.warning(
+            "Proxy %s failed (%s); switching to %s",
+            _redact(proxy),
+            reason,
+            _redact(replacement or "direct connection"),
+        )
 
     def _slow_down(self) -> None:
         self.request_interval = min(

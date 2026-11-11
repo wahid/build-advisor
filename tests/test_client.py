@@ -1,11 +1,13 @@
+import json
 from datetime import date
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+import requests
 import responses
 
 from wiki import client as client_module
-from wiki.client import WikiBlockedError, WikiClient, WikiError
+from wiki.client import ProxyPool, WikiBlockedError, WikiClient, WikiError
 from wiki.models import DocumentType
 
 from .conftest import API_URL
@@ -161,3 +163,137 @@ def test_cloudflare_challenge_stops_immediately(wiki_client: WikiClient) -> None
     with pytest.raises(WikiBlockedError):
         wiki_client.current_patch(today=date(2026, 11, 11))
     assert len(responses.calls) == 1
+
+
+# --- proxies ----------------------------------------------------------------
+
+
+def _proxy_client(tmp_path, proxies, **kwargs) -> WikiClient:
+    return WikiClient(
+        api_url=API_URL,
+        page_url="https://wiki.test/wiki/",
+        user_agent="tests",
+        cache_dir=tmp_path / "cache",
+        request_interval=0,
+        proxies=proxies,
+        sleep=lambda _seconds: None,
+        **kwargs,
+    )
+
+
+class _RecordingSession(requests.Session):
+    """Fails for the proxies in `broken`, otherwise returns `payload`."""
+
+    def __init__(self, broken: set[str], payload: dict, status: int = 200) -> None:
+        super().__init__()
+        self.broken = broken
+        self.payload = payload
+        self.status = status
+        self.used: list[str | None] = []
+
+    def get(self, url, params=None, timeout=None, proxies=None):  # type: ignore[override]
+        proxy = proxies["https"] if proxies else None
+        self.used.append(proxy)
+        response = requests.Response()
+        if proxy in self.broken:
+            if self.status == 407:
+                response.status_code = 407
+                return response
+            raise requests.ConnectionError("proxy down")
+        response.status_code = 200
+        response._content = json.dumps(self.payload).encode()
+        return response
+
+
+PATCH_PAYLOAD = {"cargoquery": [{"title": {"version": "3.29.3c"}}]}
+
+
+def test_failed_proxy_retries_on_next_one(tmp_path) -> None:
+    client = _proxy_client(tmp_path, ["http://p1:8080", "http://p2:8080"])
+    client.session = _RecordingSession({"http://p1:8080"}, PATCH_PAYLOAD)
+
+    assert client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
+    assert client.session.used == ["http://p1:8080", "http://p2:8080"]
+
+    # The failed proxy is on cooldown, so the next request goes straight to p2.
+    client.current_patch(today=date(2026, 11, 11))
+    assert client.session.used[-1] == "http://p2:8080"
+
+
+def test_proxy_auth_error_switches_proxy(tmp_path) -> None:
+    client = _proxy_client(tmp_path, ["http://p1:8080", "http://p2:8080"])
+    client.session = _RecordingSession({"http://p1:8080"}, PATCH_PAYLOAD, status=407)
+
+    assert client.current_patch(today=date(2026, 11, 11)) == "3.29.3c"
+    assert client.session.used == ["http://p1:8080", "http://p2:8080"]
+
+
+def test_all_proxies_failing_gives_up(tmp_path) -> None:
+    proxies = ["http://p1:8080", "http://p2:8080"]
+    client = _proxy_client(tmp_path, proxies, max_retries=2)
+    client.session = _RecordingSession(set(proxies), PATCH_PAYLOAD)
+
+    with pytest.raises(WikiError, match="Request failed"):
+        client.current_patch(today=date(2026, 11, 11))
+    # One free switch per proxy, then the normal retries.
+    assert len(client.session.used) == 4
+
+
+def test_workers_get_their_own_home_proxy(tmp_path) -> None:
+    pool = ProxyPool(["http://p1:8080", "http://p2:8080", "http://p3:8080"])
+    base = _proxy_client(tmp_path, pool)
+    workers = [base.for_worker(i, 3) for i in range(3)]
+
+    assert [w.proxy_pool.pick(w.proxy_index) for w in workers] == [
+        "http://p1:8080",
+        "http://p2:8080",
+        "http://p3:8080",
+    ]
+    assert all(w.proxy_pool is pool for w in workers)
+    assert len({id(w.session) for w in workers}) == 3
+
+    pool.mark_failed("http://p2:8080")
+    assert workers[1].proxy_pool.pick(1) == "http://p3:8080"
+
+
+def test_home_proxies_are_spread_over_a_long_list(tmp_path) -> None:
+    proxies = [f"http://p{i}:8080" for i in range(100)]
+    base = _proxy_client(tmp_path, proxies)
+
+    assert [base.for_worker(i, 4).proxy_index for i in range(4)] == [0, 25, 50, 75]
+
+
+def test_worker_keeps_its_replacement_proxy(tmp_path) -> None:
+    client = _proxy_client(tmp_path, ["http://p1:8080", "http://p2:8080", "http://p3:8080"])
+    client.session = _RecordingSession({"http://p1:8080"}, PATCH_PAYLOAD)
+
+    client.current_patch(today=date(2026, 11, 11))
+
+    assert client.proxy_index == 1
+
+
+def test_pool_falls_back_to_soonest_recovering_proxy() -> None:
+    now = [0.0]
+    pool = ProxyPool(["a", "b"], cooldown=10, clock=lambda: now[0])
+    pool.mark_failed("a")
+    now[0] = 1.0
+    pool.mark_failed("b")
+
+    assert pool.pick(1) == "a"
+    now[0] = 10.5
+    assert pool.pick(1) == "a"  # b is still cooling down
+
+
+def test_redact_hides_credentials() -> None:
+    assert client_module._redact("http://user:secret@host:8080") == "http://host:8080"
+    assert client_module._redact("http://host:8080") == "http://host:8080"
+
+
+def test_read_proxy_file(tmp_path) -> None:
+    from config.settings import read_proxy_file
+
+    path = tmp_path / "proxies.txt"
+    path.write_text("# comment\nhttp://a:1\n\n  http://b:2  # second\n", encoding="utf-8")
+
+    assert read_proxy_file(path) == ["http://a:1", "http://b:2"]
+    assert read_proxy_file(tmp_path / "missing.txt") == []
