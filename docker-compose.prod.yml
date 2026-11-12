@@ -36,8 +36,12 @@ services:
       DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
       WARM_UP: "true"
       EMBEDDING_DEVICE: cpu
+      WIKI_PROXY_FILE: proxies/proxies.txt
     volumes:
       - hf_cache:/root/.cache/huggingface # bge-m3, downloaded once
+      # Optional proxy list for fetch_wiki / refresh_wiki: put proxies.txt in ./proxies
+      # on the server. Mounted, not baked into the image; deploy.sh creates the folder.
+      - ./proxies:/app/proxies:ro
     depends_on:
       db:
         condition: service_healthy

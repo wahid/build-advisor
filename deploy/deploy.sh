@@ -16,6 +16,9 @@ fi
 # Every compose call needs the same file and variables.
 compose=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
 
+# Mounted into the web container; created here so Docker doesn't create it as root.
+mkdir -p proxies
+
 git fetch --quiet origin main
 git reset --hard origin/main
 

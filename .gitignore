@@ -47,3 +47,4 @@ evals/results/*
 # Playwright output
 frontend/playwright-report/
 frontend/test-results/
+proxies/

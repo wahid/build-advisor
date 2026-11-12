@@ -134,8 +134,11 @@ slower per question without saving memory, and int8 shifted the vectors
 `python manage.py refresh_wiki` asks the wiki which pages changed (in batches of
 50), downloads only those plus new pages and the patch notes of the last year
 ("Version 3.29.3" pages), and reindexes them. Like `fetch_wiki` it goes through
-the proxies when there are any: `proxies.txt` stays out of the Docker image, so on
-the server set `WIKI_PROXIES` (comma-separated) in `.env.prod`. Without proxies, or
+the proxies when there are any. `proxies.txt` stays out of the Docker image; on
+the server copy it to `/srv/build-advisor/proxies/proxies.txt` (mounted read-only into
+the container, picked up on the next command, no rebuild), e.g.
+`scp proxies.txt deploy@<server>:/srv/build-advisor/proxies/`. `WIKI_PROXIES`
+(comma-separated) in `.env.prod` works too. Without proxies, or
 with `--direct`, it uses the server's own connection, throttled. `server-setup.sh`
 schedules it every Monday at 04:30; on a server set up before that, add the job once:
 

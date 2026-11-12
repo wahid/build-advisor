@@ -11,3 +11,4 @@ data/raw/*
 frontend/dist/
 staticfiles/
 proxies.txt
+proxies/
