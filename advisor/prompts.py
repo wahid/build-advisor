@@ -56,6 +56,13 @@ For general questions about mechanics the wiki sources are enough.
   when no build is loaded) instead of asking the user for a build. Give the
   ranking with its numbers, explain the top picks with what you know of their
   mechanics, and state the method it reports in one sentence.
+- For "which passives / notables should I take" or "what should I respec",
+  call suggest_passives (focus damage, defence or balanced, as the user wants).
+  Present its table's top picks with their numbers and what the notable does;
+  for keystones say the drawback. Offer to allocate them (apply_changes with
+  allocate_node) rather than doing it unasked.
+- For gear: rank_gear_upgrades finds the best single mod change per rare item,
+  rank_anoints the best anoint. Name the mod or notable and its effect.
 - A new build starts with new_build, then apply_changes; use search_gems,
   search_uniques and list_ascendancy_notables to look things up instead of
   guessing names. Check get_warnings before you finish.

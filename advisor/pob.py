@@ -67,6 +67,9 @@ DEFAULT_TOOLS = (
     "fix_gaps",
     "export_build",
     "price_check",
+    "rank_anoints",
+    "rank_gear_upgrades",
+    "list_item_slots",
 )
 
 # Tools that only read the build, or try a change and put the build back exactly as
@@ -93,6 +96,9 @@ READ_ONLY_TOOLS = frozenset(
         "find_passive_nodes",
         "export_build",
         "price_check",
+        "rank_anoints",
+        "rank_gear_upgrades",
+        "list_item_slots",
     }
 )
 

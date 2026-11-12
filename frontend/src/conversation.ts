@@ -1,6 +1,6 @@
 import type { ToolStep } from "./PobPanel";
 import { itemName } from "./items";
-import type { AskEvent, Comparison, Entity, ItemCheck, PastedItem, Source } from "./types";
+import type { AskEvent, Comparison, Entity, ItemCheck, PassiveRanking, PastedItem, Source } from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -29,6 +29,8 @@ export interface ChatTurn {
   item?: PastedItem;
   /** The pasted item tried on the attached build. */
   itemCheck?: ItemCheck;
+  /** Passive notables ranked for the build (the latest ranking of the turn). */
+  passives?: PassiveRanking;
 }
 
 /** What the server gets for each earlier turn. */
@@ -108,6 +110,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "item":
       return { ...turn, item: event.item };
+    case "passive_ranking": {
+      const { type: _type, ...ranking } = event;
+      return { ...turn, passives: ranking };
+    }
     case "item_check": {
       const { type: _type, ...check } = event;
       return { ...turn, itemCheck: check };

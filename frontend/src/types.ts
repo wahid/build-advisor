@@ -76,6 +76,25 @@ export interface ItemCheck {
   tried: string[];
 }
 
+/** Passive notables ranked in Path of Building for damage and toughness. */
+export interface PassiveRanking {
+  /** take: what to allocate next; respec: allocated picks that give the least. */
+  mode: "take" | "respec";
+  focus: "balanced" | "damage" | "defence";
+  points_remaining: number;
+  max_path_cost: number;
+  rows: {
+    name: string;
+    type: string;
+    points: number;
+    dps_pct: number;
+    ehp_pct: number;
+    score: number;
+    stats: string[];
+  }[];
+  note: string;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -86,6 +105,7 @@ export type AskEvent =
   | ({ type: "comparison" } & Comparison)
   | { type: "item"; item: PastedItem }
   | ({ type: "item_check" } & ItemCheck)
+  | ({ type: "passive_ranking" } & PassiveRanking)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[] }
   | { type: "error"; message: string };
 

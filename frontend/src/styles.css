@@ -787,6 +787,27 @@ a {
   color: var(--parchment-dim);
 }
 
+.passive-name {
+  display: block;
+  color: var(--parchment);
+}
+
+.passive-keystone {
+  margin-left: 0.5rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--stone-edge);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  color: var(--mechanic);
+}
+
+.passive-stats {
+  display: block;
+  max-width: 34rem;
+  font-size: 0.8rem;
+  color: var(--parchment-dim);
+}
+
 /* An item pasted with the question, drawn like the game shows it. */
 .pasted-item {
   display: flex;
