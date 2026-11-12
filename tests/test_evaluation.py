@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.management import call_command
 
 from advisor.evaluation import (
+    TOOL_CATEGORIES,
     EvalCase,
     invalid_citations,
     load_cases,
@@ -42,7 +43,7 @@ def test_question_set_is_valid() -> None:
     categories = {c.category for c in cases}
     assert {"mechanic", "gem", "unique", "ascendancy", "unanswerable"} <= categories
     for case in cases:
-        if case.answerable and case.category != "build":
+        if case.answerable and case.category not in TOOL_CATEGORIES:
             assert case.expected_sources, case.id
             assert case.must_mention, case.id
         if not case.answerable:
@@ -369,3 +370,95 @@ def test_build_cases_dont_require_groundedness(indexed: FakeEmbedder, mocker) ->
     )
 
     assert report.cases[0].passed
+
+
+# --- multi-turn and tool cases -------------------------------------------------------
+
+
+def test_cases_read_history_build_and_tool_rules() -> None:
+    case = EvalCase.from_dict(
+        {
+            "id": "c",
+            "question": "And bleed?",
+            "category": "conversation",
+            "history": [{"question": "Poison?", "answer": "It stacks."}],
+            "build": "https://pobb.in/x",
+            "forbid_tools": ["web_search"],
+            "web": True,
+        }
+    )
+
+    assert case.history == (("Poison?", "It stacks."),)
+    assert case.build == "https://pobb.in/x" and case.needs_pob
+    assert case.forbid_tools == ("web_search",) and case.web
+
+
+@pytest.mark.django_db
+def test_web_cases_only_run_with_web(indexed: FakeEmbedder) -> None:
+    case = EvalCase("w", "Current league?", "web", web=True)
+
+    report = run([case], k=4, answer_questions=True, provider=FakeProvider(), embedder=indexed)
+
+    assert report.skipped == ["w"] and report.cases == []
+
+
+@pytest.mark.django_db
+def test_a_follow_up_is_searched_and_answered_with_its_history(
+    indexed: FakeEmbedder, mocker
+) -> None:
+    search = mocker.spy(__import__("advisor.evaluation", fromlist=["x"]), "hybrid_search")
+    case = EvalCase(
+        "f",
+        "And bleed?",
+        "conversation",
+        ("Ignite",),
+        history=(("How do poisons stack?", "Each counts."),),
+    )
+    answers = FakeProvider(["Only the strongest bleed counts [1]."])
+    judge_says = FakeProvider(
+        ['{"grounded": 5, "relevant": 5, "admits_gap": false, "reason": "ok"}']
+    )
+
+    report = run(
+        [case],
+        k=4,
+        answer_questions=True,
+        provider=answers,
+        judge_provider=judge_says,
+        embedder=indexed,
+    )
+
+    assert search.call_args.args[0] == "How do poisons stack?\nAnd bleed?"
+    assert answers.calls[0][0][1] == {"role": "user", "content": "How do poisons stack?"}
+    assert report.cases[0].passed
+
+
+@pytest.mark.django_db
+def test_calling_a_forbidden_tool_fails_the_case(indexed: FakeEmbedder, mocker, settings) -> None:
+    from advisor.llm import ToolCall
+
+    settings.WEB_SEARCH_ENABLED, settings.LLM_API_KEY = True, "k"
+    response = SimpleNamespace(status_code=200, text="", json=lambda: {"results": []})
+    mocker.patch("advisor.websearch.requests.post", return_value=response)
+    case = EvalCase(
+        "m", "How does ignite work?", "web", ("Ignite",), web=True, forbid_tools=("web_search",)
+    )
+    answers = FakeProvider(
+        [ToolCall("w", "web_search", '{"query": "ignite"}')], ["Ignite burns [1]."]
+    )
+    judge_says = FakeProvider(
+        ['{"grounded": 5, "relevant": 5, "admits_gap": false, "reason": "ok"}']
+    )
+
+    report = run(
+        [case],
+        k=4,
+        answer_questions=True,
+        provider=answers,
+        judge_provider=judge_says,
+        embedder=indexed,
+        web=True,
+    )
+
+    [result] = report.cases
+    assert result.forbidden_tools == ["web_search"] and not result.passed

@@ -31,6 +31,11 @@ class Command(BaseCommand):
             default=settings.SEARCH_QUERY_REWRITE,
             help="Rewrite questions into wiki terms with the LLM before searching.",
         )
+        parser.add_argument(
+            "--web",
+            action="store_true",
+            help="Also run the cases that need web search (results change from day to day).",
+        )
         parser.add_argument("--only", nargs="*", default=[], help="Run only these case ids.")
         parser.add_argument("--category", action="append", help="Run only these categories.")
         parser.add_argument("--limit", type=int, help="Run at most this many cases.")
@@ -70,6 +75,7 @@ class Command(BaseCommand):
             pob_available=pob,
             progress=self._progress,
             rewrite=options["rewrite"],
+            web=options["web"],
         )
 
         documents = Document.objects.count()
@@ -83,7 +89,7 @@ class Command(BaseCommand):
                 if options["answers"] and provider
                 else ", retrieval only"
             )
-            + (f", {len(report.skipped)} PoB cases skipped" if report.skipped else "")
+            + (f", {len(report.skipped)} PoB/web cases skipped" if report.skipped else "")
             + "._"
         )
         markdown = render_markdown(report, meta)

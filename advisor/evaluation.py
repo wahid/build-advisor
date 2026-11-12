@@ -38,13 +38,14 @@ from wiki.embeddings import Embedder
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from .llm import LLMProvider, Message
-from .prompts import format_sources
+from .prompts import Turn, format_sources
 from .rag import CITATION_RE, answer
 from .rewrite import Rewrite, rewrite_question
 
 logger = logging.getLogger(__name__)
 
 PASSING_SCORE = 4  # judge scores of 4 or 5 pass
+TOOL_CATEGORIES = {"build", "ranking", "web"}
 
 JUDGE_PROMPT = """\
 You grade answers of a Path of Exile assistant that answers from the numbered
@@ -78,6 +79,11 @@ class EvalCase:
     requires_pob: bool = False
     expect_tools: tuple[str, ...] = ()
     doc_types: tuple[str, ...] = ()
+    # Multi-turn and tool cases:
+    history: tuple[tuple[str, str], ...] = ()  # earlier (question, answer) turns
+    build: str = ""  # an attached build (pobb.in link or share code)
+    forbid_tools: tuple[str, ...] = ()  # tools the model must not call
+    web: bool = False  # needs web search: runs only with --web
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvalCase:
@@ -95,7 +101,15 @@ class EvalCase:
             requires_pob=data.get("requires_pob", False),
             expect_tools=tuple(data.get("expect_tools", [])),
             doc_types=tuple(data.get("doc_types", [])),
+            history=tuple((t["question"], t["answer"]) for t in data.get("history", [])),
+            build=data.get("build", ""),
+            forbid_tools=tuple(data.get("forbid_tools", [])),
+            web=data.get("web", False),
         )
+
+    @property
+    def needs_pob(self) -> bool:
+        return self.requires_pob or bool(self.build)
 
 
 def _phrase(value: Any, case_id: str) -> str:
@@ -226,6 +240,7 @@ class CaseResult:
     invalid_citations: list[int] = field(default_factory=list)
     tools_called: list[str] = field(default_factory=list)
     missing_tools: list[str] = field(default_factory=list)
+    forbidden_tools: list[str] = field(default_factory=list)
     verdict: Verdict | None = None
     error: str = ""
     seconds: float = 0.0
@@ -305,10 +320,14 @@ def run(
     pob_available: bool = False,
     progress: Callable[[CaseResult], None] | None = None,
     rewrite: bool = False,
+    web: bool = False,
 ) -> Report:
     report = Report(k=k, answered=answer_questions, cases=[])
     for case in cases:
-        if case.requires_pob and not (answer_questions and pob_available):
+        if case.needs_pob and not (answer_questions and pob_available):
+            report.skipped.append(case.id)
+            continue
+        if case.web and not (answer_questions and web):
             report.skipped.append(case.id)
             continue
         started = time.monotonic()
@@ -330,11 +349,17 @@ def _run_case(
     rewrite: bool = False,
 ) -> CaseResult:
     filters = SearchFilters(doc_types=case.doc_types)
-    routed = rewrite_question(case.question, provider) if rewrite and provider else Rewrite()
-    expansion = routed.terms
-    hits = hybrid_search(
-        case.question, top_k=k, filters=filters, embedder=embedder, expansion=expansion
+    history = [Turn(q, a) for q, a in case.history]
+    routed = (
+        rewrite_question(case.question, provider, history) if rewrite and provider else Rewrite()
     )
+    expansion = routed.terms
+    # Searched as in production: a follow-up stands on its own after rewriting, or is
+    # searched together with the previous question.
+    query = case.question
+    if history:
+        query = routed.query or f"{history[-1].question}\n{case.question}"
+    hits = hybrid_search(query, top_k=k, filters=filters, embedder=embedder, expansion=expansion)
     retrieval = score_retrieval(case.expected_sources, hits) if case.expected_sources else None
     result = CaseResult(case.id, case.category, case.question, passed=False, retrieval=retrieval)
     result.rewrite = expansion
@@ -350,10 +375,14 @@ def _run_case(
         embedder=embedder,
         top_k=k,
         # Routing as in production when rewriting; otherwise tools only for build cases.
-        use_tools=None if rewrite else case.requires_pob,
+        use_tools=None if rewrite else case.needs_pob,
         expansion=expansion,  # same terms as the retrieval score; no second rewrite
         needs_build_tools=routed.needs_build_tools if rewrite else None,
-        web_search=False,  # the web changes from day to day; keep scores comparable
+        # The web changes from day to day: only cases about it get web search.
+        web_search=case.web,
+        history=history,
+        build=case.build,
+        search_query=query,  # the pages the retrieval score saw
     )
     result.answer = produced.text
     result.tools_called = [t["name"] for t in produced.tools]
@@ -364,6 +393,7 @@ def _run_case(
     result.missing = missing_mentions(produced.text, case.must_mention)
     result.invalid_citations = invalid_citations(produced.text, len(produced.sources))
     result.missing_tools = [t for t in case.expect_tools if t not in result.tools_called]
+    result.forbidden_tools = [t for t in case.forbid_tools if t in result.tools_called]
     tool_results = "\n".join(f"- {t['name']}: {t['preview']}" for t in produced.tools)
     verdict = judge(
         judge_provider or provider,  # type: ignore[arg-type]
@@ -377,12 +407,14 @@ def _run_case(
     if verdict.error:
         result.error = verdict.error
     elif case.answerable:
-        grounded_ok = case.category == "build" or verdict.grounded >= PASSING_SCORE
+        # Tool-driven answers are judged on their tool results, not the wiki sources.
+        grounded_ok = case.category in TOOL_CATEGORIES or verdict.grounded >= PASSING_SCORE
         result.passed = (
             retrieval_ok
             and not result.missing
             and not result.invalid_citations
             and not result.missing_tools
+            and not result.forbidden_tools
             and grounded_ok
             and verdict.relevant >= PASSING_SCORE
         )
@@ -465,12 +497,14 @@ def _why(case: CaseResult) -> str:
         reasons.append(f"invalid citations {case.invalid_citations}")
     if case.missing_tools:
         reasons.append("tools not called: " + ", ".join(case.missing_tools))
+    if case.forbidden_tools:
+        reasons.append("called tools it shouldn't: " + ", ".join(case.forbidden_tools))
     if case.verdict and not case.verdict.error:
         if case.category == "unanswerable" and not case.verdict.admits_gap:
             reasons.append("didn't say the wiki doesn't cover it")
         elif case.category != "unanswerable" and (
             case.verdict.relevant < PASSING_SCORE
-            or (case.category != "build" and case.verdict.grounded < PASSING_SCORE)
+            or (case.category not in TOOL_CATEGORIES and case.verdict.grounded < PASSING_SCORE)
         ):
             v = case.verdict
             reasons.append(f"judge: grounded {v.grounded}, relevant {v.relevant} ({v.reason})")

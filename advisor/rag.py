@@ -50,6 +50,7 @@ OUT_OF_ROUNDS = (
     "build, the app exports it and shows the share code below your answer, so say that."
 )
 TOOL_PREVIEW_CHARS = 1500  # of each tool result, for clients and the eval judge
+WEB_PREVIEW_CHARS = 8000  # web results are kept whole (at most ~5 x 1,200 characters)
 # Tools that change the loaded build; if any ran and nothing was exported, export at the end.
 MODIFYING_TOOLS = {"new_build", "apply_changes", "auto_allocate_passives", "fix_gaps"}
 # DeepSeek's own tool-call markup ("<｜｜DSML｜｜ ...", "<｜tool▁calls▁begin｜>") can leak
@@ -201,7 +202,8 @@ class _ToolRunner:
             "to you). Cite them as [n] and say which site and date they come from.\n\n"
             + "\n\n".join(blocks)
         )
-        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        # Whole: the eval judge checks claims against these results.
+        events[1]["preview"] = text[:WEB_PREVIEW_CHARS]
         return events, text
 
     def run(self, call: ToolCall) -> tuple[list[Event], str]:
@@ -279,8 +281,12 @@ def answer_stream(
     history: Sequence[Turn] = (),
     web_search: bool | None = None,
     compare_build: str = "",
+    search_query: str | None = None,
 ) -> Iterator[Event]:
     """Answer a question, streaming events.
+
+    search_query: what to search the wiki for, when the caller already decided
+    (the evals pass the query they scored, so answer and score see the same pages).
 
     compare_build: a second build to compare the attached one with.
 
@@ -303,6 +309,8 @@ def answer_stream(
             expansion, needs_build_tools = routed.terms, routed.needs_build_tools
             if history and routed.query:
                 standalone = routed.query
+    if search_query:
+        standalone = search_query
     if use_tools is None:
         use_tools = bool(build) or needs_build_tools is not False
     if expansion:

@@ -12,6 +12,10 @@
 #   requires_pob     true = needs Path of Building tools (skipped when PoB isn't available)
 #   expect_tools     PoB tools the model should call (build cases)
 #   doc_types        optional search filter, as in the UI
+#   history          earlier turns, [{question, answer}], for follow-up questions
+#   build            an attached build (pobb.in link or share code); needs Path of Building
+#   forbid_tools     tools the model must not call (e.g. web_search for plain mechanics)
+#   web              true = needs web search; runs only with `run_evals --answers --web`
 
 # --- Mechanics --------------------------------------------------------------------
 
@@ -344,3 +348,65 @@
   expected_sources: [Necromancer, Raise Zombie]
   expect_tools: [new_build, apply_changes]
   must_mention: [life]
+
+# --- Follow-up questions (the earlier turns are given) -----------------------------
+
+- id: followup-bleed-after-poison
+  question: And how does that work for bleeding?
+  category: conversation
+  history:
+    - question: How do multiple poisons on the same enemy work?
+      answer: Poisons stack without limit. Every poison on an enemy deals its own chaos damage over time, so more poisons mean more damage.
+  expected_sources: [Bleeding]
+  must_mention: [[strongest, highest]]
+
+- id: followup-rf-damage-type
+  question: What type of damage does it deal?
+  category: conversation
+  history:
+    - question: What does Righteous Fire do?
+      answer: Righteous Fire burns you and nearby enemies every second, based on your maximum life and energy shield.
+  expected_sources: [Righteous Fire]
+  must_mention: [fire]
+
+- id: followup-freeze-then-chill
+  question: How is that different from chill?
+  category: conversation
+  history:
+    - question: What does freezing an enemy do?
+      answer: A frozen enemy can't move or act until the freeze ends.
+  expected_sources: [Chill, Freeze]
+  must_mention: [[slow, slower, reduced action speed, action speed]]
+
+# --- Patch notes --------------------------------------------------------------------
+
+- id: patch-notes-version
+  question: What were the patch notes for version 3.28.0?
+  category: patch
+  expected_sources: [Version 3.28.0]
+  must_mention: ["3.28"]
+
+# --- Calculated rankings (Path of Building) -----------------------------------------
+
+- id: ranking-slayer-slam
+  question: What is the strongest slam skill gem for a Slayer?
+  category: ranking
+  requires_pob: true
+  expect_tools: [rank_skill_gems]
+  forbid_tools: [web_search]
+
+# --- Web search routing (run with --web) ---------------------------------------------
+
+- id: web-not-for-mechanics
+  question: How does chill work?
+  category: web
+  web: true
+  expected_sources: [Chill]
+  forbid_tools: [web_search]
+
+- id: web-popular-builds
+  question: Which Path of Exile 1 builds are popular right now, according to players?
+  category: web
+  web: true
+  expect_tools: [web_search]
+

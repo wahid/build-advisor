@@ -92,7 +92,12 @@ document embeddings are already in the database.
 ## How data collection works
 
 - **Page lists** come from the wiki's MediaWiki API: gems and uniques via
-  Cargo queries on the `items` table, ascendancies and mechanics via categories.
+  Cargo queries on the `items` table, ascendancies and mechanics via categories,
+  and patch notes as the version pages ("Version 3.29.3") of the last year from
+  the `versions` table.
+- **`refresh_wiki`** brings everything up to date: changed and new pages are
+  downloaded and reindexed, unchanged pages are relabelled for the new patch.
+  The server runs it weekly (`deploy/server-setup.sh`).
 - **Only changed pages are fetched.** Revision ids are checked in batches of 50;
   pages whose revision matches the stored `Source.revision_id` are skipped.
 - **Polite to the wiki:** one request per 2.5 s by default (Cloudflare challenges faster clients), `maxlag=5`,
@@ -259,16 +264,19 @@ regression tests once their checks are filled in.
 
 ## Evaluation
 
-53 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,
+60 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,
 uniques, ascendancies, indirect questions that don't name the page ("why do
 enemies take more damage after a lightning hit?"), questions the wiki can't
-answer (the advisor must say so) and Path of Building build requests. Each case lists the wiki pages that should
-be retrieved and facts the answer must contain.
+answer (the advisor must say so), patch notes, follow-up questions with their
+earlier turns ("and how does that work for bleeding?"), Path of Building build
+requests and calculated rankings, and web-search routing (search for what's
+popular, not for how chill works). Each case lists the wiki pages that should
+be retrieved, facts the answer must contain, and tools it must or mustn't call.
 
 - **Retrieval:** is an expected page among the top 8 chunks (hit@8), how many of
   the expected pages are found (recall@8), and how high (MRR).
 - **Answers:** required facts present, only valid `[n]` citations, the expected
-  PoB tools called, and an LLM judge that rates groundedness and relevance
+  tools called and forbidden ones not, and an LLM judge that rates groundedness and relevance
   (1-5) against the retrieved sources.
 
 CI ([`evals.yml`](.github/workflows/evals.yml)) indexes a fixed slice of the
@@ -279,6 +287,7 @@ set weekly and on changes to retrieval or prompts; answers are judged when an
 ```bash
 python manage.py run_evals                              # retrieval only
 python manage.py run_evals --answers --update-readme    # answers + judge, scores below
+python manage.py run_evals --answers --web               # also the web-search cases
 ```
 
 <!-- evals:start -->
