@@ -12,7 +12,10 @@ export interface Source {
 
 /** A gem, unique or ascendancy named in an answer, for its hover card. */
 export interface Entity {
+  /** As written in the answer. */
   name: string;
+  /** The wiki page title, when it differs ("Point Blank Support"). */
+  title?: string;
   doc_type: DocType;
   url: string;
   summary: string;

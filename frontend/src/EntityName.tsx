@@ -29,7 +29,7 @@ export function EntityName({ entity, children }: { entity: Entity; children: Rea
       {open && (
         <span role="tooltip" id={id} className="entity-card">
           <span className="entity-card-head">
-            <span className="entity-card-title">{entity.name}</span>
+            <span className="entity-card-title">{entity.title ?? entity.name}</span>
             <span className="entity-card-kind">{KIND[entity.doc_type] ?? "Wiki page"}</span>
           </span>
           {entity.summary && <span className="entity-card-body">{entity.summary}</span>}
