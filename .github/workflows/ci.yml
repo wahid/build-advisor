@@ -50,3 +50,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Browser tests of the built app against a fake API (e2e/mock-server.mjs).
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7

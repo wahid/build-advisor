@@ -43,3 +43,7 @@ proxies.txt
 evals/results/*
 !evals/results/latest.json
 !evals/results/latest.md
+
+# Playwright output
+frontend/playwright-report/
+frontend/test-results/

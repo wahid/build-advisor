@@ -15,5 +15,6 @@ export default defineConfig(({ command }) => ({
   },
   test: {
     environment: "node",
+    include: ["src/**/*.test.ts"], // e2e/ is for Playwright
   },
 }));

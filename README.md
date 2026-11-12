@@ -151,7 +151,11 @@ colour, highlight it on hover and link to the wiki page.
   http://localhost:5173 with live reload; `/api` is forwarded to Django.
 - **Production:** the Dockerfile builds the app in a Node stage and Django
   serves it at `/` through WhiteNoise, so one container serves everything.
-- `cd frontend && npm test` runs the parser and streaming tests.
+- `cd frontend && npm test` runs the unit tests; `npm run build && npm run e2e`
+  runs the browser tests (Playwright, against a fake API in
+  `e2e/mock-server.mjs`): answers, sources, feedback, follow-ups, comparing
+  builds, editing, the sidebar, the daily limit and the How it works page, on a
+  desktop and a phone screen. CI runs both.
 
 ## Path of Building tools
 

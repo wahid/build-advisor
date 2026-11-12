@@ -91,10 +91,26 @@ export default function App() {
   const latest = turns.at(-1);
   const busy = latest?.status === "searching" || latest?.status === "answering";
 
+  // Save right away once nothing is streaming; while an answer streams, wait for a
+  // pause (it changes many times a second). Closing or reloading the page saves too.
+  const latestChats = useRef(chats);
+  latestChats.current = chats;
+  const streamingNow = chats.some((chat) =>
+    chat.turns.some((turn) => turn.status === "searching" || turn.status === "answering"),
+  );
   useEffect(() => {
+    if (!streamingNow) {
+      saveConversations(chats);
+      return;
+    }
     const timer = window.setTimeout(() => saveConversations(chats), SAVE_DELAY);
     return () => window.clearTimeout(timer);
-  }, [chats]);
+  }, [chats, streamingNow]);
+  useEffect(() => {
+    const flush = () => saveConversations(latestChats.current);
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
   useEffect(() => saveActiveId(activeId), [activeId]);
   useEffect(() => saveLimit(limitUntil), [limitUntil]);
   const limitOver = useCallback(() => setLimitUntil(0), []);
