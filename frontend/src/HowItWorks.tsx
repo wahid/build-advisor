@@ -25,6 +25,75 @@ interface Stats {
   corpus: { pages: number; chunks: number; patch: string; by_type: Record<string, number> };
   model: string;
   web_search: boolean;
+  eval_history?: EvalRun[];
+}
+
+/** One run of the evaluation set (evals/history.jsonl). */
+interface EvalRun {
+  date: string;
+  commit: string;
+  label: string;
+  config: string;
+  experiment: boolean;
+  cases: number | null;
+  "hit@8": number | null;
+  mrr: number | null;
+  pass_rate: number | null;
+  grounded: number | null;
+}
+
+/** Every eval run, newest first: what changed and what it did to the scores. */
+function EvalHistory({ runs }: { runs: EvalRun[] }) {
+  if (!runs.length) return null;
+  return (
+    <section className="about-section eval-history">
+      <h2 className="about-heading">Evaluation history</h2>
+      <p>
+        Every change to search or prompts is measured on the evaluation set before it stays. Runs marked as not kept
+        were tried and switched off again.
+      </p>
+      <div className="table-scroll">
+        <table className="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Run</th>
+              <th scope="col">Right page in top 8</th>
+              <th scope="col">Mean reciprocal rank</th>
+              <th scope="col">Cases passing</th>
+              <th scope="col">Groundedness</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...runs].reverse().map((run, i) => (
+              <tr key={`${run.date}-${i}`} data-experiment={run.experiment || undefined}>
+                <th scope="row">
+                  <span className="eval-run-label">
+                    {run.label}
+                    {run.experiment && <span className="eval-run-tag">not kept</span>}
+                  </span>
+                  <span className="eval-run-meta">
+                    {run.date}
+                    {run.commit && (
+                      <>
+                        {", "}
+                        <a href={`${GITHUB}/commit/${run.commit}`}>{run.commit}</a>
+                      </>
+                    )}
+                    {run.config && `, ${run.config}`}
+                    {run.cases != null && `, ${run.cases} cases`}
+                  </span>
+                </th>
+                <td>{percent(run["hit@8"])}</td>
+                <td>{run.mrr == null ? "–" : run.mrr.toFixed(2)}</td>
+                <td>{percent(run.pass_rate)}</td>
+                <td>{run.grounded == null ? "–" : `${run.grounded.toFixed(2)} / 5`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 const percent = (value: number | null | undefined) => (value == null ? "–" : `${Math.round(value * 100)}%`);
@@ -167,6 +236,8 @@ export function HowItWorks() {
           </div>
         </aside>
       </section>
+
+      {stats?.eval_history && <EvalHistory runs={stats.eval_history} />}
 
       <section className="about-section">
         <h2 className="about-heading">Made with</h2>

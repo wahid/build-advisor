@@ -125,4 +125,7 @@ test("the How it works page shows live numbers", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "How Build Advisor works" })).toBeVisible();
   await expect(page.locator(".item-card-mods").first()).toContainText("96% of 60 evaluation cases pass");
+  const history = page.locator(".eval-history tbody tr");
+  await expect(history).toHaveCount(2);
+  await expect(history.first()).toContainText("not kept"); // newest first
 });

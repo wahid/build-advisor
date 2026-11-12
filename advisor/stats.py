@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from wiki.models import Chunk, Document
 
+from . import evalhistory
 from .models import QuestionLog
 
 CACHE_KEY = "public-stats"
@@ -76,6 +77,7 @@ def public_stats() -> dict[str, Any]:
         return cached
     stats = {
         "evals": eval_scores(),
+        "eval_history": evalhistory.load(),
         "usage": usage(),
         "corpus": corpus(),
         "model": settings.LLM_MODEL,

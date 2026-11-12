@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.utils import timezone
 
+from advisor.evalhistory import HISTORY, append, config_from_meta, entry
 from advisor.evaluation import CaseResult, load_cases, render_markdown, run, update_readme
 from advisor.llm import get_provider
 from advisor.pob import get_pool
@@ -44,6 +45,16 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--update-readme", action="store_true", help="Put the scores into README.md."
+        )
+        parser.add_argument(
+            "--record",
+            metavar="LABEL",
+            help="Add this run to evals/history.jsonl with a label (what changed).",
+        )
+        parser.add_argument(
+            "--experiment",
+            action="store_true",
+            help="With --record: mark it as an experiment that wasn't kept.",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -103,6 +114,14 @@ class Command(BaseCommand):
         output.with_suffix(".md").write_text(markdown + "\n", encoding="utf-8")
 
         self.stdout.write("\n" + markdown)
+        if options["record"]:
+            config = config_from_meta(meta)
+            if settings.SEARCH_RERANK:
+                config += f", reranker ({settings.SEARCH_RERANK_MODE})"
+            summary = report.summary()
+            row = entry(summary, options["record"], config, experiment=options["experiment"])
+            append(row)
+            self.stdout.write(self.style.SUCCESS(f"Recorded in {HISTORY.name}: {row['label']}"))
         if options["update_readme"]:
             if update_readme(Path(settings.BASE_DIR) / "README.md", markdown):
                 self.stdout.write(self.style.SUCCESS("\nREADME.md updated."))

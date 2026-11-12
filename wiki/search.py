@@ -27,6 +27,7 @@ from pgvector.django import CosineDistance
 
 from .embeddings import Embedder, get_embedder
 from .models import Chunk, Document
+from .rerank import Reranker, get_reranker, passage, reorder
 
 RRF_K = 60  # standard constant; dampens the advantage of the very top ranks
 # Words in more than this share of chunks ("support", "gem") carry no signal.
@@ -91,6 +92,8 @@ def hybrid_search(
     max_per_document: int | None = None,
     expansion: str = "",
     pinned: Sequence[str] = (),
+    rerank: bool | None = None,
+    reranker: Reranker | None = None,
 ) -> list[SearchHit]:
     """Search chunks for a question.
 
@@ -123,7 +126,26 @@ def hybrid_search(
     ranked_lists["intro"] = _intro_ids(base, ranked_lists, candidates)
     first = _pinned_ids(base, pinned, top_k // 2 + 1) if pinned else []
     listing_weight = 1.0 if LISTING_QUESTION_RE.search(text) else LISTING_WEIGHT
-    return _fuse(ranked_lists, top_k, max_per_document, first=first, listing_weight=listing_weight)
+    if not (settings.SEARCH_RERANK if rerank is None else rerank):
+        return _fuse(
+            ranked_lists, top_k, max_per_document, first=first, listing_weight=listing_weight
+        )
+    pool = max(top_k, settings.SEARCH_RERANK_POOL)
+    hits = _fuse(ranked_lists, pool, max_per_document, first=first, listing_weight=listing_weight)
+    return _rerank(question, hits, set(first), top_k, reranker or get_reranker())
+
+
+def _rerank(
+    question: str, hits: list[SearchHit], pinned: set[int], top_k: int, reranker: Reranker
+) -> list[SearchHit]:
+    """Reorder the unpinned hits with the cross-encoder; pinned ones stay first."""
+    kept = [h for h in hits if h.chunk.id in pinned]
+    rest = {h.chunk.id: h for h in hits if h.chunk.id not in pinned}
+    passages = {cid: passage(h.title, h.chunk.section, h.chunk.text) for cid, h in rest.items()}
+    order = reorder(question, list(rest), passages, reranker, settings.SEARCH_RERANK_MODE)
+    for rank, chunk_id in enumerate(order, start=1):
+        rest[chunk_id].ranks["rerank"] = rank
+    return [*kept, *(rest[cid] for cid in order)][:top_k]
 
 
 def _pinned_ids(base: QuerySet[Chunk], titles: Sequence[str], limit: int) -> list[int]:

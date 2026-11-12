@@ -329,6 +329,18 @@ _2026-11-11, patch 3.29.3c, 2925 wiki pages, 26962 chunks, query rewriting, answ
 </details>
 <!-- evals:end -->
 
+Every run worth keeping goes into [`evals/history.jsonl`](evals/history.jsonl)
+(`run_evals --record "what changed"`, with `--experiment` for things tried and
+switched off), shown on the app's *How it works* page.
+
+**Reranker experiment.** A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`,
+small enough to sit next to bge-m3 on a 4 GB server) reordering the top 30
+candidates found one page the search missed (hit@8 96% to 98%, retrieval only,
+no query rewriting) but pushed the best page down more often than up (MRR 0.88
+to 0.85 blended with the search's order, 0.76 on its own) and added about 0.9 s
+per search. It's off; `SEARCH_RERANK=true` turns it on (`SEARCH_RERANK_MODE`,
+`SEARCH_RERANK_POOL`, `SEARCH_RERANK_MODEL`).
+
 ## Deployment
 
 Production runs on one Hetzner CX23 (2 vCPU, 4 GB, ~€5.49/month) with

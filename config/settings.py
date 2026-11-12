@@ -178,6 +178,11 @@ CHUNK_MAX_CHARS = env.int("CHUNK_MAX_CHARS", default=1500)
 SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=8)
 SEARCH_CANDIDATES = env.int("SEARCH_CANDIDATES", default=40)  # per ranked list
 SEARCH_MAX_PER_DOCUMENT = env.int("SEARCH_MAX_PER_DOCUMENT", default=3)
+# A cross-encoder that reorders the best candidates (see wiki/rerank.py).
+SEARCH_RERANK = env.bool("SEARCH_RERANK", default=False)
+SEARCH_RERANK_MODEL = env("SEARCH_RERANK_MODEL", default="cross-encoder/ms-marco-MiniLM-L-6-v2")
+SEARCH_RERANK_POOL = env.int("SEARCH_RERANK_POOL", default=30)  # candidates rescored
+SEARCH_RERANK_MODE = env("SEARCH_RERANK_MODE", default="blend")  # blend | replace
 
 
 # --- LLM ------------------------------------------------------------------------

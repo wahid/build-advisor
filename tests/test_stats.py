@@ -45,6 +45,7 @@ def test_stats_show_aggregates_only(client) -> None:
     assert usage["helpful_share"] == 0.5
     assert data["corpus"]["pages"] == 1 and data["corpus"]["by_type"] == {"gem": 1}
     assert data["evals"]["cases"] >= 50  # from evals/results/latest.json
+    assert data["eval_history"][0]["date"] and "mrr" in data["eval_history"][0]
     assert "secret question" not in str(data)
 
 
