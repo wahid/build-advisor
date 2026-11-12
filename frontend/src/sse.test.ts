@@ -88,3 +88,17 @@ describe("sendFeedback", () => {
     await expect(sendFeedback("abc", 1, "", failing)).rejects.toThrow("couldn't be sent");
   });
 });
+
+describe("daily limit", () => {
+  it("carries the reset time", async () => {
+    const { ask, AskError } = await import("./api");
+    const body = JSON.stringify({ code: "daily_limit", detail: "Used up.", resets_at: "2026-11-13T00:00:00+00:00" });
+    const fakeFetch = (async () => new Response(body, { status: 429 })) as typeof fetch;
+
+    const error = await ask("q", { fetchImpl: fakeFetch }).next().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AskError);
+    expect((error as InstanceType<typeof AskError>).code).toBe("daily_limit");
+    expect((error as InstanceType<typeof AskError>).resetsAt).toBe("2026-11-13T00:00:00+00:00");
+  });
+});

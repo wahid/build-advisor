@@ -1,5 +1,6 @@
 import json
 from collections.abc import Iterator
+from datetime import timedelta
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
@@ -95,10 +96,13 @@ class AskView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         if not take_question():
+            now = timezone.now()
+            resets_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             return Response(
                 {
                     "detail": DAILY_LIMIT_MESSAGE.format(limit=settings.ASK_DAILY_LIMIT),
                     "code": "daily_limit",
+                    "resets_at": resets_at.isoformat(),
                 },
                 status=429,
             )

@@ -162,3 +162,18 @@ describe("findBuildLinks", () => {
     expect(turn.comparison?.rows).toEqual([row]);
   });
 });
+
+describe("plainAnswer", () => {
+  it("lists the cited sources under the answer", async () => {
+    const { plainAnswer } = await import("./TurnActions");
+    const turn: ChatTurn = {
+      ...answered("q", "Poisons stack [1]."),
+      cited: [1],
+      sources: [
+        { number: 1, title: "Poison", section: "Mechanics", url: "https://w/Poison", patch: "3.29", doc_type: "mechanic" },
+        { number: 2, title: "Bleeding", section: "", url: "https://w/Bleeding", patch: "3.29", doc_type: "mechanic" },
+      ],
+    };
+    expect(plainAnswer(turn)).toBe("Poisons stack [1].\n\nSources:\n[1] Poison, Mechanics: https://w/Poison");
+  });
+});

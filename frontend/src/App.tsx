@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ask, AskError } from "./api";
 import { Composer } from "./Composer";
@@ -16,6 +16,7 @@ import {
   type ChatTurn,
   type Conversation,
 } from "./conversation";
+import { LimitBanner } from "./LimitBanner";
 import { Sidebar } from "./Sidebar";
 import { TurnView } from "./TurnView";
 import type { AskEvent, DocType } from "./types";
@@ -29,6 +30,30 @@ const EXAMPLES = [
 
 const UNREACHABLE = "The server can't be reached. Check your connection and try again.";
 const SAVE_DELAY = 400; // ms; streaming changes the chats many times a second
+const LIMIT_KEY = "build-advisor:limit-until";
+
+function loadLimit(): number {
+  try {
+    const until = Number(window.localStorage.getItem(LIMIT_KEY) ?? 0);
+    return until > Date.now() ? until : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveLimit(until: number): void {
+  try {
+    if (until) window.localStorage.setItem(LIMIT_KEY, String(until));
+    else window.localStorage.removeItem(LIMIT_KEY);
+  } catch {
+    // not kept; the next question finds out again
+  }
+}
+
+function nextUtcMidnight(): number {
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+}
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -55,6 +80,8 @@ export default function App() {
   const [activeId, setActiveId] = useState(initial.activeId);
   const [docTypes, setDocTypes] = useState<DocType[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Set when the site's daily limit is reached: until when (ms), 0 = open.
+  const [limitUntil, setLimitUntil] = useState(loadLimit);
   const streaming = useRef<Streaming | null>(null);
   // Keep following the newest text unless the reader scrolled up to read.
   const following = useRef(true);
@@ -69,6 +96,8 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [chats]);
   useEffect(() => saveActiveId(activeId), [activeId]);
+  useEffect(() => saveLimit(limitUntil), [limitUntil]);
+  const limitOver = useCallback(() => setLimitUntil(0), []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -107,14 +136,16 @@ export default function App() {
     );
   }
 
-  async function submit(question: string) {
-    if (!active) return;
+  /** Ask a question; with `replaceLast`, it takes the place of the latest turn (retry, edit). */
+  async function submit(question: string, replaceLast = false) {
+    if (!active || limitUntil) return;
     stopStreaming();
     const chatId = active.id;
     const turnId = makeId("turn");
     const controller = new AbortController();
     streaming.current = { chatId, turnId, controller };
-    const history = toHistory(active.turns);
+    const earlier = replaceLast ? active.turns.slice(0, -1) : active.turns;
+    const history = toHistory(earlier);
     // Build links in the question become the chat's builds, so follow-ups use them too:
     // the first is the build, a second one the build to compare with.
     const [link, compareLink] = findBuildLinks(question);
@@ -122,11 +153,12 @@ export default function App() {
     const compareBuild = compareLink || (link ? "" : (active.compareBuild ?? "").trim());
     following.current = true;
     updateChat(chatId, (chat) => {
-      const nextTurns = [...chat.turns, newTurn(turnId, question)];
+      const kept = replaceLast ? chat.turns.slice(0, -1) : chat.turns;
+      const nextTurns = [...kept, newTurn(turnId, question)];
       return {
         ...chat,
         turns: nextTurns,
-        title: chat.turns.length ? chat.title : titleFor(nextTurns),
+        title: kept.length ? chat.title : titleFor(nextTurns),
         updatedAt: Date.now(),
         ...(link ? { build: link, buildChanged: false, compareBuild: compareLink ?? "" } : {}),
       };
@@ -144,6 +176,9 @@ export default function App() {
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof AskError ? err.message : UNREACHABLE;
+      if (err instanceof AskError && err.code === "daily_limit") {
+        setLimitUntil(Date.parse(err.resetsAt) || nextUtcMidnight());
+      }
       updateTurn(chatId, turnId, (turn) => ({ ...turn, status: "error", error: message }));
     } finally {
       if (streaming.current?.turnId === turnId) streaming.current = null;
@@ -182,6 +217,7 @@ export default function App() {
     <Composer
       key={active.id}
       busy={busy}
+      disabled={Boolean(limitUntil)}
       followUp={turns.length > 0}
       docTypes={docTypes}
       onDocTypesChange={setDocTypes}
@@ -238,6 +274,7 @@ export default function App() {
                 Ask about Path of Exile builds. Answers come from the community wiki, and Path of Building runs the
                 numbers on your own build.
               </p>
+              {limitUntil > 0 && <LimitBanner until={limitUntil} onOver={limitOver} />}
               {composer}
               <ul className="examples" aria-label="Example questions">
                 {EXAMPLES.map((example) => (
@@ -259,11 +296,15 @@ export default function App() {
                   key={turn.id}
                   turn={turn}
                   isLatest={turn.id === latest?.id}
+                  limitReached={Boolean(limitUntil)}
                   onRated={(rating) => active && updateTurn(active.id, turn.id, (t) => ({ ...t, rating }))}
+                  onRetry={turn.id === latest?.id ? () => void submit(turn.question, true) : undefined}
+                  onEdit={turn.id === latest?.id ? (question) => void submit(question, true) : undefined}
                 />
               ))}
             </main>
             <div className="dock">
+              {limitUntil > 0 && <LimitBanner until={limitUntil} onOver={limitOver} />}
               {composer}
               <Colophon />
             </div>

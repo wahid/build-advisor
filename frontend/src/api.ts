@@ -2,16 +2,34 @@ import { SSEParser } from "./sse";
 import type { HistoryTurn } from "./conversation";
 import type { AskEvent, DocType } from "./types";
 
-export class AskError extends Error {}
+export class AskError extends Error {
+  constructor(
+    message: string,
+    /** "daily_limit" when the site's questions for today are used up. */
+    readonly code = "",
+    /** When the daily limit resets (ISO time), for a countdown. */
+    readonly resetsAt = "",
+  ) {
+    super(message);
+  }
+}
 
-async function errorMessage(response: Response): Promise<string> {
+async function askError(response: Response): Promise<AskError> {
   if (response.status === 429) {
     try {
-      const body = (await response.json()) as { code?: string; detail?: string };
-      if (body.code === "daily_limit" && body.detail) return body.detail;
+      const body = (await response.json()) as { code?: string; detail?: string; resets_at?: string };
+      if (body.code === "daily_limit") {
+        return new AskError(body.detail || "The demo's questions for today are used up.", "daily_limit", body.resets_at ?? "");
+      }
     } catch {
       // fall through to the per-visitor message
     }
+  }
+  return new AskError(await errorMessage(response));
+}
+
+async function errorMessage(response: Response): Promise<string> {
+  if (response.status === 429) {
     return "You've asked a lot of questions in a short time. Wait a few minutes and try again.";
   }
   if (response.status === 400) {
@@ -47,7 +65,7 @@ export async function* ask(question: string, options: AskOptions = {}): AsyncGen
     body: JSON.stringify({ question, doc_types: docTypes, build, compare_build: compareBuild, history }),
     signal,
   });
-  if (!response.ok || !response.body) throw new AskError(await errorMessage(response));
+  if (!response.ok || !response.body) throw await askError(response);
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   const parser = new SSEParser();

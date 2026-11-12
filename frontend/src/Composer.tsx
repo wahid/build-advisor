@@ -4,6 +4,8 @@ import { DOC_TYPES, type DocType } from "./types";
 
 interface Props {
   busy: boolean;
+  /** Asking is closed for now (the daily limit). */
+  disabled?: boolean;
   followUp: boolean;
   docTypes: DocType[];
   onDocTypesChange: (types: DocType[]) => void;
@@ -23,6 +25,7 @@ const MAX_HEIGHT = 220; // px; the box grows with the question up to this
 /** The message box: question, an optional Path of Building build, and search filters. */
 export function Composer({
   busy,
+  disabled = false,
   followUp,
   docTypes,
   onDocTypesChange,
@@ -48,7 +51,7 @@ export function Composer({
 
   function send(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || !question.trim()) return;
+    if (busy || disabled || !question.trim()) return;
     onSubmit(question.trim());
     setQuestion("");
     setEditingBuild(false);
@@ -174,7 +177,7 @@ export function Composer({
             Stop
           </button>
         ) : (
-          <button type="submit" className="send-button" disabled={!question.trim()}>
+          <button type="submit" className="send-button" disabled={disabled || !question.trim()}>
             Ask
           </button>
         )}

@@ -63,6 +63,7 @@ def test_endpoint_refuses_after_the_daily_limit(client, settings, wired) -> None
 
     assert response.status_code == 429
     assert response.json()["code"] == "daily_limit"
+    assert response.json()["resets_at"].endswith("T00:00:00+00:00")  # next midnight UTC
     assert "limit of 2 questions" in response.json()["detail"]
 
 
