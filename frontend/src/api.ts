@@ -37,6 +37,7 @@ async function errorMessage(response: Response): Promise<string> {
       const body = (await response.json()) as Record<string, string[]>;
       if (body.question) return `Question: ${body.question.join(" ")}`;
       if (body.build) return `Build: ${body.build.join(" ")}`;
+      if (body.item) return `Item: ${body.item.join(" ")}`;
     } catch {
       // fall through to the generic message
     }
@@ -50,6 +51,8 @@ export interface AskOptions {
   build?: string;
   /** A second build to compare the first with. */
   compareBuild?: string;
+  /** An item copied from the game, to try on the build. */
+  item?: string;
   /** Earlier turns of the conversation, oldest first. */
   history?: HistoryTurn[];
   signal?: AbortSignal;
@@ -58,11 +61,11 @@ export interface AskOptions {
 
 /** Ask a question and yield events as the answer streams in. */
 export async function* ask(question: string, options: AskOptions = {}): AsyncGenerator<AskEvent> {
-  const { docTypes = [], build = "", compareBuild = "", history = [], signal, fetchImpl = fetch } = options;
+  const { docTypes = [], build = "", compareBuild = "", item = "", history = [], signal, fetchImpl = fetch } = options;
   const response = await fetchImpl("/api/ask/", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ question, doc_types: docTypes, build, compare_build: compareBuild, history }),
+    body: JSON.stringify({ question, doc_types: docTypes, build, compare_build: compareBuild, history, ...(item ? { item } : {}) }),
     signal,
   });
   if (!response.ok || !response.body) throw await askError(response);

@@ -2,9 +2,11 @@ import { useState, type FormEvent } from "react";
 
 import { AnswerText } from "./answerText";
 import type { ChatTurn } from "./conversation";
-import { ComparisonTable } from "./ComparisonTable";
+import { ComparisonTable, ItemCheckTable } from "./ComparisonTable";
 import { Feedback } from "./Feedback";
 import { PobExport, PobSteps } from "./PobPanel";
+import { ItemTooltip } from "./ItemTooltip";
+import { itemName } from "./items";
 import { groupSources, SourceCard } from "./SourceCard";
 import { TurnActions } from "./TurnActions";
 
@@ -39,7 +41,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
   const running = turn.steps.some((step) => step.status === "running");
 
   return (
-    <section className="turn" aria-label={turn.question}>
+    <section className="turn" aria-label={turn.question || (turn.itemText ? itemName(turn.itemText) : "Question")}>
       {editing ? (
         <form className="bubble bubble-editing" onSubmit={saveEdit}>
           <label htmlFor={`edit-${turn.id}`} className="visually-hidden">
@@ -68,6 +70,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
           </div>
         </form>
       ) : (
+        turn.question && (
         <div className="bubble-row">
           {onEdit && !busy && !limitReached && (
             <button
@@ -83,6 +86,14 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
           )}
           <p className="bubble">{turn.question}</p>
         </div>
+        )
+      )}
+      {turn.item ? (
+        <div className="pasted-item">
+          <ItemTooltip card={turn.item.card} />
+        </div>
+      ) : (
+        turn.itemText && <p className="bubble bubble-item">Item: {itemName(turn.itemText)}</p>
       )}
 
       <article className="reply" aria-live={isLatest ? "polite" : undefined} aria-busy={busy}>
@@ -92,6 +103,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
         )}
         <PobSteps steps={turn.steps} />
         {turn.comparison && <ComparisonTable comparison={turn.comparison} />}
+        {turn.itemCheck && <ItemCheckTable check={turn.itemCheck} />}
         {turn.status === "answering" && !turn.answer && !running && (
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}

@@ -153,7 +153,7 @@ export default function App() {
   }
 
   /** Ask a question; with `replaceLast`, it takes the place of the latest turn (retry, edit). */
-  async function submit(question: string, replaceLast = false) {
+  async function submit(question: string, replaceLast = false, item = "") {
     if (!active || limitUntil) return;
     stopStreaming();
     const chatId = active.id;
@@ -170,7 +170,7 @@ export default function App() {
     following.current = true;
     updateChat(chatId, (chat) => {
       const kept = replaceLast ? chat.turns.slice(0, -1) : chat.turns;
-      const nextTurns = [...kept, newTurn(turnId, question)];
+      const nextTurns = [...kept, newTurn(turnId, question, item)];
       return {
         ...chat,
         turns: nextTurns,
@@ -181,7 +181,7 @@ export default function App() {
     });
 
     try {
-      const options = { docTypes, build, compareBuild, history, signal: controller.signal };
+      const options = { docTypes, build, compareBuild, item, history, signal: controller.signal };
       for await (const event of ask(question, options)) {
         updateTurn(chatId, turnId, (turn) => applyEvent(turn, event as AskEvent));
         if (event.type === "pob_export") {
@@ -249,7 +249,7 @@ export default function App() {
       }
       compareBuild={active.compareBuild ?? ""}
       onCompareBuildChange={(value) => updateChat(active.id, (chat) => ({ ...chat, compareBuild: value }))}
-      onSubmit={(q) => void submit(q)}
+      onSubmit={(q, item) => void submit(q, false, item)}
       onStop={stopStreaming}
     />
   );
@@ -314,8 +314,8 @@ export default function App() {
                   isLatest={turn.id === latest?.id}
                   limitReached={Boolean(limitUntil)}
                   onRated={(rating) => active && updateTurn(active.id, turn.id, (t) => ({ ...t, rating }))}
-                  onRetry={turn.id === latest?.id ? () => void submit(turn.question, true) : undefined}
-                  onEdit={turn.id === latest?.id ? (question) => void submit(question, true) : undefined}
+                  onRetry={turn.id === latest?.id ? () => void submit(turn.question, true, turn.itemText) : undefined}
+                  onEdit={turn.id === latest?.id ? (question) => void submit(question, true, turn.itemText) : undefined}
                 />
               ))}
             </main>

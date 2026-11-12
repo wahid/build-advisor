@@ -1,5 +1,6 @@
 import type { ToolStep } from "./PobPanel";
-import type { AskEvent, Comparison, Entity, Source } from "./types";
+import { itemName } from "./items";
+import type { AskEvent, Comparison, Entity, ItemCheck, PastedItem, Source } from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -22,6 +23,12 @@ export interface ChatTurn {
   comparison?: Comparison;
   /** Game names in the answer, for hover cards. */
   entities?: Entity[];
+  /** Item text pasted with the question (kept to ask again). */
+  itemText?: string;
+  /** The pasted item as the server read it, with its tooltip card. */
+  item?: PastedItem;
+  /** The pasted item tried on the attached build. */
+  itemCheck?: ItemCheck;
 }
 
 /** What the server gets for each earlier turn. */
@@ -57,10 +64,11 @@ export interface AttachedBuild {
   changed: boolean;
 }
 
-export function newTurn(id: string, question: string): ChatTurn {
+export function newTurn(id: string, question: string, itemText = ""): ChatTurn {
   return {
     id,
     question,
+    ...(itemText ? { itemText } : {}),
     status: "searching",
     answer: "",
     sources: [],
@@ -98,6 +106,12 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       return { ...turn, exportCode: event.code };
     case "comparison":
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
+    case "item":
+      return { ...turn, item: event.item };
+    case "item_check": {
+      const { type: _type, ...check } = event;
+      return { ...turn, itemCheck: check };
+    }
     case "done":
       return {
         ...turn,
@@ -117,7 +131,14 @@ export function toHistory(turns: ChatTurn[]): HistoryTurn[] {
   return turns
     .filter((turn) => turn.status === "done" && turn.answer.trim())
     .slice(-MAX_HISTORY)
-    .map((turn) => ({ question: turn.question, answer: turn.answer }));
+    .map((turn) => ({ question: questionFor(turn), answer: turn.answer }));
+}
+
+/** The question as the model saw it: a pasted item is named, since its text isn't sent again. */
+export function questionFor(turn: ChatTurn): string {
+  if (!turn.itemText) return turn.question;
+  const item = `(pasted item: ${turn.item ? `${turn.item.name}, ${turn.item.base}` : itemName(turn.itemText)})`;
+  return `${item} ${turn.question}`.trim().slice(0, 500);
 }
 
 /** The single conversation an older version kept (migrated into the chat list). */
@@ -164,7 +185,8 @@ export function newConversation(id: string, now = Date.now()): Conversation {
 
 /** A chat is named after its first question. */
 export function titleFor(turns: ChatTurn[]): string {
-  const first = turns[0]?.question.replace(/\s+/g, " ").trim();
+  const turn = turns[0];
+  const first = (turn?.question || (turn?.itemText ? itemName(turn.itemText) : "")).replace(/\s+/g, " ").trim();
   if (!first) return "New chat";
   return first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1)}…` : first;
 }

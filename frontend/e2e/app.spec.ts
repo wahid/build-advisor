@@ -59,6 +59,26 @@ test("two build links compare the builds", async ({ page }) => {
   await expect(page.locator(".build-chip-label")).toHaveText(["Build attached", "Comparing with build B"]);
 });
 
+test("an item pasted from the game is tried on the build", async ({ page, request }) => {
+  await page.goto("/");
+  const ring = "Item Class: Rings\nRarity: Rare\nStorm Loop\nTwo-Stone Ring\n--------\n+52 to maximum Life";
+  await page.locator("#question").focus();
+  await page.evaluate((text) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    document.querySelector("#question")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, ring);
+  await expect(page.locator(".item-chip")).toContainText("Storm Loop, Two-Stone Ring");
+  await expect(page.locator("#question")).toHaveValue("");
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+
+  await expect(page.locator(".pasted-item .poe-tooltip")).toHaveAttribute("data-frame", "rare");
+  await expect(page.getByRole("region", { name: "Item tried on your build" })).toContainText("Ring 2 (empty)");
+  const sent = await (await request.get("/api/__last__")).json();
+  expect(sent.item).toBe(ring);
+  expect(sent.question).toBe("");
+});
+
 test("the last question can be edited and asked again in place", async ({ page }) => {
   await ask(page, "How does poison stak?");
 

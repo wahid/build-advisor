@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { isItemText, itemName } from "./items";
 import { DOC_TYPES, type DocType } from "./types";
 
 interface Props {
@@ -16,7 +17,8 @@ interface Props {
   /** A second build to compare with; only offered once a build is attached. */
   compareBuild: string;
   onCompareBuildChange: (build: string) => void;
-  onSubmit: (question: string) => void;
+  /** The question, and the text of an item pasted from the game ("" if none). */
+  onSubmit: (question: string, item: string) => void;
   onStop: () => void;
 }
 
@@ -38,6 +40,7 @@ export function Composer({
   onStop,
 }: Props) {
   const [question, setQuestion] = useState("");
+  const [item, setItem] = useState("");
   const [editingBuild, setEditingBuild] = useState(false);
   const [editingCompare, setEditingCompare] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -51,9 +54,10 @@ export function Composer({
 
   function send(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || disabled || !question.trim()) return;
-    onSubmit(question.trim());
+    if (busy || disabled || (!question.trim() && !item)) return;
+    onSubmit(question.trim(), item);
     setQuestion("");
+    setItem("");
     setEditingBuild(false);
     setEditingCompare(false);
   }
@@ -108,9 +112,23 @@ export function Composer({
         rows={1}
         maxLength={500}
         autoFocus
-        placeholder={followUp ? "Ask a follow-up" : "Ask about a skill, item or mechanic, or paste a pobb.in link"}
+        placeholder={
+          item
+            ? "Ask about this item, or just press Ask"
+            : followUp
+              ? "Ask a follow-up"
+              : "Ask about a skill, item or mechanic, or paste a pobb.in link or an item (Ctrl+C in game)"
+        }
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
+        onPaste={(e) => {
+          // An item copied from the game becomes a chip: its text is too long for the box.
+          const text = e.clipboardData.getData("text");
+          if (isItemText(text)) {
+            e.preventDefault();
+            setItem(text.trim());
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) send(e);
         }}
@@ -118,6 +136,14 @@ export function Composer({
 
       <div className="composer-bar">
         <div className="composer-tools">
+          {item && (
+            <span className="build-chip item-chip" title={item}>
+              <span className="build-chip-label">Item: {itemName(item)}</span>
+              <button type="button" className="build-chip-remove" aria-label="Remove the item" onClick={() => setItem("")}>
+                ×
+              </button>
+            </span>
+          )}
           {hasBuild && !editingBuild ? (
             <span className="build-chip">
               <button
@@ -177,7 +203,7 @@ export function Composer({
             Stop
           </button>
         ) : (
-          <button type="submit" className="send-button" disabled={disabled || !question.trim()}>
+          <button type="submit" className="send-button" disabled={disabled || (!question.trim() && !item)}>
             Ask
           </button>
         )}

@@ -7,6 +7,8 @@ sources first and then the answer as it streams in:
     {"type": "tool_call", "id": ..., "name": ..., "arguments": {...}}   (tools only)
     {"type": "tool_result", "id": ..., "name": ..., "ok": bool, "error": str}
     {"type": "pob_export", "code": "..."}                               (build exported)
+    {"type": "item", "item": {...}}             (a pasted item, with its tooltip card)
+    {"type": "item_check", "slot": ..., "rows": [...]} (the item tried on the build)
     {"type": "delta", "text": "..."}            (repeated)
     {"type": "done", "cited": [1, 3], "patch": "3.29.3c"}
     {"type": "error", "message": "..."}         (instead of done, on failure)
@@ -18,7 +20,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -30,13 +32,14 @@ from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import compare as build_compare
-from . import gemrank, websearch
+from . import gemrank, items, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
 from .prompts import NO_SOURCES_ANSWER, Turn, build_messages
 from .rewrite import rewrite_question
 
 logger = logging.getLogger(__name__)
+DEFAULT_ITEM_QUESTION = "Is this item an upgrade for my build?"
 
 CITATION_RE = re.compile(r"\[(\d+)\]")
 MAX_TOOL_RESULT_CHARS = 8000  # per tool result sent back to the model
@@ -283,8 +286,11 @@ def answer_stream(
     web_search: bool | None = None,
     compare_build: str = "",
     search_query: str | None = None,
+    item: str = "",
 ) -> Iterator[Event]:
     """Answer a question, streaming events.
+
+    item: text of an item copied from the game; tried on the attached build.
 
     search_query: what to search the wiki for, when the caller already decided
     (the evals pass the query they scored, so answer and score see the same pages).
@@ -300,6 +306,17 @@ def answer_stream(
     step routed the question (on when there was no routing, e.g. rewrite off).
     expansion / needs_build_tools: pass a rewrite that was already done.
     """
+    pasted: items.Item | None = None
+    if item:
+        try:
+            pasted = items.parse_item(item)
+        except items.ItemError as exc:
+            yield {"type": "error", "message": str(exc)}
+            return
+        yield {"type": "item", "item": pasted.as_dict()}
+        if not question.strip():
+            question = DEFAULT_ITEM_QUESTION if build else "What is this item good for?"
+
     # What to search for: a follow-up ("and bleed?") means little on its own.
     standalone = f"{history[-1].question}\n{question}" if history else question
     if expansion is None:
@@ -340,6 +357,8 @@ def answer_stream(
         # is in it: "is this build strong?" says nothing about Tornado Shot or Slayer.
         build_summary = None
         query, pinned = standalone, []
+        item_check: dict[str, Any] | None = None
+        item_note = "" if build else "no build is attached"
         comparison: dict[str, Any] | None = None
         if build and toolbox is not None:
             if toolbox.reused:
@@ -396,9 +415,13 @@ def answer_stream(
                         "error": "",
                     }
                     yield {"type": "comparison", **comparison}
+            if pasted is not None:
+                item_check, item_note = yield from _check_item(toolbox, pasted)
             pinned = build_search_terms(toolbox, build_summary)
-            if pinned:
-                query = f"{standalone}\n{', '.join(pinned)}"
+        if pasted is not None and pasted.rarity == "unique":
+            pinned = [*pinned, pasted.name]  # its wiki page
+        if pinned:
+            query = f"{standalone}\n{', '.join(pinned)}"
 
         hits = hybrid_search(
             query,
@@ -429,7 +452,31 @@ def answer_stream(
             history,
             web,
             comparison,
+            item_text=pasted.text if pasted is not None else "",
+            item_check=item_check,
+            item_note=item_note,
         )
+
+
+def _check_item(
+    toolbox: PobToolbox, pasted: items.Item
+) -> Generator[Event, None, tuple[dict[str, Any] | None, str]]:
+    """Try a pasted item on the loaded build; returns (result, why it wasn't tried)."""
+    yield {"type": "tool_call", "id": "check-item", "name": "check_item", "arguments": {}}
+    try:
+        result = items.check_item(toolbox, pasted)
+    except (items.ItemError, PobToolError) as exc:
+        yield {
+            "type": "tool_result",
+            "id": "check-item",
+            "name": "check_item",
+            "ok": False,
+            "error": str(exc)[:500],
+        }
+        return None, str(exc)
+    yield {"type": "tool_result", "id": "check-item", "name": "check_item", "ok": True, "error": ""}
+    yield {"type": "item_check", **result}
+    return result, ""
 
 
 def build_search_terms(toolbox: PobToolbox, summary: Any) -> list[str]:
@@ -468,12 +515,24 @@ def _converse(
     history: Sequence[Turn] = (),
     web: bool = False,
     comparison: dict[str, Any] | None = None,
+    item_text: str = "",
+    item_check: dict[str, Any] | None = None,
+    item_note: str = "",
 ) -> Iterator[Event]:
     provider = provider or get_provider()
     pob_rounds = settings.POB_MAX_TOOL_ROUNDS if toolbox is not None else 0
     rounds = pob_rounds or (settings.WEB_SEARCH_MAX_CALLS if web else 0)
     messages: list[Message] = build_messages(
-        question, hits, pob_rounds, build_summary, history, web_search=web, comparison=comparison
+        question,
+        hits,
+        pob_rounds,
+        build_summary,
+        history,
+        web_search=web,
+        comparison=comparison,
+        item_text=item_text,
+        item_check=item_check,
+        item_note=item_note,
     )
     definitions = [
         *(toolbox.definitions if toolbox is not None else []),

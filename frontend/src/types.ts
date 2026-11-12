@@ -57,6 +57,25 @@ export interface Comparison {
   rows: ComparisonRow[];
 }
 
+/** An item the user pasted from the game (Ctrl+C), as the server read it. */
+export interface PastedItem {
+  name: string;
+  base: string;
+  item_class: string;
+  rarity: string;
+  card: Card;
+}
+
+/** The pasted item tried on the attached build: stats before (a) and after (b). */
+export interface ItemCheck {
+  item: PastedItem;
+  slot: string;
+  /** What was in that slot ("" when it was empty). */
+  replaces: string;
+  rows: ComparisonRow[];
+  tried: string[];
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -65,6 +84,8 @@ export type AskEvent =
   | { type: "tool_result"; id: string; name: string; ok: boolean; error: string }
   | { type: "pob_export"; code: string }
   | ({ type: "comparison" } & Comparison)
+  | { type: "item"; item: PastedItem }
+  | ({ type: "item_check" } & ItemCheck)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[] }
   | { type: "error"; message: string };
 

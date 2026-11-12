@@ -44,6 +44,13 @@ const STATS = {
   web_search: true,
 };
 
+const ITEM = {
+  name: "Storm Loop", base: "Two-Stone Ring", item_class: "Rings", rarity: "rare",
+  card: { frame: "rare", header: ["Storm Loop", "Two-Stone Ring"], groups: [
+    { style: "mod", lines: [[{ t: "+52 to maximum Life", s: "mod" }], [{ t: "+38% to Cold Resistance", s: "mod" }]] },
+  ] },
+};
+
 function json(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
@@ -66,6 +73,14 @@ http
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       const send = (event) => res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
       send({ type: "rewrite", terms: "Poison, Bleeding", tools: false });
+      if (body.item) {
+        send({ type: "item", item: ITEM });
+        send({ type: "tool_call", id: "check-item", name: "check_item", arguments: {} });
+        send({ type: "tool_result", id: "check-item", name: "check_item", ok: true, error: "" });
+        send({ type: "item_check", item: ITEM, slot: "Ring 2", replaces: "", tried: ["Ring 1", "Ring 2"], rows: [
+          { stat: "Life", label: "Life", a: 4632, b: 4697, change_pct: 1.4, higher_is_better: true },
+        ] });
+      }
       if (body.compare_build) {
         send({ type: "tool_call", id: "compare-build", name: "compare_builds", arguments: {} });
         send({ type: "tool_result", id: "compare-build", name: "compare_builds", ok: true, error: "" });

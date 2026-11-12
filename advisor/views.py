@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterator
 from datetime import timedelta
+from typing import Any
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
@@ -16,6 +17,7 @@ from rest_framework.views import APIView
 from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
+from .items import MAX_ITEM_TEXT, item_title, split_item
 from .limits import take_question
 from .models import QuestionLog
 from .pob import split_build_links
@@ -36,7 +38,8 @@ class TurnSerializer(serializers.Serializer):
 
 
 class AskSerializer(serializers.Serializer):
-    question = serializers.CharField(max_length=500, trim_whitespace=True)
+    # May be empty when an item is pasted: "is this an upgrade?" is implied.
+    question = serializers.CharField(max_length=500, trim_whitespace=True, allow_blank=True)
     doc_types = serializers.ListField(
         child=serializers.ChoiceField(choices=DocumentType.values), required=False, default=list
     )
@@ -49,6 +52,15 @@ class AskSerializer(serializers.Serializer):
     compare_build = serializers.CharField(
         required=False, allow_blank=True, default="", max_length=200_000
     )
+    # An item copied from the game (Ctrl+C), to try on the build.
+    item = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=MAX_ITEM_TEXT
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if not attrs["question"] and not attrs["item"]:
+            raise serializers.ValidationError({"question": ["This field may not be blank."]})
+        return attrs
 
 
 class FeedbackSerializer(serializers.Serializer):
@@ -111,6 +123,9 @@ class AskView(APIView):
         # an attached one: it's what the user just pointed at).
         # Two links: the first is the build, the second the one to compare with.
         question, links = split_build_links(data["question"])
+        # An item pasted into the question box (the app usually sends it separately).
+        question, pasted = split_item(question)
+        item = data["item"] or pasted
         build = links[0] if links else data["build"]
         compare_build = links[1] if len(links) > 1 else data["compare_build"]
         options = {
@@ -118,6 +133,7 @@ class AskView(APIView):
             "build": build,
             "compare_build": compare_build if build else "",
             "history": [Turn(t["question"], t["answer"]) for t in data["history"]],
+            "item": item,
         }
 
         context = {
@@ -125,7 +141,8 @@ class AskView(APIView):
             "history": [{"question": t.question, "answer": t.answer} for t in options["history"]],
             "doc_types": list(data["doc_types"]),
         }
-        events = record(answer_stream(question, **options), question, **context)
+        logged = question or f"(pasted item) {item_title(item)}"
+        events = record(answer_stream(question, **options), logged, **context)
 
         if not data["stream"]:
             return Response(collect(events))

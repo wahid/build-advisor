@@ -781,6 +781,29 @@ a {
   overflow-x: auto;
 }
 
+.comparison-note {
+  margin: 0 0 0.5rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+/* An item pasted with the question, drawn like the game shows it. */
+.pasted-item {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 1.25rem;
+}
+
+.pasted-item .poe-tooltip {
+  width: min(24rem, 100%);
+  min-width: 0;
+}
+
+.bubble-item {
+  margin-left: auto;
+  width: fit-content;
+}
+
 .comparison-table {
   width: 100%;
   border-collapse: collapse;
