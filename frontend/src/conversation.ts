@@ -1,6 +1,6 @@
 import type { ToolStep } from "./PobPanel";
 import { itemName } from "./items";
-import type { AskEvent, Comparison, Entity, ItemCheck, PassiveRanking, PastedItem, Source } from "./types";
+import type { AskEvent, Comparison, Entity, ItemCheck, Leveling, LevelingGem, PassiveRanking, PastedItem, Source } from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -31,6 +31,23 @@ export interface ChatTurn {
   itemCheck?: ItemCheck;
   /** Passive notables ranked for the build (the latest ranking of the turn). */
   passives?: PassiveRanking;
+  /** When the gems become available while leveling (all lookups of the turn, merged). */
+  leveling?: Leveling;
+}
+
+function firstAct(gem: LevelingGem): number {
+  const acts = [gem.quest_reward?.act, ...gem.vendors.map((v) => v.act)].filter((a): a is number => Boolean(a));
+  return acts.length ? Math.min(...acts) : 99;
+}
+
+/** Add a lookup's gems to the turn's table: one row per gem, in the order they come. */
+export function mergeLeveling(earlier: Leveling | undefined, next: Leveling): Leveling {
+  const byGem = new Map((earlier?.gems ?? []).map((gem) => [gem.gem, gem]));
+  for (const gem of next.gems) byGem.set(gem.gem, gem);
+  const gems = [...byGem.values()].sort(
+    (a, b) => firstAct(a) - firstAct(b) || (a.required_level ?? 0) - (b.required_level ?? 0),
+  );
+  return { class_name: next.class_name || earlier?.class_name || "", gems, note: next.note };
 }
 
 /** What the server gets for each earlier turn. */
@@ -110,6 +127,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "item":
       return { ...turn, item: event.item };
+    case "leveling": {
+      const { type: _type, ...lookup } = event;
+      return { ...turn, leveling: mergeLeveling(turn.leveling, lookup) };
+    }
     case "passive_ranking": {
       const { type: _type, ...ranking } = event;
       return { ...turn, passives: ranking };

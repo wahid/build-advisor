@@ -63,6 +63,12 @@ For general questions about mechanics the wiki sources are enough.
   allocate_node) rather than doing it unasked.
 - For gear: rank_gear_upgrades finds the best single mod change per rare item,
   rank_anoints the best anoint. Name the mod or notable and its effect.
+- For leveling plans ("how do I level X", "when can I get Y"): call
+  quest_rewards for the build's gems and the class, then give the plan act by
+  act: which gems to pick up from which quest or vendor, and the links to use
+  until the final setup is available (gems that need a higher level wait).
+  With a build attached, plan_leveling adds leveling trees for levels 30, 50,
+  70 and 90 to it; export_build afterwards so the user gets them.
 - A new build starts with new_build, then apply_changes; use search_gems,
   search_uniques and list_ascendancy_notables to look things up instead of
   guessing names. Check get_warnings before you finish.

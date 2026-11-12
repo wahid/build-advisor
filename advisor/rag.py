@@ -32,7 +32,7 @@ from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import compare as build_compare
-from . import gemrank, items, passives, websearch
+from . import gemrank, items, leveling, passives, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
 from .prompts import NO_SOURCES_ANSWER, Turn, build_messages
@@ -40,6 +40,11 @@ from .rewrite import rewrite_question
 
 logger = logging.getLogger(__name__)
 DEFAULT_ITEM_QUESTION = "Is this item an upgrade for my build?"
+LOOKUP_ROUNDS = 2  # tool rounds when only the leveling lookup is offered
+LEVELING_RE = re.compile(
+    r"\blevel(?:l?ing|ed)?\b|\bquests?\b|\bvendors?\b|\bact \d|league ?start|campaign",
+    re.IGNORECASE,
+)
 
 CITATION_RE = re.compile(r"\[(\d+)\]")
 MAX_TOOL_RESULT_CHARS = 8000  # per tool result sent back to the model
@@ -197,6 +202,17 @@ class _ToolRunner:
         events.append({"type": "passive_ranking", **result})
         return events, _for_model(text)
 
+    def _quest_rewards(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
+        try:
+            result = leveling.run(arguments, self.toolbox)
+        except (ValueError, PobToolError) as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = json.dumps(result, ensure_ascii=False)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        events.append({"type": "leveling", **result})
+        return events, _for_model(text)
+
     def _web_search(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
         query = str(arguments.get("query", ""))
         if self.web_searches >= settings.WEB_SEARCH_MAX_CALLS:
@@ -246,6 +262,8 @@ class _ToolRunner:
             return self._rank_skill_gems(call, arguments)
         if call.name == passives.TOOL_NAME and self.toolbox is not None:
             return self._suggest_passives(call, arguments)
+        if call.name == leveling.TOOL_NAME:
+            return self._quest_rewards(call, arguments)
         if self.toolbox is None:
             error = f"There is no tool called {call.name}."
             return self._events(call, arguments, ok=False, error=error), f"Error: {error}"
@@ -542,7 +560,12 @@ def _converse(
 ) -> Iterator[Event]:
     provider = provider or get_provider()
     pob_rounds = settings.POB_MAX_TOOL_ROUNDS if toolbox is not None else 0
-    rounds = pob_rounds or (settings.WEB_SEARCH_MAX_CALLS if web else 0)
+    # The leveling lookup (a database query) comes with the other tools, or alone
+    # when the question is about leveling.
+    lookup = toolbox is not None or web or bool(LEVELING_RE.search(question))
+    rounds = pob_rounds or (
+        settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup else 0
+    )
     messages: list[Message] = build_messages(
         question,
         hits,
@@ -559,6 +582,7 @@ def _converse(
         *(toolbox.definitions if toolbox is not None else []),
         *([gemrank.TOOL_DEFINITION, passives.TOOL_DEFINITION] if toolbox is not None else []),
         *([websearch.TOOL_DEFINITION] if web else []),
+        *([leveling.TOOL_DEFINITION] if lookup else []),
     ]
     runner = _ToolRunner(toolbox, sources, question) if definitions else None
     answer_parts: list[str] = []

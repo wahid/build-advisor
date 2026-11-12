@@ -101,3 +101,38 @@ class Chunk(models.Model):
 
     def __str__(self) -> str:
         return f"{self.document.title} #{self.position} ({self.section or 'intro'})"
+
+
+class QuestReward(models.Model):
+    """A gem or item that a quest gives as a reward, or that a vendor sells after it.
+
+    From the wiki's quest_rewards and vendor_rewards tables; for leveling plans.
+    """
+
+    class Kind(models.TextChoices):
+        QUEST = "quest", "Quest reward"
+        VENDOR = "vendor", "Sold by a vendor"
+
+    reward = models.CharField(max_length=255, db_index=True)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    quest = models.CharField(max_length=255)
+    act = models.PositiveSmallIntegerField(null=True)
+    classes = models.JSONField(default=list, help_text="Empty: every class.")
+    npc = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["act", "kind", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.reward}: {self.get_kind_display()} in act {self.act} ({self.quest})"
+
+
+class GemLevel(models.Model):
+    """The character level a gem needs, from the wiki's items table."""
+
+    name = models.CharField(max_length=255, unique=True)
+    required_level = models.PositiveSmallIntegerField()
+    support = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return f"{self.name} (level {self.required_level})"

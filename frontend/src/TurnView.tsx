@@ -4,6 +4,7 @@ import { AnswerText } from "./answerText";
 import type { ChatTurn } from "./conversation";
 import { ComparisonTable, ItemCheckTable } from "./ComparisonTable";
 import { Feedback } from "./Feedback";
+import { LevelingTable } from "./LevelingTable";
 import { PassiveTable } from "./PassiveTable";
 import { PobExport, PobSteps } from "./PobPanel";
 import { ItemTooltip } from "./ItemTooltip";
@@ -106,6 +107,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
         {turn.comparison && <ComparisonTable comparison={turn.comparison} />}
         {turn.itemCheck && <ItemCheckTable check={turn.itemCheck} />}
         {turn.passives && <PassiveTable ranking={turn.passives} />}
+        {turn.leveling && <LevelingTable leveling={turn.leveling} />}
         {turn.status === "answering" && !turn.answer && !running && (
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}

@@ -70,6 +70,7 @@ DEFAULT_TOOLS = (
     "rank_anoints",
     "rank_gear_upgrades",
     "list_item_slots",
+    "plan_leveling",
 )
 
 # Tools that only read the build, or try a change and put the build back exactly as

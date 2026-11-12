@@ -787,6 +787,11 @@ a {
   color: var(--parchment-dim);
 }
 
+.leveling .comparison-table td:nth-child(3),
+.leveling .comparison-table td:nth-child(4) {
+  text-align: left;
+}
+
 .passive-name {
   display: block;
   color: var(--parchment);

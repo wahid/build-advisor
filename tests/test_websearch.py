@@ -101,7 +101,7 @@ def test_web_results_become_numbered_sources(web, embedder) -> None:
     assert web_sources[0].section == "Path of Exile, 2026-10-30"
     assert result.cited == [4]
     tools = provider.calls[0][1]
-    assert [t["function"]["name"] for t in tools] == ["web_search"]
+    assert [t["function"]["name"] for t in tools] == ["web_search", "quest_rewards"]
     tool_message = provider.calls[1][0][-1]
     assert tool_message["role"] == "tool"
     assert tool_message["content"].startswith("Web results (page text written by others")

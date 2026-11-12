@@ -95,6 +95,21 @@ export interface PassiveRanking {
   note: string;
 }
 
+/** When a gem becomes available while leveling, from the wiki's quest tables. */
+export interface LevelingGem {
+  gem: string;
+  known: boolean;
+  required_level: number | null;
+  quest_reward: { act: number | null; quest: string } | null;
+  vendors: { act: number | null; npc: string; after_quest: string }[];
+}
+
+export interface Leveling {
+  class_name: string;
+  gems: LevelingGem[];
+  note: string;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -106,6 +121,7 @@ export type AskEvent =
   | { type: "item"; item: PastedItem }
   | ({ type: "item_check" } & ItemCheck)
   | ({ type: "passive_ranking" } & PassiveRanking)
+  | ({ type: "leveling" } & Leveling)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[] }
   | { type: "error"; message: string };
 

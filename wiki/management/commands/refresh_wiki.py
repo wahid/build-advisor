@@ -15,7 +15,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from wiki.client import WikiBlockedError, connection_note
+from wiki import leveling
+from wiki.client import WikiBlockedError, WikiClient, WikiError, connection_note
 from wiki.indexing import build_chunks, embed_pending
 from wiki.ingest import ingest
 from wiki.models import DocumentType
@@ -55,6 +56,12 @@ class Command(BaseCommand):
         )
         for title in result.failed:
             self.stdout.write(self.style.WARNING(f"  failed: {title}"))
+        if not options["doc_types"]:
+            try:
+                rewards, gems = leveling.update(WikiClient.from_settings(direct=options["direct"]))
+                self.stdout.write(f"Leveling data: {rewards} quest/vendor rows, {gems} gems")
+            except (WikiError, ValueError) as exc:
+                self.stdout.write(self.style.WARNING(f"Leveling data not updated: {exc}"))
 
         chunks = build_chunks()
         embedded = 0 if options["no_embed"] else embed_pending()

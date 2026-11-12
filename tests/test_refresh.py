@@ -11,6 +11,13 @@ from wiki.ingest import IngestResult
 from wiki.models import DocumentType
 
 
+@pytest.fixture(autouse=True)
+def no_leveling_download(mocker):
+    return mocker.patch(
+        "wiki.management.commands.refresh_wiki.leveling.update", return_value=(529, 800)
+    )
+
+
 def test_patch_notes_are_the_versions_of_the_last_year() -> None:
     listing = recent_versions(date(2026, 11, 12))
 
