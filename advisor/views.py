@@ -203,4 +203,8 @@ def frontend(request: HttpRequest) -> HttpResponse:
             content_type="text/plain; charset=utf-8",
             status=503,
         )
-    return HttpResponse(index.read_text(encoding="utf-8"))
+    html = index.read_text(encoding="utf-8")
+    # Link previews need absolute URLs: this host, as the visitor reached it.
+    html = html.replace("__SITE_URL__", request.build_absolute_uri("/").rstrip("/"))
+    html = html.replace("__PAGE_URL__", request.build_absolute_uri(request.path))
+    return HttpResponse(html)

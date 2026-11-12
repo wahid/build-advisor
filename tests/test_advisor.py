@@ -276,3 +276,16 @@ def test_frontend_explains_missing_build(client, settings, tmp_path) -> None:
 
     assert response.status_code == 503
     assert b"localhost:5173" in response.content
+
+
+def test_link_previews_get_absolute_urls(client, settings, tmp_path) -> None:
+    settings.FRONTEND_DIST = tmp_path
+    (tmp_path / "index.html").write_text(
+        '<meta property="og:url" content="__PAGE_URL__">'
+        '<meta property="og:image" content="__SITE_URL__/static/og.png">'
+    )
+
+    html = client.get("/how-it-works/").content.decode()
+
+    assert 'content="http://testserver/how-it-works/"' in html
+    assert 'content="http://testserver/static/og.png"' in html
