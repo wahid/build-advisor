@@ -147,3 +147,15 @@ the server, the job stops without touching the index and tries again next week.
 Embedding loads a second copy of the model for a few minutes (about 2 GB), which
 the swap file covers on a CX23.
 
+## Monitoring
+
+- **Uptime:** `.github/workflows/uptime.yml` checks the live site every 15
+  minutes (health with wiki data loaded, the page, the stats). When a run fails,
+  GitHub emails you. If the address changes, set a `SITE_URL` repository
+  variable. GitHub pauses scheduled workflows after 60 days without commits;
+  re-enable it under Actions if that happens.
+- **Errors:** create a free project on sentry.io (Django) and put its DSN in
+  `.env.prod` as `SENTRY_DSN=...`, then redeploy. Only errors are sent, without
+  personal data or request bodies, so visitors' questions and builds stay on the
+  server.
+

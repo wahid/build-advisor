@@ -1,0 +1,28 @@
+name: Uptime
+
+# Checks the live site every 15 minutes. A failed scheduled run makes GitHub email
+# the repository owner. Set the SITE_URL repository variable if the address changes.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://2.29.162.98.sslip.io' }}
+    steps:
+      - name: The app answers and has its wiki data
+        run: |
+          set -euo pipefail
+          health=$(curl --fail --silent --show-error --max-time 20 --retry 2 --retry-delay 10 "$SITE_URL/api/health/")
+          echo "health: $health"
+          echo "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="ok", d; assert d["documents"]>0, "no wiki pages loaded"'
+      - name: The page and the stats load
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 20 --retry 2 --retry-delay 10 "$SITE_URL/" | grep -q '<div id="root">'
+          curl --fail --silent --show-error --max-time 30 --retry 2 --retry-delay 10 "$SITE_URL/api/stats/" > /dev/null
+          echo "OK: $SITE_URL"
