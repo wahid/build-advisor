@@ -243,7 +243,12 @@ export default function App() {
           <>
             <main className="thread">
               {turns.map((turn) => (
-                <TurnView key={turn.id} turn={turn} isLatest={turn.id === latest?.id} />
+                <TurnView
+                  key={turn.id}
+                  turn={turn}
+                  isLatest={turn.id === latest?.id}
+                  onRated={(rating) => active && updateTurn(active.id, turn.id, (t) => ({ ...t, rating }))}
+                />
               ))}
             </main>
             <div className="dock">
@@ -262,7 +267,7 @@ function Colophon() {
     <footer className="colophon">
       Content from <a href="https://www.poewiki.net">poewiki.net</a>, licensed{" "}
       <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>. Not affiliated with Grinding
-      Gear Games.
+      Gear Games. Questions and answers are logged to improve the app.
     </footer>
   );
 }

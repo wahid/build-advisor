@@ -236,6 +236,20 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    answer token by token, an exported share code if any, and finally which
    sources were cited.
 
+## Question log, costs and feedback
+
+Every answer is saved as a `QuestionLog` (`advisor/questionlog.py`): the
+question and earlier turns, the sources and tool calls, the answer, timings
+(search, first word, full answer), tokens (with cache hits, read from the
+stream's usage), web searches and the cost in USD (prices per million tokens in
+`LLM_PRICE_*`; defaults are DeepSeek's peak prices for `deepseek-flash`). The
+admin at `/admin/` lists them with totals for today and the last 7 days.
+
+Under each answer visitors can say whether it helped, and what was wrong. In
+the admin, filter on "Not helpful", select answers and choose **Download as
+eval cases** to get YAML for `evals/questions.yaml`: real failures become
+regression tests once their checks are filled in.
+
 ## Evaluation
 
 53 questions in [`evals/questions.yaml`](evals/questions.yaml): mechanics, gems,

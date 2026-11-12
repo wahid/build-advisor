@@ -9,6 +9,8 @@ from settings. Model names are never hardcoded.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol
@@ -38,6 +40,41 @@ class Reasoning:
 
 
 StreamItem = str | ToolCall | Reasoning
+
+
+@dataclass
+class Usage:
+    """Tokens used by the LLM calls made while `metering()` is active."""
+
+    calls: int = 0
+    prompt_tokens: int = 0
+    cached_prompt_tokens: int = 0  # part of prompt_tokens served from the provider's cache
+    completion_tokens: int = 0
+
+    def add(self, usage: Any) -> None:
+        self.prompt_tokens += int(getattr(usage, "prompt_tokens", 0) or 0)
+        self.completion_tokens += int(getattr(usage, "completion_tokens", 0) or 0)
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", None) if details else None
+        if cached is None:
+            cached = getattr(usage, "prompt_cache_hit_tokens", 0)  # DeepSeek's name
+        self.cached_prompt_tokens += int(cached or 0)
+
+
+_meter: ContextVar[Usage | None] = ContextVar("llm_usage", default=None)
+
+
+@contextmanager
+def metering() -> Iterator[Usage]:
+    """Count the tokens of every LLM call made inside the block (same context)."""
+    usage = Usage()
+    token = _meter.set(usage)
+    try:
+        yield usage
+    finally:
+        # ValueError: closed from another context (a generator finalised late).
+        with suppress(ValueError):
+            _meter.reset(token)
 
 
 class LLMError(RuntimeError):
@@ -83,6 +120,7 @@ class OpenAICompatibleProvider:
         extra_body: dict[str, Any] | None = None,
         quick_extra_body: dict[str, Any] | None = None,
         client: Any = None,
+        stream_usage: bool = True,
     ) -> None:
         self.name = name
         self.model = model
@@ -90,6 +128,7 @@ class OpenAICompatibleProvider:
         self.max_tokens = max_tokens
         self.extra_body = extra_body or {}
         self.quick_extra_body = quick_extra_body or {}
+        self.stream_usage = stream_usage
         if client is None:
             from openai import OpenAI
 
@@ -108,6 +147,11 @@ class OpenAICompatibleProvider:
         options: dict[str, Any] = {}
         if tools:
             options["tools"] = tools
+        if self.stream_usage:
+            options["stream_options"] = {"include_usage": True}
+        meter = _meter.get()
+        if meter is not None:
+            meter.calls += 1
         calls: dict[int, dict[str, str]] = {}
         reasoning: list[str] = []
         try:
@@ -121,6 +165,9 @@ class OpenAICompatibleProvider:
                 **options,
             )
             for chunk in response:
+                usage = getattr(chunk, "usage", None)
+                if usage is not None and meter is not None:
+                    meter.add(usage)  # the last chunk, when stream_usage is on
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -169,4 +216,5 @@ def get_provider() -> LLMProvider:
         timeout=settings.LLM_TIMEOUT,
         extra_body=settings.LLM_EXTRA_BODY,
         quick_extra_body=settings.LLM_QUICK_EXTRA_BODY,
+        stream_usage=settings.LLM_STREAM_USAGE,
     )

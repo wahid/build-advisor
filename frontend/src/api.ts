@@ -55,3 +55,18 @@ export async function* ask(question: string, options: AskOptions = {}): AsyncGen
     yield* parser.push(value);
   }
 }
+
+/** Rate an answer (1 helpful, -1 not), with an optional note. */
+export async function sendFeedback(
+  logId: string,
+  rating: 1 | -1,
+  feedback = "",
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const response = await fetchImpl("/api/feedback/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ log_id: logId, rating, feedback }),
+  });
+  if (!response.ok) throw new AskError("Your feedback couldn't be sent. Try again later.");
+}

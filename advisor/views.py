@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.negotiation import BaseContentNegotiation
 from rest_framework.permissions import AllowAny
@@ -15,9 +16,11 @@ from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
 from .limits import take_question
+from .models import QuestionLog
 from .pob import split_build_link
 from .prompts import Turn
-from .rag import Event, answer, answer_stream
+from .questionlog import record
+from .rag import Answer, Event, Source, answer_stream
 
 DAILY_LIMIT_MESSAGE = (
     "The demo has reached today's limit of {limit} questions. "
@@ -42,6 +45,12 @@ class AskSerializer(serializers.Serializer):
     history = TurnSerializer(many=True, required=False, default=list, max_length=20)
 
 
+class FeedbackSerializer(serializers.Serializer):
+    log_id = serializers.UUIDField()
+    rating = serializers.ChoiceField(choices=[1, -1])
+    feedback = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
+
+
 class StreamFriendlyNegotiation(BaseContentNegotiation):
     """Don't reject `Accept: text/event-stream`.
 
@@ -58,6 +67,10 @@ class StreamFriendlyNegotiation(BaseContentNegotiation):
 
 class AskThrottle(AnonRateThrottle):
     scope = "ask"
+
+
+class FeedbackThrottle(AnonRateThrottle):
+    scope = "feedback"
 
 
 def sse(events: Iterator[Event]) -> Iterator[str]:
@@ -94,16 +107,67 @@ class AskView(APIView):
             "history": [Turn(t["question"], t["answer"]) for t in data["history"]],
         }
 
+        context = {
+            "build": options["build"],
+            "history": [{"question": t.question, "answer": t.answer} for t in options["history"]],
+            "doc_types": list(data["doc_types"]),
+        }
+        events = record(answer_stream(question, **options), question, **context)
+
         if not data["stream"]:
-            return Response(answer(question, **options).as_dict())
+            return Response(collect(events))
 
         response = StreamingHttpResponse(
-            sse(answer_stream(question, **options)),
+            sse(events),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"  # don't let proxies buffer the stream
         return response
+
+
+def collect(events: Iterator[Event]) -> dict:
+    """The JSON answer for stream=false, built from the same events as the stream."""
+    result = Answer()
+    log_id = ""
+    for event in events:
+        match event["type"]:
+            case "sources":
+                result.sources = [Source(**s) for s in event["sources"]]
+            case "delta":
+                result.text += event["text"]
+            case "tool_result":
+                result.tools.append(
+                    {"name": event["name"], "ok": event["ok"], "preview": event.get("preview", "")}
+                )
+            case "pob_export":
+                result.pob_export = event["code"]
+            case "done":
+                result.cited = event["cited"]
+                result.patch = event["patch"]
+                log_id = event.get("log_id", "")
+            case "error":
+                result.error = event["message"]
+    return {**result.as_dict(), "log_id": log_id}
+
+
+class FeedbackView(APIView):
+    """POST a rating (1 or -1) and an optional note for an answer, by its log id."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+    throttle_classes = [FeedbackThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = FeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        updated = QuestionLog.objects.filter(id=data["log_id"]).update(
+            rating=data["rating"], feedback=data["feedback"].strip(), rated_at=timezone.now()
+        )
+        if not updated:
+            return Response({"detail": "That answer isn't known."}, status=404)
+        return Response({"ok": True})
 
 
 def frontend(request: HttpRequest) -> HttpResponse:

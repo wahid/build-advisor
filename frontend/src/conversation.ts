@@ -16,6 +16,9 @@ export interface ChatTurn {
   searchTerms: string;
   patch: string;
   error: string;
+  /** The server's id for this answer, for feedback. */
+  logId?: string;
+  rating?: 1 | -1;
 }
 
 /** What the server gets for each earlier turn. */
@@ -82,7 +85,7 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "pob_export":
       return { ...turn, exportCode: event.code };
     case "done":
-      return { ...turn, cited: event.cited, patch: event.patch || turn.patch, status: "done" };
+      return { ...turn, cited: event.cited, patch: event.patch || turn.patch, status: "done", logId: event.log_id };
     case "error":
       return { ...turn, error: event.message, status: "error" };
   }

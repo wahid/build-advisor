@@ -1,0 +1,28 @@
+{% extends "admin/change_list.html" %}
+{% block content_title %}
+  {{ block.super }}
+  <table style="margin: 0.5rem 0 1.5rem; min-width: 60%;">
+    <thead>
+      <tr>
+        <th></th><th>Questions</th><th>First word</th><th>Full answer</th><th>Tokens in / out</th>
+        <th>Web searches</th><th>Cost (USD)</th><th>Per question</th><th>👍 / 👎</th><th>Errors</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for label, s in periods %}
+        <tr>
+          <th>{{ label }}</th>
+          <td>{{ s.questions }}</td>
+          <td>{% if s.first_token_ms %}{{ s.first_token_ms|floatformat:0 }} ms{% else %}–{% endif %}</td>
+          <td>{% if s.total_ms %}{{ s.total_ms|floatformat:0 }} ms{% else %}–{% endif %}</td>
+          <td>{{ s.prompt_tokens|default:0 }} / {{ s.completion_tokens|default:0 }}</td>
+          <td>{{ s.web_searches|default:0 }}</td>
+          <td>{{ s.cost|default:0|floatformat:4 }}</td>
+          <td>{% if s.cost_per_question %}{{ s.cost_per_question|floatformat:5 }}{% else %}–{% endif %}</td>
+          <td>{{ s.up }} / {{ s.down }}</td>
+          <td>{{ s.errors }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

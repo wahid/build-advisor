@@ -2,17 +2,19 @@ import { useState } from "react";
 
 import { AnswerText } from "./answerText";
 import type { ChatTurn } from "./conversation";
+import { Feedback } from "./Feedback";
 import { PobExport, PobSteps } from "./PobPanel";
 import { groupSources, SourceCard } from "./SourceCard";
 
 interface Props {
   turn: ChatTurn;
+  onRated: (rating: 1 | -1) => void;
   /** Only the latest turn announces its streaming text to screen readers. */
   isLatest: boolean;
 }
 
 /** One exchange: the question as a bubble, then the answer; its sources fold out once it's done. */
-export function TurnView({ turn, isLatest }: Props) {
+export function TurnView({ turn, isLatest, onRated }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
   const busy = turn.status === "searching" || turn.status === "answering";
   const groups = groupSources(turn.sources);
@@ -59,6 +61,9 @@ export function TurnView({ turn, isLatest }: Props) {
               ))}
             </ul>
           </details>
+        )}
+        {turn.status === "done" && turn.logId && (
+          <Feedback logId={turn.logId} rating={turn.rating} onRated={onRated} />
         )}
       </article>
     </section>

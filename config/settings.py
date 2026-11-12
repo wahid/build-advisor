@@ -120,7 +120,10 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    "DEFAULT_THROTTLE_RATES": {"ask": env("ASK_RATE_LIMIT", default="60/hour")},
+    "DEFAULT_THROTTLE_RATES": {
+        "ask": env("ASK_RATE_LIMIT", default="60/hour"),
+        "feedback": env("FEEDBACK_RATE_LIMIT", default="120/hour"),
+    },
 }
 # Questions per day for the whole site (UTC days); 0 = no limit. Protects the LLM budget.
 ASK_DAILY_LIMIT = env.int("ASK_DAILY_LIMIT", default=100)
@@ -208,6 +211,18 @@ POB_ENABLED = env.bool("POB_ENABLED", default=bool(POB_PATH) and Path(POB_PATH).
 POB_POOL_SIZE = env.int("POB_POOL_SIZE", default=1)  # PoB processes per web/worker process
 POB_TOOL_TIMEOUT = env.float("POB_TOOL_TIMEOUT", default=90.0)
 POB_MAX_TOOL_ROUNDS = env.int("POB_MAX_TOOL_ROUNDS", default=8)
+
+# Token usage per answer (OpenAI-style stream_options); Anthropic's endpoint may not take it.
+LLM_STREAM_USAGE = env.bool("LLM_STREAM_USAGE", default=LLM_PROVIDER != "anthropic")
+# Prices in USD per million tokens, for the cost in the question log. Defaults: DeepSeek's
+# peak prices for deepseek-flash (an upper bound; off-peak is half); 0 for other models.
+_flash = LLM_MODEL == "deepseek-flash"
+LLM_PRICE_INPUT = env.float("LLM_PRICE_INPUT", default=0.30 if _flash else 0.0)
+LLM_PRICE_CACHED_INPUT = env.float("LLM_PRICE_CACHED_INPUT", default=0.006 if _flash else 0.0)
+LLM_PRICE_OUTPUT = env.float("LLM_PRICE_OUTPUT", default=1.20 if _flash else 0.0)
+WEB_SEARCH_PRICE = env.float("WEB_SEARCH_PRICE", default=0.00075)  # USD per search
+# Keep a QuestionLog per answer (traces, costs, feedback in the admin).
+QUESTION_LOG_ENABLED = env.bool("QUESTION_LOG_ENABLED", default=True)
 
 # Web search through DeepSeek's Search API (same key); off for other providers.
 WEB_SEARCH_ENABLED = env.bool(

@@ -17,7 +17,7 @@ export type AskEvent =
   | { type: "tool_call"; id: string; name: string; arguments: Record<string, unknown> }
   | { type: "tool_result"; id: string; name: string; ok: boolean; error: string }
   | { type: "pob_export"; code: string }
-  | { type: "done"; cited: number[]; patch: string }
+  | { type: "done"; cited: number[]; patch: string; log_id?: string }
   | { type: "error"; message: string };
 
 export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = [

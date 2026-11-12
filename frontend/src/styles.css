@@ -592,6 +592,72 @@ a {
   background: rgba(216, 106, 90, 0.08);
 }
 
+/* --- Feedback under an answer ---------------------------------------------- */
+
+.feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.feedback-button,
+.feedback-send,
+.feedback-cancel {
+  padding: 0.1rem 0.75rem;
+  font: inherit;
+  color: var(--parchment);
+  background: none;
+  border: 1px solid var(--stone-edge);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.feedback-button:hover,
+.feedback-send:hover {
+  border-color: var(--mechanic);
+}
+
+.feedback-form {
+  width: 100%;
+}
+
+.feedback-label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.feedback-note {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  color: var(--parchment);
+  background: var(--stone-raised);
+  border: 1px solid var(--stone-edge);
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.feedback-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.feedback-thanks {
+  margin: 1rem 0 0;
+  font-size: var(--step--1);
+  font-style: italic;
+  color: var(--parchment-dim);
+}
+
+.feedback-error {
+  color: var(--danger);
+}
+
 /* --- Path of Building steps and export ----------------------------------- */
 
 .pob {

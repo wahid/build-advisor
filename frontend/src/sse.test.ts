@@ -71,3 +71,20 @@ describe("ask", () => {
     await expect(ask("q", { fetchImpl: fakeFetch }).next()).rejects.toThrow(/Wait a few minutes/);
   });
 });
+
+describe("sendFeedback", () => {
+  it("posts the rating for an answer", async () => {
+    const { sendFeedback } = await import("./api");
+    let body: unknown;
+    const fakeFetch = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(init.body as string);
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    await sendFeedback("abc", -1, "missed bleed", fakeFetch);
+
+    expect(body).toEqual({ log_id: "abc", rating: -1, feedback: "missed bleed" });
+    const failing = (async () => new Response("{}", { status: 404 })) as typeof fetch;
+    await expect(sendFeedback("abc", 1, "", failing)).rejects.toThrow("couldn't be sent");
+  });
+});

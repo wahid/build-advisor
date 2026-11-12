@@ -147,7 +147,7 @@ def test_build_links_are_taken_out_of_the_question(question, expected) -> None:
 
 @pytest.mark.django_db
 def test_ask_endpoint_loads_a_build_link_from_the_question(client, mocker) -> None:
-    stream = mocker.patch("advisor.views.answer", return_value=mocker.Mock(as_dict=dict))
+    stream = mocker.patch("advisor.views.answer_stream", return_value=iter([]))
     body = {"question": "Is it tanky? https://pobb.in/abc", "stream": False, "build": "eNrOLD"}
 
     assert client.post("/api/ask/", body, content_type="application/json").status_code == 200
