@@ -96,7 +96,7 @@ export function toHistory(turns: ChatTurn[]): HistoryTurn[] {
     .map((turn) => ({ question: turn.question, answer: turn.answer }));
 }
 
-/** The finished turns of the last conversation in this browser, if any. */
+/** The single conversation an older version kept (migrated into the chat list). */
 export function loadConversation(): ChatTurn[] {
   try {
     const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]") as ChatTurn[];
@@ -106,15 +106,6 @@ export function loadConversation(): ChatTurn[] {
   }
 }
 
-export function saveConversation(turns: ChatTurn[]): void {
-  try {
-    const finished = turns.filter((turn) => turn.status === "done" || turn.status === "error");
-    if (finished.length) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(finished));
-    else window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Storage can be full or blocked; the conversation just isn't kept.
-  }
-}
 
 export function loadAttachedBuild(): AttachedBuild {
   try {
@@ -126,11 +117,88 @@ export function loadAttachedBuild(): AttachedBuild {
   return { build: "", changed: false };
 }
 
-export function saveAttachedBuild(attached: AttachedBuild): void {
+
+/** One chat in the sidebar: its turns and the build attached to it. */
+export interface Conversation {
+  id: string;
+  title: string;
+  updatedAt: number;
+  turns: ChatTurn[];
+  build: string;
+  buildChanged: boolean;
+}
+
+const CHATS_KEY = "build-advisor:chats";
+export const MAX_CONVERSATIONS = 50; // the oldest beyond this are dropped
+const TITLE_CHARS = 60;
+
+export function newConversation(id: string, now = Date.now()): Conversation {
+  return { id, title: "New chat", updatedAt: now, turns: [], build: "", buildChanged: false };
+}
+
+/** A chat is named after its first question. */
+export function titleFor(turns: ChatTurn[]): string {
+  const first = turns[0]?.question.replace(/\s+/g, " ").trim();
+  if (!first) return "New chat";
+  return first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1)}…` : first;
+}
+
+function finished(turns: ChatTurn[]): ChatTurn[] {
+  return turns.filter((turn) => turn.status === "done" || turn.status === "error");
+}
+
+/** Saved chats, newest first. The single conversation an older version kept becomes the first chat. */
+export function loadConversations(): Conversation[] {
   try {
-    if (attached.build.trim()) window.localStorage.setItem(BUILD_KEY, JSON.stringify(attached));
-    else window.localStorage.removeItem(BUILD_KEY);
+    const saved = JSON.parse(window.localStorage.getItem(CHATS_KEY) ?? "null") as Conversation[] | null;
+    if (Array.isArray(saved)) {
+      return saved
+        .filter((c) => c && typeof c.id === "string" && Array.isArray(c.turns))
+        .map((c) => ({ ...c, turns: finished(c.turns) }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+    const turns = loadConversation();
+    if (turns.length) {
+      const attached = loadAttachedBuild();
+      const migrated = newConversation("chat-migrated");
+      return [{ ...migrated, title: titleFor(turns), turns, build: attached.build, buildChanged: attached.changed }];
+    }
   } catch {
-    // Storage can be full or blocked; the build just isn't kept.
+    // fall through: start without saved chats
+  }
+  return [];
+}
+
+/** Keeps chats that have at least one finished turn; unfinished turns are left out. */
+export function saveConversations(conversations: Conversation[]): void {
+  try {
+    const kept = conversations
+      .map((c) => ({ ...c, turns: finished(c.turns) }))
+      .filter((c) => c.turns.length > 0)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_CONVERSATIONS);
+    window.localStorage.setItem(CHATS_KEY, JSON.stringify(kept));
+    window.localStorage.removeItem(STORAGE_KEY); // the single-conversation format is migrated
+    window.localStorage.removeItem(BUILD_KEY);
+  } catch {
+    // Storage can be full or blocked; the chats just aren't kept.
+  }
+}
+
+const ACTIVE_KEY = "build-advisor:active-chat";
+
+export function loadActiveId(): string {
+  try {
+    return window.localStorage.getItem(ACTIVE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveActiveId(id: string): void {
+  try {
+    window.localStorage.setItem(ACTIVE_KEY, id);
+  } catch {
+    // not kept; the newest chat opens instead
   }
 }

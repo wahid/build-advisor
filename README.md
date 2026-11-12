@@ -133,8 +133,9 @@ document embeddings are already in the database.
 ## Frontend
 
 React + TypeScript (Vite) in `frontend/`, laid out as a chat: ask follow-ups
-in the same conversation, attach a build once and it stays attached, start
-over with "New chat" (the last conversation is kept in the browser). Each
+in the same conversation, attach a build once and it stays attached, and go
+back to earlier chats from the sidebar (up to 50, kept in the browser's local
+storage, each with its own attached build; there are no accounts). Each
 answer has its sources below it, drawn like in-game item tooltips, coloured
 by page type (gems teal, uniques orange, ascendancies
 blue, mechanics gold); citation markers in the answer share their source's

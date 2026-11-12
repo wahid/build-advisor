@@ -3,12 +3,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyEvent,
   findBuildLink,
-  loadAttachedBuild,
+  loadConversations,
   MAX_HISTORY,
+  newConversation,
   newTurn,
-  saveAttachedBuild,
+  saveConversations,
+  titleFor,
   toHistory,
   type ChatTurn,
+  type Conversation,
 } from "./conversation";
 
 const source = {
@@ -74,13 +77,13 @@ describe("findBuildLink", () => {
   });
 });
 
-describe("attached build", () => {
+describe("saved chats", () => {
   afterEach(() => {
     delete (globalThis as { window?: unknown }).window;
   });
 
-  function fakeStorage() {
-    const items = new Map<string, string>();
+  function fakeStorage(initial: Record<string, string> = {}) {
+    const items = new Map<string, string>(Object.entries(initial));
     (globalThis as { window?: unknown }).window = {
       localStorage: {
         getItem: (key: string) => items.get(key) ?? null,
@@ -91,17 +94,52 @@ describe("attached build", () => {
     return items;
   }
 
-  it("survives a reload and is cleared when removed", () => {
-    const items = fakeStorage();
-    saveAttachedBuild({ build: "eNrCHANGED", changed: true });
-    expect(loadAttachedBuild()).toEqual({ build: "eNrCHANGED", changed: true });
-    saveAttachedBuild({ build: "", changed: false });
-    expect(items.size).toBe(0);
-    expect(loadAttachedBuild()).toEqual({ build: "", changed: false });
+  const chat = (id: string, updatedAt: number, turns: ChatTurn[]): Conversation => ({
+    ...newConversation(id, updatedAt),
+    title: titleFor(turns),
+    turns,
+  });
+
+  it("keeps chats with finished turns, newest first", () => {
+    fakeStorage();
+    const running = newTurn("r", "still going");
+    saveConversations([
+      chat("old", 1, [answered("first question", "a")]),
+      chat("empty", 3, []),
+      chat("new", 2, [answered("second question", "b"), running]),
+    ]);
+
+    const loaded = loadConversations();
+
+    expect(loaded.map((c) => c.id)).toEqual(["new", "old"]);
+    expect(loaded[0].turns.map((t) => t.question)).toEqual(["second question"]);
+    expect(loaded[1].title).toBe("first question");
+  });
+
+  it("moves the conversation an older version kept into the chat list", () => {
+    const old = [answered("How does poison work?", "It stacks.")];
+    const items = fakeStorage({
+      "build-advisor:conversation": JSON.stringify(old),
+      "build-advisor:build": JSON.stringify({ build: "eNrCODE", changed: true }),
+    });
+
+    const loaded = loadConversations();
+
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]).toMatchObject({ title: "How does poison work?", build: "eNrCODE", buildChanged: true });
+    saveConversations(loaded);
+    expect(items.has("build-advisor:conversation")).toBe(false);
+    expect(loadConversations()[0].turns[0].answer).toBe("It stacks.");
+  });
+
+  it("names a chat after its first question", () => {
+    expect(titleFor([])).toBe("New chat");
+    expect(titleFor([answered("  What   scales ignite? ", "a")])).toBe("What scales ignite?");
+    expect(titleFor([answered("x".repeat(80), "a")])).toHaveLength(60);
   });
 
   it("works without storage", () => {
-    expect(loadAttachedBuild()).toEqual({ build: "", changed: false });
-    expect(() => saveAttachedBuild({ build: "x", changed: false })).not.toThrow();
+    expect(loadConversations()).toEqual([]);
+    expect(() => saveConversations([])).not.toThrow();
   });
 });

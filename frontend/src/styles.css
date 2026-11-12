@@ -65,11 +65,121 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+  margin-left: var(--sidebar-width);
 }
 
-.app-empty {
-  justify-content: center;
+.app-empty .welcome {
   padding: 2rem 1rem 1rem;
+}
+
+/* --- Sidebar: earlier chats ------------------------------------------------- */
+
+:root {
+  --sidebar-width: 16rem;
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  background: #191512;
+  border-right: 1px solid var(--stone-edge);
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+}
+
+.sidebar-name {
+  font-family: var(--small-caps);
+  font-weight: 700;
+  font-size: var(--step-1);
+  color: var(--mechanic);
+}
+
+.chat-list {
+  flex: 1;
+  margin: 0;
+  padding: 0.25rem 0.5rem 1rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.chat-item:hover,
+.chat-item[data-active] {
+  background: var(--stone-raised);
+}
+
+.chat-open {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.5rem;
+  overflow: hidden;
+  font: inherit;
+  font-size: var(--step--1);
+  line-height: 1.35;
+  color: var(--parchment-dim);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.chat-item[data-active] .chat-open,
+.chat-open:hover {
+  color: var(--parchment);
+}
+
+.chat-delete {
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--parchment-dim);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.chat-item:hover .chat-delete,
+.chat-item[data-active] .chat-delete,
+.chat-delete:focus-visible {
+  opacity: 1;
+}
+
+.chat-delete:hover {
+  color: var(--danger);
+}
+
+.chat-empty {
+  margin: 0.5rem 1rem;
+  font-size: var(--step--1);
+  font-style: italic;
+  color: var(--parchment-dim);
+}
+
+.sidebar-backdrop,
+.menu-button {
+  display: none;
 }
 
 .welcome {
@@ -123,10 +233,10 @@ a {
 }
 
 .topbar {
+  display: none; /* phones only: on wider screens the sidebar has the name and New chat */
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.6rem 1.25rem;
@@ -738,6 +848,46 @@ a {
 
 /* --- Small screens ----------------------------------------------------------- */
 
+@media (max-width: 900px) {
+  .app {
+    margin-left: 0;
+  }
+
+  .topbar {
+    display: flex;
+  }
+
+  .menu-button {
+    display: inline-flex;
+    padding: 0.3rem 0.8rem;
+    font: inherit;
+    font-size: var(--step--1);
+    color: var(--parchment);
+    background: none;
+    border: 1px solid var(--stone-edge);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+  }
+
+  .sidebar[data-open] {
+    transform: none;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.5);
+    border: 0;
+  }
+}
+
 @media (max-width: 560px) {
   .wordmark {
     font-size: var(--step-2);
@@ -757,6 +907,10 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+
   .tooltip {
     transition: none;
   }
