@@ -1,5 +1,5 @@
 import type { ToolStep } from "./PobPanel";
-import type { AskEvent, Comparison, Source } from "./types";
+import type { AskEvent, Comparison, Entity, Source } from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -20,6 +20,8 @@ export interface ChatTurn {
   logId?: string;
   rating?: 1 | -1;
   comparison?: Comparison;
+  /** Game names in the answer, for hover cards. */
+  entities?: Entity[];
 }
 
 /** What the server gets for each earlier turn. */
@@ -97,7 +99,14 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "comparison":
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "done":
-      return { ...turn, cited: event.cited, patch: event.patch || turn.patch, status: "done", logId: event.log_id };
+      return {
+        ...turn,
+        cited: event.cited,
+        patch: event.patch || turn.patch,
+        status: "done",
+        logId: event.log_id,
+        entities: event.entities ?? [],
+      };
     case "error":
       return { ...turn, error: event.message, status: "error" };
   }

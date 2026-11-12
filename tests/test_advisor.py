@@ -102,7 +102,9 @@ def test_answer_stream_sends_sources_then_deltas_then_done(embedder: FakeEmbedde
     sources = events[0]["sources"]
     assert sources[0]["number"] == 1
     assert {"title", "section", "url", "patch", "doc_type"} <= set(sources[0])
-    assert events[-1] == {"type": "done", "cited": [1, 2], "patch": "3.29.3c"}
+    done = events[-1]
+    assert (done["type"], done["cited"], done["patch"]) == ("done", [1, 2], "3.29.3c")
+    assert [e["name"] for e in done["entities"]] == ["Righteous Fire"]  # named in the answer
     assert provider.messages[1]["content"].endswith("Question: Righteous Fire")
 
 

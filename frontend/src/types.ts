@@ -48,7 +48,7 @@ export type AskEvent =
   | { type: "tool_result"; id: string; name: string; ok: boolean; error: string }
   | { type: "pob_export"; code: string }
   | ({ type: "comparison" } & Comparison)
-  | { type: "done"; cited: number[]; patch: string; log_id?: string }
+  | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[] }
   | { type: "error"; message: string };
 
 export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = [

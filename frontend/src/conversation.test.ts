@@ -36,7 +36,9 @@ describe("applyEvent", () => {
     expect(turn.patch).toBe("3.29.3c");
     turn = applyEvent(turn, { type: "delta", text: "Every poison " });
     turn = applyEvent(turn, { type: "delta", text: "counts [1]." });
-    turn = applyEvent(turn, { type: "done", cited: [1], patch: "3.29.3c" });
+    const entity = { name: "Poison", doc_type: "mechanic" as const, url: "u", summary: "s" };
+    turn = applyEvent(turn, { type: "done", cited: [1], patch: "3.29.3c", entities: [entity] });
+    expect(turn.entities).toEqual([entity]);
     expect(turn.answer).toBe("Every poison counts [1].");
     expect(turn.cited).toEqual([1]);
     expect(turn.status).toBe("done");

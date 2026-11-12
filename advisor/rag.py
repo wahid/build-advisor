@@ -26,6 +26,7 @@ from typing import Any
 from django.conf import settings
 
 from wiki.embeddings import Embedder
+from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import compare as build_compare
@@ -566,7 +567,12 @@ def _converse(
     logger.debug(
         "Answered %r with %s/%s: %d chars", question, provider.name, provider.model, len(full)
     )
-    yield {"type": "done", "cited": cited_numbers(full, len(sources)), "patch": patch}
+    yield {
+        "type": "done",
+        "cited": cited_numbers(full, len(sources)),
+        "patch": patch,
+        "entities": entities_in(full),
+    }
 
 
 def answer(question: str, **kwargs: Any) -> Answer:

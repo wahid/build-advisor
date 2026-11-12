@@ -36,7 +36,7 @@ export function TurnView({ turn, isLatest, onRated }: Props) {
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}
         <div className="answer-text" data-streaming={turn.status === "answering" || undefined}>
-          <AnswerText text={turn.answer} sources={turn.sources} onCiteHover={setHovered} />
+          <AnswerText text={turn.answer} sources={turn.sources} entities={turn.entities} onCiteHover={setHovered} />
         </div>
         {turn.exportCode && <PobExport code={turn.exportCode} />}
         {turn.error && (
