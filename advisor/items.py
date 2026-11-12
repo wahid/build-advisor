@@ -14,6 +14,7 @@ from typing import Any
 
 from .compare import STATS
 from .pob import PobToolbox, PobToolError
+from .progress import Progress, Steps, drain
 
 SEPARATOR = "--------"
 MAX_ITEM_TEXT = 6000
@@ -241,6 +242,10 @@ def _equipped(toolbox: PobToolbox) -> dict[str, str]:
 
 
 def check_item(toolbox: PobToolbox, item: Item) -> dict[str, Any]:
+    return drain(check_item_steps(toolbox, item))
+
+
+def check_item_steps(toolbox: PobToolbox, item: Item) -> Steps[dict[str, Any]]:
     """Try the item on the loaded build in every slot it fits; report the best one.
 
     The build is left exactly as it was (compare_changes restores it).
@@ -254,7 +259,8 @@ def check_item(toolbox: PobToolbox, item: Item) -> dict[str, Any]:
     equipped = _equipped(toolbox)
     best: tuple[float, str, dict[str, Any]] | None = None
     error = ""
-    for slot in item.slots:
+    for done, slot in enumerate(item.slots, start=1):
+        yield Progress(done, len(item.slots), slot)
         edit = {"op": "equip_item", "slot": slot, "item_text": item.text}
         result = toolbox.call_internal(
             "compare_changes", {"edits": [edit], "extra_stats": [key for key, _, _ in STATS]}

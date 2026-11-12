@@ -35,6 +35,7 @@ from . import compare as build_compare
 from . import gemrank, items, leveling, passives, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
+from .progress import Steps
 from .prompts import NO_SOURCES_ANSWER, Turn, build_messages
 from .rewrite import rewrite_question
 
@@ -152,6 +153,19 @@ def _for_model(text: str) -> str:
     return text[:MAX_TOOL_RESULT_CHARS] + "\n… (result truncated; ask for fewer stats)"
 
 
+ToolSteps = Generator[Event, None, tuple[list[Event], str]]
+
+
+def _follow[T](call: ToolCall, steps: Steps[T]) -> Generator[Event, None, T]:
+    """Pass a slow tool's progress on as tool_progress events; return its result."""
+    while True:
+        try:
+            progress = next(steps)
+        except StopIteration as stop:
+            return stop.value
+        yield progress.event(call.id, call.name)
+
+
 class _ToolRunner:
     """Runs one round of tool calls and records them for the conversation.
 
@@ -169,13 +183,13 @@ class _ToolRunner:
         self.question = question
         self.web_searches = 0
 
-    def _rank_skill_gems(
-        self, call: ToolCall, arguments: dict[str, Any]
-    ) -> tuple[list[Event], str]:
+    def _rank_skill_gems(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
         assert self.toolbox is not None
         ranker = gemrank.GemRanker(self.toolbox.call_internal)
         try:
-            result = ranker.run(arguments, build_loaded=self.toolbox.has_build)
+            result = yield from _follow(
+                call, ranker.steps(arguments, build_loaded=self.toolbox.has_build)
+            )
         except (gemrank.GemRankError, PobToolError) as exc:
             return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
         text = json.dumps(result, ensure_ascii=False)
@@ -183,17 +197,16 @@ class _ToolRunner:
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         return events, _for_model(text)
 
-    def _suggest_passives(
-        self, call: ToolCall, arguments: dict[str, Any]
-    ) -> tuple[list[Event], str]:
+    def _suggest_passives(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
         assert self.toolbox is not None
         if not self.toolbox.has_build:
             return self._events(call, arguments, ok=False, error=NO_BUILD_ERROR), NO_BUILD_ERROR
         try:
             summary = self.toolbox.call_internal("get_build_summary", {}).data
-            result = passives.suggest(
+            steps = passives.suggest_steps(
                 self.toolbox.call_internal, summary if isinstance(summary, dict) else {}, arguments
             )
+            result = yield from _follow(call, steps)
         except PobToolError as exc:
             return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
         text = json.dumps(result, ensure_ascii=False)
@@ -246,22 +259,42 @@ class _ToolRunner:
         return events, text
 
     def run(self, call: ToolCall) -> tuple[list[Event], str]:
-        """Return (events for the client, text for the model)."""
+        """Run a tool to the end: (events for the client, text for the model)."""
+        steps = self.stream(call)
+        started: list[Event] = []
+        while True:
+            try:
+                event = next(steps)
+            except StopIteration as stop:
+                rest, text = stop.value
+                return started + rest, text
+            if event["type"] == "tool_call":
+                started.append(event)
+
+    def stream(self, call: ToolCall) -> ToolSteps:
+        """Run a tool, yielding its tool_call event at once and progress while it works.
+
+        Returns (the other events for the client, text for the model).
+        """
         try:
             arguments = json.loads(call.arguments or "{}")
             if not isinstance(arguments, dict):
                 raise ValueError("arguments must be a JSON object")
         except ValueError as exc:
-            arguments = {}
-            error = f"Invalid JSON arguments: {exc}"
-            return self._events(call, arguments, ok=False, error=error), error
+            arguments, error = {}, f"Invalid JSON arguments: {exc}"
+            yield self._events(call, arguments, ok=False, error=error)[0]
+            return self._events(call, arguments, ok=False, error=error)[1:], error
+        yield self._events(call, arguments, ok=True, error="")[0]
+        events, text = yield from self._dispatch(call, arguments)
+        return [e for e in events if e["type"] != "tool_call"], text
 
+    def _dispatch(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
         if call.name == websearch.TOOL_NAME:
             return self._web_search(call, arguments)
         if call.name == gemrank.TOOL_NAME and self.toolbox is not None:
-            return self._rank_skill_gems(call, arguments)
+            return (yield from self._rank_skill_gems(call, arguments))
         if call.name == passives.TOOL_NAME and self.toolbox is not None:
-            return self._suggest_passives(call, arguments)
+            return (yield from self._suggest_passives(call, arguments))
         if call.name == leveling.TOOL_NAME:
             return self._quest_rewards(call, arguments)
         if self.toolbox is None:
@@ -436,7 +469,10 @@ def answer_stream(
                     "arguments": {},
                 }
                 try:
-                    comparison = build_compare.compare(toolbox, build, compare_build)
+                    comparison = yield from _follow(
+                        ToolCall("compare-build", "compare_builds", ""),
+                        build_compare.compare_steps(toolbox, build, compare_build),
+                    )
                 except PobToolError as exc:
                     yield {
                         "type": "tool_result",
@@ -503,7 +539,9 @@ def _check_item(
     """Try a pasted item on the loaded build; returns (result, why it wasn't tried)."""
     yield {"type": "tool_call", "id": "check-item", "name": "check_item", "arguments": {}}
     try:
-        result = items.check_item(toolbox, pasted)
+        result = yield from _follow(
+            ToolCall("check-item", "check_item", ""), items.check_item_steps(toolbox, pasted)
+        )
     except (items.ItemError, PobToolError) as exc:
         yield {
             "type": "tool_result",
@@ -632,8 +670,9 @@ def _converse(
                 assistant["reasoning_content"] = reasoning
             messages.append(assistant)
             for call in calls:
-                events, result = runner.run(call)
-                changed |= call.name in MODIFYING_TOOLS and events[1]["ok"]
+                events, result = yield from runner.stream(call)
+                ok = any(e["type"] == "tool_result" and e["ok"] for e in events)
+                changed |= call.name in MODIFYING_TOOLS and ok
                 exported |= any(e["type"] == "pob_export" for e in events)
                 yield from events
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result})

@@ -79,6 +79,16 @@ test("an item pasted from the game is tried on the build", async ({ page, reques
   expect(sent.question).toBe("");
 });
 
+test("a slow tool shows how far it is", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#question").fill("What is the strongest slam for a Slayer?");
+  await page.keyboard.press("Enter");
+
+  const step = page.locator(".pob-step[data-status=running]");
+  await expect(step.locator(".pob-count")).toHaveText(/^\d of 3: \w+/);
+  await expect(page.locator(".pob-step[data-status=ok]")).toContainText("Ranked skill gems");
+});
+
 test("the last question can be edited and asked again in place", async ({ page }) => {
   await ask(page, "How does poison stak?");
 

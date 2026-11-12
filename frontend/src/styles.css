@@ -1111,6 +1111,33 @@ a {
   background: var(--danger);
 }
 
+.pob-count,
+.pob-seconds {
+  color: var(--parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pob-bar {
+  display: block;
+  width: min(14rem, 100%);
+  height: 2px;
+  margin-top: 0.3rem;
+  background: var(--stone-edge);
+}
+
+.pob-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--mechanic);
+  transition: width 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pob-bar > span {
+    transition: none;
+  }
+}
+
 .pob-error {
   color: var(--danger);
 }

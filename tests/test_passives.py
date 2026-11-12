@@ -105,3 +105,21 @@ def test_the_tool_needs_a_build() -> None:
     events, text = runner.run(ToolCall("c1", "suggest_passives", "{}"))
 
     assert text == NO_BUILD_ERROR and events[-1]["ok"] is False
+
+
+def test_progress_streams_after_the_tool_starts() -> None:
+    runner = _ToolRunner(PassiveToolbox(has_build=True))
+
+    steps = runner.stream(ToolCall("c1", "suggest_passives", "{}"))
+    seen = []
+    while True:
+        try:
+            seen.append(next(steps))
+        except StopIteration as stop:
+            rest, _text = stop.value
+            break
+
+    assert [e["type"] for e in seen] == ["tool_call", "tool_progress", "tool_progress"]
+    assert (seen[1]["done"], seen[1]["total"], seen[1]["label"]) == (0, 2, "damage")
+    assert seen[2]["id"] == "c1" and seen[2]["name"] == "suggest_passives"
+    assert [e["type"] for e in rest] == ["tool_result", "passive_ranking"]

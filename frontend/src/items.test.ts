@@ -51,3 +51,14 @@ describe("leveling lookups", () => {
     expect(both.class_name).toBe("Duelist");
   });
 });
+
+describe("tool progress", () => {
+  it("is kept on the running step", () => {
+    let turn = newTurn("t1", "strongest slam?");
+    turn = applyEvent(turn, { type: "tool_call", id: "c1", name: "rank_skill_gems", arguments: {} });
+    turn = applyEvent(turn, { type: "tool_progress", id: "c1", name: "rank_skill_gems", done: 13, total: 40, label: "Ground Slam" });
+
+    expect(turn.steps[0].progress).toEqual({ done: 13, total: 40, label: "Ground Slam" });
+    expect(turn.steps[0].startedAt).toBeGreaterThan(0);
+  });
+});

@@ -116,6 +116,7 @@ export type AskEvent =
   | { type: "delta"; text: string }
   | { type: "tool_call"; id: string; name: string; arguments: Record<string, unknown> }
   | { type: "tool_result"; id: string; name: string; ok: boolean; error: string }
+  | { type: "tool_progress"; id: string; name: string; done: number; total: number; label: string }
   | { type: "pob_export"; code: string }
   | ({ type: "comparison" } & Comparison)
   | { type: "item"; item: PastedItem }

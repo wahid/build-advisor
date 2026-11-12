@@ -48,7 +48,9 @@ describe("applyEvent", () => {
     let turn = newTurn("t1", "q");
     turn = applyEvent(turn, { type: "tool_call", id: "a", name: "load_build", arguments: {} });
     turn = applyEvent(turn, { type: "tool_result", id: "a", name: "load_build", ok: false, error: "bad code" });
-    expect(turn.steps).toEqual([{ id: "a", name: "load_build", arguments: {}, status: "failed", error: "bad code" }]);
+    expect(turn.steps).toEqual([
+      { id: "a", name: "load_build", arguments: {}, status: "failed", error: "bad code", startedAt: expect.any(Number) },
+    ]);
   });
 });
 

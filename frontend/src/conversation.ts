@@ -112,13 +112,23 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "tool_call":
       return {
         ...turn,
-        steps: [...turn.steps, { id: event.id, name: event.name, arguments: event.arguments, status: "running" }],
+        steps: [
+          ...turn.steps,
+          { id: event.id, name: event.name, arguments: event.arguments, status: "running", startedAt: Date.now() },
+        ],
       };
     case "tool_result":
       return {
         ...turn,
         steps: turn.steps.map((step) =>
           step.id === event.id ? { ...step, status: event.ok ? "ok" : "failed", error: event.error } : step,
+        ),
+      };
+    case "tool_progress":
+      return {
+        ...turn,
+        steps: turn.steps.map((step) =>
+          step.id === event.id ? { ...step, progress: { done: event.done, total: event.total, label: event.label } } : step,
         ),
       };
     case "pob_export":

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface ToolStep {
   id: string;
@@ -6,7 +6,48 @@ export interface ToolStep {
   arguments: Record<string, unknown>;
   status: "running" | "ok" | "failed";
   error?: string;
+  /** When the step started (ms since the epoch), for the seconds counter. */
+  startedAt?: number;
+  /** How far a slow tool is: done of total, and what it's on. */
+  progress?: { done: number; total: number; label: string };
 }
+
+/** Seconds since `since`, updated every second while mounted. */
+function useElapsed(since: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
+}
+
+/** "14 of 40: Cyclone", and the seconds so far, for a step that's still running. */
+function RunningNote({ step }: { step: ToolStep }) {
+  const seconds = useElapsed(step.startedAt);
+  const progress = step.progress;
+  return (
+    <span className="pob-progress">
+      {progress && progress.total > 1 && (
+        <>
+          {" "}
+          <span className="pob-count">
+            {Math.min(progress.done + 1, progress.total)} of {progress.total}
+            {progress.label && `: ${progress.label}`}
+          </span>
+        </>
+      )}
+      {seconds >= 2 && <span className="pob-seconds"> {seconds} s</span>}
+      {progress && progress.total > 1 && (
+        <span className="pob-bar" aria-hidden="true">
+          <span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+const LOOKUPS = new Set(["web_search", "quest_rewards"]); // not Path of Building
 
 // Past tense once a step worked; the infinitive for "Couldn't ..." when it failed.
 const LABELS: Record<string, [done: string, failed: string]> = {
@@ -46,9 +87,38 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   export_build: ["Exported the build", "export the build"],
   price_check: ["Checked prices on poe.ninja", "check prices on poe.ninja"],
   web_search: ["Searched the web", "search the web"],
+  suggest_passives: ["Ranked passives for damage and toughness", "rank passives"],
 };
 
-export function stepLabel(name: string, failed = false, args: Record<string, unknown> = {}): string {
+// While they run, the slow steps say what they're doing.
+const RUNNING: Record<string, string> = {
+  load_build: "Loading your build",
+  compare_builds: "Comparing the builds",
+  check_item: "Trying your item on the build",
+  rank_skill_gems: "Ranking skill gems by damage",
+  rank_support_gems: "Ranking support gems",
+  rank_passives: "Ranking passive notables",
+  suggest_passives: "Ranking passives for damage and toughness",
+  rank_gear_upgrades: "Looking for gear upgrades",
+  rank_anoints: "Ranking anoints",
+  auto_allocate_passives: "Allocating passive points",
+  plan_leveling: "Planning the leveling trees",
+  evaluate_scenarios: "Comparing mapping and bossing",
+  quest_rewards: "Looking up quest rewards and vendors",
+  web_search: "Searching the web",
+};
+
+export function stepLabel(
+  name: string,
+  failed = false,
+  args: Record<string, unknown> = {},
+  running = false,
+): string {
+  if (running && RUNNING[name]) {
+    return name === "web_search" && typeof args.query === "string" && args.query
+      ? `Searching the web for “${args.query}”`
+      : RUNNING[name];
+  }
   if (name === "web_search" && typeof args.query === "string" && args.query) {
     return failed ? `Couldn't search the web for “${args.query}”` : `Searched the web for “${args.query}”`;
   }
@@ -60,9 +130,16 @@ export function stepLabel(name: string, failed = false, args: Record<string, unk
 /** What the tools (Path of Building, web search) did for this answer, step by step. */
 export function PobSteps({ steps }: { steps: ToolStep[] }) {
   if (!steps.length) return null;
-  const pob = steps.some((step) => step.name !== "web_search");
+  const pob = steps.some((step) => !LOOKUPS.has(step.name));
   const web = steps.some((step) => step.name === "web_search");
-  const heading = pob && web ? "Path of Building and the web" : pob ? "Calculated with Path of Building" : "Searched the web";
+  const heading =
+    pob && web
+      ? "Path of Building and the web"
+      : pob
+        ? "Calculated with Path of Building"
+        : web
+          ? "Searched the web"
+          : "Looked it up";
   return (
     <section className="pob" aria-label={heading}>
       <h3 className="pob-heading">{heading}</h3>
@@ -71,8 +148,13 @@ export function PobSteps({ steps }: { steps: ToolStep[] }) {
           <li key={step.id} className="pob-step" data-status={step.status}>
             <span className="pob-marker" aria-hidden="true" />
             <span>
-              {stepLabel(step.name, step.status === "failed", step.arguments)}
-              {step.status === "running" && <span className="visually-hidden"> (running)</span>}
+              {stepLabel(step.name, step.status === "failed", step.arguments, step.status === "running")}
+              {step.status === "running" && (
+                <>
+                  <span className="visually-hidden"> (running)</span>
+                  <RunningNote step={step} />
+                </>
+              )}
               {step.status === "failed" && <span className="pob-error">: {step.error || "failed"}</span>}
             </span>
           </li>

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from .pob import PobToolbox, PobToolError, validate_build_source
+from .progress import Progress, Steps, drain
 
 # Key stats, in the order shown, with labels and whether higher is better.
 STATS: list[tuple[str, str, bool]] = [
@@ -75,14 +76,21 @@ def rows(stats_a: dict[str, float], stats_b: dict[str, float]) -> list[dict[str,
 
 
 def compare(toolbox: PobToolbox, build_a: str, build_b: str) -> dict[str, Any]:
+    return drain(compare_steps(toolbox, build_a, build_b))
+
+
+def compare_steps(toolbox: PobToolbox, build_a: str, build_b: str) -> Steps[dict[str, Any]]:
     """Diff B against A, the build currently loaded in `toolbox`; A is loaded again after."""
+    yield Progress(0, 3, "reading your build")
     summary_a, stats_a = _summary(toolbox), _stats(toolbox)
     exported = toolbox.call_internal("export_build", {}).data
     code_a = exported.get("code") if isinstance(exported, dict) else None
     if not code_a:
         raise PobToolError("Couldn't keep your build while loading the other one.")
+    yield Progress(1, 3, "loading the other build")
     _load(toolbox, build_b)
     summary_b, stats_b = _summary(toolbox), _stats(toolbox)
+    yield Progress(2, 3, "loading your build again")
     _load(toolbox, code_a)
     toolbox.mark_loaded(build_a)  # it holds exactly A again
     return {"a": summary_a, "b": summary_b, "rows": rows(stats_a, stats_b)}

@@ -22,6 +22,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .progress import Progress, Steps, drain
+
 logger = logging.getLogger(__name__)
 
 TOOL_NAME = "rank_skill_gems"
@@ -244,7 +246,7 @@ class GemRanker:
 
     def rank_reference(
         self, gems: list[dict[str, Any]], ascendancy: str, supports: list[str]
-    ) -> list[Ranked]:
+    ) -> Steps[list[Ranked]]:
         build_args: dict[str, Any] = {"level": REFERENCE_LEVEL}
         if ascendancy:
             build_args["ascendancy"] = ascendancy
@@ -256,6 +258,7 @@ class GemRanker:
 
         started = time.monotonic()
         ranked: list[Ranked] = []
+        done = 0
         for weapon, group in by_weapon.items():
             if weapon:
                 base = REFERENCE_WEAPONS[weapon]
@@ -268,6 +271,8 @@ class GemRanker:
                 self.call("apply_changes", {"edits": [edit]})
             baseline = {DPS_STAT: 0.0, "AverageDamage": None, "Speed": None}
             for gem in group:
+                done += 1
+                yield Progress(done, len(gems), gem["name"])
                 if time.monotonic() - started > TIME_BUDGET:
                     self.untested += 1
                     continue
@@ -299,7 +304,7 @@ class GemRanker:
                     )
         return ranked
 
-    def rank_in_build(self, gems: list[dict[str, Any]]) -> tuple[list[Ranked], str]:
+    def rank_in_build(self, gems: list[dict[str, Any]]) -> Steps[tuple[list[Ranked], str]]:
         skills = self.call("get_skills", {})
         groups = skills.get("groups", []) if isinstance(skills, dict) else []
         main = next((g for g in groups if g.get("isMain")), None)
@@ -324,7 +329,8 @@ class GemRanker:
                 "",
             )
         ]
-        for gem in gems:
+        for done, gem in enumerate(gems, start=1):
+            yield Progress(done, len(gems), gem["name"])
             if gem["name"] == active["name"]:
                 continue
             if time.monotonic() - started > TIME_BUDGET:
@@ -356,6 +362,9 @@ class GemRanker:
         return ranked, active["name"]
 
     def run(self, arguments: dict[str, Any], build_loaded: bool) -> dict[str, Any]:
+        return drain(self.steps(arguments, build_loaded))
+
+    def steps(self, arguments: dict[str, Any], build_loaded: bool) -> Steps[dict[str, Any]]:
         """Rank, using the cache for reference rankings (they never change per version)."""
         if (
             not any(str(t).strip() for t in arguments.get("tags") or [])
@@ -363,7 +372,7 @@ class GemRanker:
         ):
             raise GemRankError("Give at least one tag (e.g. ['Slam']) or a name query.")
         if uses_build(arguments, build_loaded):
-            return self.compute(arguments, build_loaded=True)
+            return (yield from self.compute(arguments, build_loaded=True))
         key, normalised = cache_key(arguments)
         from .models import GemRanking
 
@@ -373,7 +382,7 @@ class GemRanker:
             result["ranked"] = result["ranked"][: _limit(arguments)]
             result["cached"] = f"calculated {cached.created_at:%Y-%m-%d}"
             return result
-        result = self.compute({**arguments, "limit": MAX_RESULTS}, build_loaded=False)
+        result = yield from self.compute({**arguments, "limit": MAX_RESULTS}, build_loaded=False)
         if self.untested == 0:  # a ranking cut short by the time limit isn't kept
             GemRanking.objects.update_or_create(
                 key=key,
@@ -383,7 +392,7 @@ class GemRanker:
         result["ranked"] = result["ranked"][: _limit(arguments)]
         return result
 
-    def compute(self, arguments: dict[str, Any], build_loaded: bool) -> dict[str, Any]:
+    def compute(self, arguments: dict[str, Any], build_loaded: bool) -> Steps[dict[str, Any]]:
         tags = [str(t) for t in arguments.get("tags") or [] if str(t).strip()][:5]
         query = str(arguments.get("query") or "")[:60]
         if not tags and not query:
@@ -397,14 +406,14 @@ class GemRanker:
             raise GemRankError(f"No skill gems found with tags {tags} and query {query!r}.")
         started = time.monotonic()
         if in_build:
-            ranked, current = self.rank_in_build(gems)
+            ranked, current = yield from self.rank_in_build(gems)
             method = (
                 f"Swapped the loaded build's main skill ({current}) for each candidate, keeping "
                 "its supports, gear and tree; the build was restored after each test."
             )
         else:
             ascendancy = str(arguments.get("ascendancy") or "")[:40]
-            ranked = self.rank_reference(gems, ascendancy, supports)
+            ranked = yield from self.rank_reference(gems, ascendancy, supports)
             weapons = ", ".join(sorted({r.weapon for r in ranked}))
             method = (
                 f"Reference character: level {REFERENCE_LEVEL} {ascendancy or 'character'}, no "

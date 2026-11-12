@@ -73,6 +73,15 @@ http
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       const send = (event) => res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
       send({ type: "rewrite", terms: "Poison, Bleeding", tools: false });
+      if (body.question.includes("strongest")) {
+        // A slow tool that reports progress, for the live "n of total" note.
+        send({ type: "tool_call", id: "rank", name: "rank_skill_gems", arguments: { tags: ["Slam"] } });
+        for (const [done, gem] of ["Ground Slam", "Earthquake", "Sunder"].entries()) {
+          send({ type: "tool_progress", id: "rank", name: "rank_skill_gems", done, total: 3, label: gem });
+          await new Promise((resolve) => setTimeout(resolve, 700));
+        }
+        send({ type: "tool_result", id: "rank", name: "rank_skill_gems", ok: true, error: "" });
+      }
       if (body.item) {
         send({ type: "item", item: ITEM });
         send({ type: "tool_call", id: "check-item", name: "check_item", arguments: {} });

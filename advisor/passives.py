@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from .pob import PobToolError
+from .progress import Progress, Steps, drain
 
 TOOL_NAME = "suggest_passives"
 DPS_STAT = "CombinedDPS"
@@ -74,13 +75,21 @@ def _pct(row: dict | None, base: float) -> float:
 
 
 def suggest(call: Any, summary: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    return drain(suggest_steps(call, summary, arguments))
+
+
+def suggest_steps(
+    call: Any, summary: dict[str, Any], arguments: dict[str, Any]
+) -> Steps[dict[str, Any]]:
     """Rank picks for the loaded build; `call` runs a pob-mcp tool (call_internal)."""
     focus = arguments.get("focus") if arguments.get("focus") in WEIGHTS else "balanced"
     max_cost = int(arguments.get("max_path_cost") or DEFAULT_PATH_COST)
     max_cost = max(1, min(max_cost, 20))
     remaining = int(summary.get("passivePointsRemaining") or 0)
     mode = "add" if remaining > 0 else "remove"
+    yield Progress(0, 2, "damage")
     dps_base, by_dps = _rank(call, DPS_STAT, mode, max_cost)
+    yield Progress(1, 2, "toughness")
     ehp_base, by_ehp = _rank(call, EHP_STAT, mode, max_cost)
     ehp_by_id = {row.get("id"): row for row in by_ehp}
     dps_by_id = {row.get("id"): row for row in by_dps}
