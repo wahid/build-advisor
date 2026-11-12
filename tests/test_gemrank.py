@@ -5,6 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from advisor.gemrank import GemRanker, GemRankError, weapons_for
+from advisor.models import GemRanking
+
+pytestmark = pytest.mark.django_db
 
 
 def ok(data):
@@ -141,3 +144,32 @@ def test_candidates_past_the_time_limit_are_reported(mocker) -> None:
     assert result["ranked"] == []
     assert result["not_tested_time_limit"] == 4
     assert result["not_dealing_damage_here"] == 0
+
+
+def test_reference_rankings_are_cached() -> None:
+    first = FakePob()
+    GemRanker(first).run({"tags": ["Slam"], "ascendancy": "Slayer", "limit": 2}, build_loaded=False)
+    again = FakePob()
+
+    result = GemRanker(again).run(
+        {"tags": ["slam "], "ascendancy": "slayer", "limit": 1}, build_loaded=False
+    )
+
+    assert again.calls == []  # nothing recalculated
+    assert [r["gem"] for r in result["ranked"]] == ["Ice Crash"]
+    assert result["cached"].startswith("calculated ")
+    assert GemRanking.objects.count() == 1
+
+
+def test_rankings_on_a_users_build_are_never_cached() -> None:
+    GemRanker(FakePob()).run({"tags": ["Slam"]}, build_loaded=True)
+
+    assert GemRanking.objects.count() == 0
+
+
+def test_a_ranking_cut_short_by_the_time_limit_isnt_cached(mocker) -> None:
+    mocker.patch("advisor.gemrank.TIME_BUDGET", -1)
+
+    GemRanker(FakePob()).run({"tags": ["Slam"]}, build_loaded=False)
+
+    assert GemRanking.objects.count() == 0

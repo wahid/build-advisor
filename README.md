@@ -172,6 +172,8 @@ resulting share code to import into PoB.
   the asked ascendancy with one well-rolled weapon each skill can use, and
   reports DPS against a pinnacle boss and a map enemy (~10-45 s for 25-100
   gems). With a build loaded it swaps the build's main skill for each candidate.
+  Reference rankings are cached in the database per Path of Building version
+  and setup, so asking again takes milliseconds.
 - **Bounded tool loop:** at most `POB_MAX_TOOL_ROUNDS` rounds (default 8); the
   last round has no tools, so the model must answer. Every call is logged with
   its arguments and duration.

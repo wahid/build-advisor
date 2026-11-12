@@ -7,12 +7,23 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpRequest, HttpResponse
 from django.utils import timezone
 
-from .models import DailyUsage, QuestionLog
+from .models import DailyUsage, GemRanking, QuestionLog
 
 
 @admin.register(DailyUsage)
 class DailyUsageAdmin(admin.ModelAdmin):
     list_display = ("date", "questions")
+
+
+@admin.register(GemRanking)
+class GemRankingAdmin(admin.ModelAdmin):
+    """Cached skill-gem rankings; delete one to have it calculated again."""
+
+    list_display = ("arguments", "pob_version", "created_at")
+    readonly_fields = ("key", "arguments", "result", "pob_version", "created_at")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
 
 
 def summary(logs: Any) -> dict[str, Any]:

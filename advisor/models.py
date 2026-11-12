@@ -62,3 +62,20 @@ class QuestionLog(models.Model):
 
     def __str__(self) -> str:
         return self.question[:80]
+
+
+class GemRanking(models.Model):
+    """A skill-gem ranking on the reference character, cached: the same arguments
+    on the same Path of Building version always give the same numbers."""
+
+    key = models.CharField(max_length=64, primary_key=True)
+    arguments = models.JSONField()
+    result = models.JSONField()
+    pob_version = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.arguments} ({self.pob_version})"

@@ -13,10 +13,13 @@ two modes:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import re
 import time
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -113,6 +116,53 @@ TOOL_DEFINITION = {
         },
     },
 }
+
+
+MAX_RESULTS = 25
+
+
+def _limit(arguments: dict[str, Any]) -> int:
+    try:
+        return max(1, min(int(arguments.get("limit") or 10), MAX_RESULTS))
+    except (TypeError, ValueError):
+        return 10
+
+
+def uses_build(arguments: dict[str, Any], build_loaded: bool) -> bool:
+    return build_loaded and arguments.get("use_loaded_build", True) is not False
+
+
+def pob_version() -> str:
+    """The Path of Building checkout (the Docker image writes VERSION), or ""."""
+    from django.conf import settings
+
+    try:
+        return (Path(settings.POB_PATH) / "VERSION").read_text(encoding="utf-8").strip()[:200]
+    except OSError:
+        return ""
+
+
+def cache_key(arguments: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """A key for a reference ranking: its arguments, the setup and the PoB version."""
+
+    def names(values: Any) -> list[str]:
+        return sorted({str(v).strip().lower() for v in values or [] if str(v).strip()})
+
+    normalised = {
+        "tags": names(arguments.get("tags")),
+        "query": str(arguments.get("query") or "").strip().lower(),
+        "ascendancy": str(arguments.get("ascendancy") or "").strip().lower(),
+        "supports": names(arguments.get("supports")),
+    }
+    setup = {
+        "level": REFERENCE_LEVEL,
+        "weapons": REFERENCE_WEAPONS,
+        "mods": REFERENCE_WEAPON_MODS,
+        "dps": DPS_STAT,
+        "pob": pob_version(),
+    }
+    raw = json.dumps({"arguments": normalised, "setup": setup}, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest(), normalised
 
 
 class GemRankError(RuntimeError):
@@ -306,13 +356,41 @@ class GemRanker:
         return ranked, active["name"]
 
     def run(self, arguments: dict[str, Any], build_loaded: bool) -> dict[str, Any]:
+        """Rank, using the cache for reference rankings (they never change per version)."""
+        if (
+            not any(str(t).strip() for t in arguments.get("tags") or [])
+            and not str(arguments.get("query") or "").strip()
+        ):
+            raise GemRankError("Give at least one tag (e.g. ['Slam']) or a name query.")
+        if uses_build(arguments, build_loaded):
+            return self.compute(arguments, build_loaded=True)
+        key, normalised = cache_key(arguments)
+        from .models import GemRanking
+
+        cached = GemRanking.objects.filter(key=key).first()
+        if cached is not None:
+            result = dict(cached.result)
+            result["ranked"] = result["ranked"][: _limit(arguments)]
+            result["cached"] = f"calculated {cached.created_at:%Y-%m-%d}"
+            return result
+        result = self.compute({**arguments, "limit": MAX_RESULTS}, build_loaded=False)
+        if self.untested == 0:  # a ranking cut short by the time limit isn't kept
+            GemRanking.objects.update_or_create(
+                key=key,
+                defaults={"arguments": normalised, "result": result, "pob_version": pob_version()},
+            )
+        result = dict(result)
+        result["ranked"] = result["ranked"][: _limit(arguments)]
+        return result
+
+    def compute(self, arguments: dict[str, Any], build_loaded: bool) -> dict[str, Any]:
         tags = [str(t) for t in arguments.get("tags") or [] if str(t).strip()][:5]
         query = str(arguments.get("query") or "")[:60]
         if not tags and not query:
             raise GemRankError("Give at least one tag (e.g. ['Slam']) or a name query.")
         supports = [str(s) for s in arguments.get("supports") or []][:5]
-        limit = max(1, min(int(arguments.get("limit") or 10), 25))
-        in_build = build_loaded and arguments.get("use_loaded_build", True) is not False
+        limit = _limit(arguments)
+        in_build = uses_build(arguments, build_loaded)
 
         gems = self.candidates(tags, query)
         if not gems:
