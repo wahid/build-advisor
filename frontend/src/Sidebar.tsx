@@ -49,6 +49,9 @@ export function Sidebar({ chats, activeId, open, onSelect, onNew, onDelete, onCl
         ) : (
           <p className="chat-empty">Your chats show up here. They're kept in this browser.</p>
         )}
+        <a href="/how-it-works" className="sidebar-link">
+          How it works
+        </a>
       </nav>
       {open && <button type="button" className="sidebar-backdrop" aria-label="Close chats" onClick={onClose} />}
     </>

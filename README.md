@@ -5,7 +5,8 @@ Ask questions about Path of Exile builds and get answers grounded in the
 
 > *"Which support gems work with Righteous Fire Chieftain?"*
 
-**Live demo: [2.29.162.98.sslip.io](https://2.29.162.98.sslip.io/)** — paste a
+**Live demo: [2.29.162.98.sslip.io](https://2.29.162.98.sslip.io/)**
+([how it works](https://2.29.162.98.sslip.io/how-it-works), with live eval scores and cost per answer) — paste a
 [pobb.in](https://pobb.in) link to ask about your own build. The demo answers
 100 questions a day in total, so it may be out for the day.
 

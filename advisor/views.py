@@ -22,6 +22,7 @@ from .pob import split_build_links
 from .prompts import Turn
 from .questionlog import record
 from .rag import Answer, Event, Source, answer_stream
+from .stats import public_stats
 
 DAILY_LIMIT_MESSAGE = (
     "The demo has reached today's limit of {limit} questions. "
@@ -180,6 +181,16 @@ class FeedbackView(APIView):
         if not updated:
             return Response({"detail": "That answer isn't known."}, status=404)
         return Response({"ok": True})
+
+
+class StatsView(APIView):
+    """Public, aggregated numbers for the How it works page."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request) -> Response:
+        return Response(public_stats())
 
 
 def frontend(request: HttpRequest) -> HttpResponse:

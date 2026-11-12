@@ -1181,6 +1181,209 @@ a {
   transform: translateY(-2px);
 }
 
+/* --- How it works page ------------------------------------------------------ */
+
+.sidebar-link {
+  margin: auto 1rem 1rem;
+  padding-top: 0.75rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+  border-top: 1px solid var(--stone-edge);
+}
+
+.sidebar-link:hover {
+  color: var(--mechanic);
+}
+
+.about {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2.5rem 1rem 2rem;
+}
+
+.about-back {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.about-head .tagline {
+  max-width: 44rem;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: 3rem;
+  align-items: start;
+  margin-top: 2rem;
+}
+
+.pipeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.pipeline-step {
+  position: relative;
+  padding: 0 0 1.6rem 2.2rem;
+}
+
+/* The connecting line and a diamond per step, like the tool steps in answers. */
+.pipeline-step::before {
+  content: "";
+  position: absolute;
+  left: 0.42rem;
+  top: 1.1rem;
+  bottom: 0;
+  width: 1px;
+  background: var(--stone-edge);
+}
+
+.pipeline-step:last-child::before {
+  display: none;
+}
+
+.pipeline-step::after {
+  content: "";
+  position: absolute;
+  left: 0.12rem;
+  top: 0.45rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--type-colour);
+  transform: rotate(45deg);
+}
+
+.pipeline-title {
+  margin: 0;
+  font-family: var(--small-caps);
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--type-colour);
+}
+
+.pipeline-text {
+  margin: 0.2rem 0 0;
+  max-width: 38rem;
+  color: var(--parchment);
+}
+
+/* The live numbers, drawn as an item tooltip with the scores as its mods. */
+.item-card {
+  position: sticky;
+  top: 1.5rem;
+  background: #0c0a09;
+  border: 1px solid color-mix(in srgb, var(--type-colour) 70%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.item-card-head {
+  display: grid;
+  padding: 0.6rem 1rem 0.5rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--type-colour) 16%, #0c0a09);
+  border-bottom: 3px double color-mix(in srgb, var(--type-colour) 60%, transparent);
+}
+
+.item-card-name {
+  font-family: var(--small-caps);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--type-colour);
+}
+
+.item-card-base {
+  font-family: var(--small-caps);
+  font-size: 1.05rem;
+  color: var(--type-colour);
+}
+
+.item-card-body {
+  padding: 0.8rem 1rem 1rem;
+  text-align: center;
+  font-size: var(--step--1);
+}
+
+.item-card-props {
+  margin: 0;
+  color: var(--parchment-dim);
+  line-height: 1.7;
+}
+
+.item-card-props b {
+  font-weight: 400;
+  color: var(--parchment);
+}
+
+.item-card-rule {
+  margin: 0.7rem 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--type-colour) 40%, transparent);
+}
+
+/* Explicit mods are blue in the game. */
+.item-card-mods {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.6;
+  color: #8888ff;
+}
+
+.item-card-note {
+  margin: 0;
+  color: var(--parchment-dim);
+  font-style: italic;
+}
+
+.item-card-flavour {
+  margin: 0.9rem 0 0;
+  font-style: italic;
+  color: #af6025;
+}
+
+.about-section {
+  max-width: 44rem;
+  margin-top: 2.5rem;
+}
+
+.about-heading {
+  margin: 1.5rem 0 0.4rem;
+  font-family: var(--small-caps);
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--mechanic);
+}
+
+.about-section p {
+  margin: 0 0 0.8rem;
+}
+
+.about-section a,
+.about-back:hover {
+  color: var(--mechanic);
+}
+
+.about .colophon {
+  margin-top: 3rem;
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+  }
+
+  .item-card {
+    position: static;
+    order: -1;
+  }
+}
+
 /* --- Footer ----------------------------------------------------------------- */
 
 .colophon {
