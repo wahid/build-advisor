@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from .cards import parse_card
 from .client import WikiBlockedError, WikiClient, WikiError, WikiPage
 from .models import Chunk, Document, DocumentType, Source
 from .parsing import html_to_text
@@ -245,6 +246,7 @@ def _store_page(
     client: WikiClient, title: str, doc_type: str, page: WikiPage, result: IngestResult
 ) -> None:
     text = html_to_text(page.html)
+    card = parse_card(page.html)
     with transaction.atomic():
         source, _ = Source.objects.update_or_create(
             wiki=settings.WIKI_NAME,
@@ -264,6 +266,7 @@ def _store_page(
                 "raw_text": text,
                 "patch": result.patch,
                 "content_hash": content_hash(text),
+                "card": card,
             },
         )
     if created:

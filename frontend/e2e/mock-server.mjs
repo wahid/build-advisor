@@ -19,7 +19,12 @@ const ANSWER = {
     "**Short answer:** poisons stack without limit [1], while only the strongest bleed counts [2].\n\n" +
     "| Ailment | Stacks? |\n|---|---|\n| Poison | Yes |\n| Bleed | No |\n\n" +
     "Lethal Dose Support adds more poisons [3]. Crimson Dance changes bleed (general game knowledge).",
-  entities: [{ name: "Lethal Dose Support", doc_type: "gem", url: WIKI + "Lethal_Dose_Support", summary: "Support, Chaos, Poison. Inflicts additional poisons." }],
+  entities: [{ name: "Lethal Dose Support", doc_type: "gem", url: WIKI + "Lethal_Dose_Support", summary: "Support, Chaos, Poison. Inflicts additional poisons.",
+    card: { frame: "gem", header: ["Lethal Dose Support"], groups: [
+      { style: "default", lines: [[{ t: "Support, Chaos, Poison", s: "default" }]] },
+      { style: "gemdesc", lines: [[{ t: "Supports any skill that can poison.", s: "gemdesc" }]] },
+      { style: "mod", lines: [[{ t: "Inflicts additional poisons", s: "mod" }]] },
+    ] } }],
 };
 
 const COMPARISON = {

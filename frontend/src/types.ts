@@ -10,6 +10,19 @@ export interface Source {
   doc_type: DocType | "web";
 }
 
+/** One piece of tooltip text and how the game colours it (value, mod, gemdesc, ...). */
+export interface CardSegment {
+  t: string;
+  s: string;
+}
+
+/** An in-game style tooltip, from the wiki's item box. */
+export interface Card {
+  frame: string; // gem, unique, currency, normal, ascendancy, ...
+  header: string[];
+  groups: { style: string; lines: CardSegment[][] }[];
+}
+
 /** A gem, unique or ascendancy named in an answer, for its hover card. */
 export interface Entity {
   /** As written in the answer. */
@@ -19,6 +32,7 @@ export interface Entity {
   doc_type: DocType;
   url: string;
   summary: string;
+  card?: Card | null;
 }
 
 export interface ComparisonRow {

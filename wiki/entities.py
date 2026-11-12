@@ -69,6 +69,7 @@ def entities_in(text: str) -> list[dict[str, Any]]:
             "doc_type": d.doc_type,
             "url": d.source.url,
             "summary": summarize(d.title, intros.get(d.id, "")),
+            "card": d.card,
         }
         for d in found
     ]

@@ -28,7 +28,9 @@ test("an answer renders with citations, a table, a badge and sources", async ({ 
 
   // A known gem name has a hover card.
   await answer.locator(".entity-name").hover();
-  await expect(page.getByRole("tooltip")).toContainText("Inflicts additional poisons");
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toContainText("Inflicts additional poisons");
+  await expect(tooltip.locator(".poe-tooltip")).toHaveAttribute("data-frame", "gem");
 });
 
 test("feedback can say what was wrong", async ({ page }) => {

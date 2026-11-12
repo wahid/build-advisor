@@ -45,6 +45,9 @@ class Document(models.Model):
     chunked_hash = models.CharField(
         max_length=64, blank=True, help_text="content_hash at the time chunks were last built."
     )
+    card = models.JSONField(
+        null=True, blank=True, help_text="In-game style tooltip from the page's item box."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

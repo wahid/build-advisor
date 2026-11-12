@@ -638,40 +638,110 @@ a {
   top: calc(100% + 0.35rem);
   z-index: 4;
   display: block;
-  width: min(20rem, 80vw);
-  font-size: var(--step--1);
-  line-height: 1.4;
-  font-weight: 400;
+  width: max-content;
+  max-width: min(26rem, calc(100vw - 16px));
   font-style: normal;
-  color: var(--parchment);
-  background: #120f0d;
-  border: 1px solid var(--type-colour);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-}
-
-.entity-card-head {
-  display: grid;
-  padding: 0.4rem 0.7rem 0.35rem;
+  font-weight: 400;
   text-align: center;
-  background: color-mix(in srgb, var(--type-colour) 14%, #120f0d);
-  border-bottom: 3px double color-mix(in srgb, var(--type-colour) 55%, transparent);
 }
 
-.entity-card-title {
-  font-family: var(--small-caps);
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--type-colour);
-}
+/* --- In-game style tooltips (drawn in CSS; no game art) -------------------- */
 
-.entity-card-kind {
-  color: var(--parchment-dim);
-}
-
-.entity-card-body {
+.poe-tooltip {
+  --frame: #c8c8c8;
+  --frame-dark: #3a3a3a;
   display: block;
-  padding: 0.5rem 0.7rem 0.6rem;
+  min-width: 16rem;
+  font-family: var(--small-caps);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  background: rgba(0, 0, 0, 0.97);
+  backdrop-filter: blur(3px);
+  border: 1px solid color-mix(in srgb, var(--frame) 45%, #000);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
 }
+
+.poe-tooltip[data-frame="unique"] { --frame: #af6025; --frame-dark: #3b200c; }
+.poe-tooltip[data-frame="gem"] { --frame: #1ba29b; --frame-dark: #0c3533; }
+.poe-tooltip[data-frame="rare"] { --frame: #ffff77; --frame-dark: #3d3a14; }
+.poe-tooltip[data-frame="magic"] { --frame: #8888ff; --frame-dark: #1d1d4a; }
+.poe-tooltip[data-frame="currency"] { --frame: #aa9e82; --frame-dark: #2e2a20; }
+.poe-tooltip[data-frame="ascendancy"] { --frame: #8f8fff; --frame-dark: #1e1e45; }
+
+/* The framed name: a dark band in the item's colour, with an ornament each side. */
+.poe-header {
+  position: relative;
+  display: grid;
+  align-content: center;
+  min-height: 2.15rem;
+  padding: 0.3rem 2.2rem;
+  color: var(--frame);
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--frame-dark) 70%, #000), var(--frame-dark) 45%, color-mix(in srgb, var(--frame-dark) 60%, #000));
+  border-bottom: 1px solid color-mix(in srgb, var(--frame) 55%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--frame) 35%, transparent);
+}
+
+.poe-header[data-lines="double"] {
+  min-height: 3.3rem;
+}
+
+.poe-header::before,
+.poe-header::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 1px solid var(--frame);
+  background: color-mix(in srgb, var(--frame) 25%, #000);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.poe-header::before { left: 0.8rem; }
+.poe-header::after { right: 0.8rem; }
+
+.poe-header-line {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.poe-body {
+  display: block;
+  padding: 0.5rem 0.9rem 0.6rem;
+}
+
+.poe-group {
+  display: block;
+  padding: 0.35rem 0;
+}
+
+/* The separator between groups: a line in the item's colour fading out at the ends. */
+.poe-group + .poe-group {
+  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--frame) 70%, transparent) 20%, color-mix(in srgb, var(--frame) 70%, transparent) 80%, transparent) top / 100% 1px no-repeat;
+}
+
+.poe-line {
+  display: block;
+}
+
+/* Text colours as the game uses them. */
+.poe-tooltip [data-style="default"] { color: #7f7f7f; }
+.poe-tooltip [data-style="value"] { color: #ffffff; }
+.poe-tooltip [data-style="mod"] { color: #8888ff; }
+.poe-tooltip [data-style="gemdesc"] { color: #1ba29b; }
+.poe-tooltip [data-style="flavour"] { color: #af6025; font-style: italic; }
+.poe-tooltip [data-style="help"] { color: #7f7f7f; font-size: 0.85em; }
+.poe-tooltip [data-style="corrupted"] { color: #d20000; }
+.poe-tooltip [data-style="enchanted"],
+.poe-tooltip [data-style="crafted"] { color: #b8daf2; }
+.poe-tooltip [data-style="fractured"] { color: #a29162; }
+.poe-tooltip [data-style="fire"] { color: #ff4d4d; }
+.poe-tooltip [data-style="cold"] { color: #6aa3e0; }
+.poe-tooltip [data-style="lightning"] { color: #ffd700; }
+.poe-tooltip [data-style="chaos"] { color: #d02090; }
 
 /* Citation markers take the colour of their source's page type. */
 .cite {
