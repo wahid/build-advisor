@@ -4,7 +4,7 @@ import { ask, AskError } from "./api";
 import { Composer } from "./Composer";
 import {
   applyEvent,
-  findBuildLink,
+  findBuildLinks,
   loadActiveId,
   loadConversations,
   newConversation,
@@ -115,9 +115,11 @@ export default function App() {
     const controller = new AbortController();
     streaming.current = { chatId, turnId, controller };
     const history = toHistory(active.turns);
-    // A build link in the question becomes the chat's build, so follow-ups use it too.
-    const link = findBuildLink(question);
+    // Build links in the question become the chat's builds, so follow-ups use them too:
+    // the first is the build, a second one the build to compare with.
+    const [link, compareLink] = findBuildLinks(question);
     const build = link || active.build.trim();
+    const compareBuild = compareLink || (link ? "" : (active.compareBuild ?? "").trim());
     following.current = true;
     updateChat(chatId, (chat) => {
       const nextTurns = [...chat.turns, newTurn(turnId, question)];
@@ -126,12 +128,13 @@ export default function App() {
         turns: nextTurns,
         title: chat.turns.length ? chat.title : titleFor(nextTurns),
         updatedAt: Date.now(),
-        ...(link ? { build: link, buildChanged: false } : {}),
+        ...(link ? { build: link, buildChanged: false, compareBuild: compareLink ?? "" } : {}),
       };
     });
 
     try {
-      for await (const event of ask(question, { docTypes, build, history, signal: controller.signal })) {
+      const options = { docTypes, build, compareBuild, history, signal: controller.signal };
+      for await (const event of ask(question, options)) {
         updateTurn(chatId, turnId, (turn) => applyEvent(turn, event as AskEvent));
         if (event.type === "pob_export") {
           // Follow-ups continue from the changed build, not the original one.
@@ -184,7 +187,16 @@ export default function App() {
       onDocTypesChange={setDocTypes}
       build={active.build}
       buildChanged={active.buildChanged}
-      onBuildChange={(value) => updateChat(active.id, (chat) => ({ ...chat, build: value, buildChanged: false }))}
+      onBuildChange={(value) =>
+        updateChat(active.id, (chat) => ({
+          ...chat,
+          build: value,
+          buildChanged: false,
+          compareBuild: value.trim() ? chat.compareBuild : "",
+        }))
+      }
+      compareBuild={active.compareBuild ?? ""}
+      onCompareBuildChange={(value) => updateChat(active.id, (chat) => ({ ...chat, compareBuild: value }))}
       onSubmit={(q) => void submit(q)}
       onStop={stopStreaming}
     />

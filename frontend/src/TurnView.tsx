@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { AnswerText } from "./answerText";
 import type { ChatTurn } from "./conversation";
+import { ComparisonTable } from "./ComparisonTable";
 import { Feedback } from "./Feedback";
 import { PobExport, PobSteps } from "./PobPanel";
 import { groupSources, SourceCard } from "./SourceCard";
@@ -30,6 +31,7 @@ export function TurnView({ turn, isLatest, onRated }: Props) {
           <p className="status">{turn.searchTerms ? "Searching the wiki…" : "Working out what to search for…"}</p>
         )}
         <PobSteps steps={turn.steps} />
+        {turn.comparison && <ComparisonTable comparison={turn.comparison} />}
         {turn.status === "answering" && !turn.answer && !running && (
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}

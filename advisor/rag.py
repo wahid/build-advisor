@@ -28,6 +28,7 @@ from django.conf import settings
 from wiki.embeddings import Embedder
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
+from . import compare as build_compare
 from . import gemrank, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import PobToolbox, PobToolError, PobUnavailable, get_pool
@@ -277,8 +278,11 @@ def answer_stream(
     needs_build_tools: bool | None = None,
     history: Sequence[Turn] = (),
     web_search: bool | None = None,
+    compare_build: str = "",
 ) -> Iterator[Event]:
     """Answer a question, streaming events.
+
+    compare_build: a second build to compare the attached one with.
 
     web_search: offer the web search tool (None: when DeepSeek search is configured).
 
@@ -327,6 +331,7 @@ def answer_stream(
         # is in it: "is this build strong?" says nothing about Tornado Shot or Slayer.
         build_summary = None
         query, pinned = standalone, []
+        comparison: dict[str, Any] | None = None
         if build and toolbox is not None:
             if toolbox.reused:
                 # Still loaded from the previous question, unchanged: no reload.
@@ -356,6 +361,32 @@ def answer_stream(
                     return
                 toolbox.mark_loaded(build)
             build_summary = toolbox.call("get_build_summary", {}).data
+            if compare_build:
+                yield {
+                    "type": "tool_call",
+                    "id": "compare-build",
+                    "name": "compare_builds",
+                    "arguments": {},
+                }
+                try:
+                    comparison = build_compare.compare(toolbox, build, compare_build)
+                except PobToolError as exc:
+                    yield {
+                        "type": "tool_result",
+                        "id": "compare-build",
+                        "name": "compare_builds",
+                        "ok": False,
+                        "error": str(exc)[:500],
+                    }
+                else:
+                    yield {
+                        "type": "tool_result",
+                        "id": "compare-build",
+                        "name": "compare_builds",
+                        "ok": True,
+                        "error": "",
+                    }
+                    yield {"type": "comparison", **comparison}
             pinned = build_search_terms(toolbox, build_summary)
             if pinned:
                 query = f"{standalone}\n{', '.join(pinned)}"
@@ -379,7 +410,16 @@ def answer_stream(
 
         web = websearch.enabled() if web_search is None else web_search
         yield from _converse(
-            question, hits, sources, patch, provider, toolbox, build_summary, history, web
+            question,
+            hits,
+            sources,
+            patch,
+            provider,
+            toolbox,
+            build_summary,
+            history,
+            web,
+            comparison,
         )
 
 
@@ -418,12 +458,13 @@ def _converse(
     build_summary: dict[str, Any] | None,
     history: Sequence[Turn] = (),
     web: bool = False,
+    comparison: dict[str, Any] | None = None,
 ) -> Iterator[Event]:
     provider = provider or get_provider()
     pob_rounds = settings.POB_MAX_TOOL_ROUNDS if toolbox is not None else 0
     rounds = pob_rounds or (settings.WEB_SEARCH_MAX_CALLS if web else 0)
     messages: list[Message] = build_messages(
-        question, hits, pob_rounds, build_summary, history, web_search=web
+        question, hits, pob_rounds, build_summary, history, web_search=web, comparison=comparison
     )
     definitions = [
         *(toolbox.definitions if toolbox is not None else []),

@@ -53,7 +53,7 @@ describe("ask", () => {
     const options = { docTypes: ["gem" as const], build: "eNrCODE", history, fetchImpl: fakeFetch };
     for await (const event of ask("RF?", options)) events.push(event);
 
-    expect(body).toEqual({ question: "RF?", doc_types: ["gem"], build: "eNrCODE", history });
+    expect(body).toEqual({ question: "RF?", doc_types: ["gem"], build: "eNrCODE", compare_build: "", history });
     expect(events).toEqual([{ type: "delta", text: "Hi" }]);
   });
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyEvent,
   findBuildLink,
+  findBuildLinks,
   loadConversations,
   MAX_HISTORY,
   newConversation,
@@ -141,5 +142,21 @@ describe("saved chats", () => {
   it("works without storage", () => {
     expect(loadConversations()).toEqual([]);
     expect(() => saveConversations([])).not.toThrow();
+  });
+});
+
+describe("findBuildLinks", () => {
+  it("finds a build and one to compare with", () => {
+    expect(findBuildLinks("compare https://pobb.in/aaa and https://pobb.in/bbb/ and https://pobb.in/ccc")).toEqual([
+      "https://pobb.in/aaa",
+      "https://pobb.in/bbb",
+    ]);
+    expect(findBuildLinks("same https://pobb.in/aaa twice https://pobb.in/aaa")).toEqual(["https://pobb.in/aaa"]);
+  });
+
+  it("stores a comparison from the stream", () => {
+    const row = { stat: "Life", label: "Life", a: 4000, b: 3000, change_pct: -25, higher_is_better: true };
+    const turn = applyEvent(newTurn("t", "q"), { type: "comparison", a: { ascendancy: "Slayer" }, b: {}, rows: [row] });
+    expect(turn.comparison?.rows).toEqual([row]);
   });
 });

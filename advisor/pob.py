@@ -147,6 +147,29 @@ def validate_build_source(source: str) -> str:
     )
 
 
+def split_build_links(question: str) -> tuple[str, list[str]]:
+    """Take the pobb.in / pastebin links out of a question: (rest, links in order).
+
+    With two links, they become "build A" and "build B" in the question, the
+    names the comparison uses.
+    """
+    rest, first = split_build_link(question)
+    if not first:
+        return question, []
+    found: list[str] = []
+
+    def label(match: re.Match[str]) -> str:
+        link = re.sub(r"^http://", "https://", match.group(0).rstrip("/"), flags=re.IGNORECASE)
+        if link not in found:
+            found.append(link)
+        return f"build {'AB'[found.index(link)]}" if found.index(link) < 2 else ""
+
+    labelled = BUILD_LINK_RE.sub(label, question)
+    if len(found) < 2:
+        return rest, found
+    return re.sub(r"\s{2,}", " ", labelled).strip(), found[:2]
+
+
 def split_build_link(question: str) -> tuple[str, str]:
     """Take a pobb.in / pastebin link out of a question: (question without it, link).
 

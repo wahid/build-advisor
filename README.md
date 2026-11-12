@@ -174,6 +174,11 @@ resulting share code to import into PoB.
   gems). With a build loaded it swaps the build's main skill for each candidate.
   Reference rankings are cached in the database per Path of Building version
   and setup, so asking again takes milliseconds.
+- **Compare two builds** (`advisor/compare.py`): attach a second build ("Compare
+  with another build"), or put two pobb.in links in the question. Path of
+  Building loads both and the app diffs DPS, EHP, life, max hits, defences,
+  resistances and speed into a table the model explains; the first build is
+  loaded again afterwards for follow-up tool calls.
 - **Bounded tool loop:** at most `POB_MAX_TOOL_ROUNDS` rounds (default 8); the
   last round has no tools, so the model must answer. Every call is logged with
   its arguments and duration.

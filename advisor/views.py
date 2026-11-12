@@ -17,7 +17,7 @@ from wiki.search import SearchFilters
 
 from .limits import take_question
 from .models import QuestionLog
-from .pob import split_build_link
+from .pob import split_build_links
 from .prompts import Turn
 from .questionlog import record
 from .rag import Answer, Event, Source, answer_stream
@@ -43,6 +43,10 @@ class AskSerializer(serializers.Serializer):
     build = serializers.CharField(required=False, allow_blank=True, default="", max_length=200_000)
     # Earlier turns of the conversation, oldest first; only the last few are used.
     history = TurnSerializer(many=True, required=False, default=list, max_length=20)
+    # A second build to compare the attached one with.
+    compare_build = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=200_000
+    )
 
 
 class FeedbackSerializer(serializers.Serializer):
@@ -100,15 +104,19 @@ class AskView(APIView):
             )
         # A build link pasted into the question is the build to load (it wins over
         # an attached one: it's what the user just pointed at).
-        question, link = split_build_link(data["question"])
+        # Two links: the first is the build, the second the one to compare with.
+        question, links = split_build_links(data["question"])
+        build = links[0] if links else data["build"]
+        compare_build = links[1] if len(links) > 1 else data["compare_build"]
         options = {
             "filters": SearchFilters(doc_types=tuple(data["doc_types"])),
-            "build": link or data["build"],
+            "build": build,
+            "compare_build": compare_build if build else "",
             "history": [Turn(t["question"], t["answer"]) for t in data["history"]],
         }
 
         context = {
-            "build": options["build"],
+            "build": f"{build} vs {compare_build}" if build and compare_build else build,
             "history": [{"question": t.question, "answer": t.answer} for t in options["history"]],
             "doc_types": list(data["doc_types"]),
         }

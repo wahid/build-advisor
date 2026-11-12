@@ -592,6 +592,55 @@ a {
   background: rgba(216, 106, 90, 0.08);
 }
 
+/* --- Two builds compared --------------------------------------------------- */
+
+.comparison {
+  margin: 0 0 1.25rem;
+  overflow-x: auto;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 0.3rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--stone-edge);
+}
+
+.comparison-table th:first-child {
+  text-align: left;
+  font-weight: 400;
+  color: var(--parchment-dim);
+}
+
+.comparison-table thead th {
+  vertical-align: bottom;
+  font-family: var(--small-caps);
+  font-weight: 500;
+  color: var(--mechanic);
+}
+
+.comparison-build {
+  display: block;
+  font-family: var(--serif);
+  font-size: 0.8rem;
+  color: var(--parchment-dim);
+}
+
+.comparison-table td[data-better="true"] {
+  color: #8fbf7a;
+}
+
+.comparison-table td[data-better="false"] {
+  color: var(--danger);
+}
+
 /* --- Feedback under an answer ---------------------------------------------- */
 
 .feedback {

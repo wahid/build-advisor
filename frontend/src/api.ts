@@ -30,6 +30,8 @@ async function errorMessage(response: Response): Promise<string> {
 export interface AskOptions {
   docTypes?: DocType[];
   build?: string;
+  /** A second build to compare the first with. */
+  compareBuild?: string;
   /** Earlier turns of the conversation, oldest first. */
   history?: HistoryTurn[];
   signal?: AbortSignal;
@@ -38,11 +40,11 @@ export interface AskOptions {
 
 /** Ask a question and yield events as the answer streams in. */
 export async function* ask(question: string, options: AskOptions = {}): AsyncGenerator<AskEvent> {
-  const { docTypes = [], build = "", history = [], signal, fetchImpl = fetch } = options;
+  const { docTypes = [], build = "", compareBuild = "", history = [], signal, fetchImpl = fetch } = options;
   const response = await fetchImpl("/api/ask/", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ question, doc_types: docTypes, build, history }),
+    body: JSON.stringify({ question, doc_types: docTypes, build, compare_build: compareBuild, history }),
     signal,
   });
   if (!response.ok || !response.body) throw new AskError(await errorMessage(response));

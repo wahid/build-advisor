@@ -12,6 +12,7 @@ export interface ToolStep {
 const LABELS: Record<string, [done: string, failed: string]> = {
   load_build: ["Loaded your build", "load your build"],
   reuse_build: ["Used your build, still loaded", "use your loaded build"],
+  compare_builds: ["Loaded the other build and compared them", "compare the builds"],
   new_build: ["Started a new build", "start a new build"],
   get_build_summary: ["Read the build summary", "read the build summary"],
   get_stats: ["Read stats", "read stats"],

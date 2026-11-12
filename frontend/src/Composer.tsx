@@ -11,6 +11,9 @@ interface Props {
   /** The attached build is the assistant's changed version of it. */
   buildChanged: boolean;
   onBuildChange: (build: string) => void;
+  /** A second build to compare with; only offered once a build is attached. */
+  compareBuild: string;
+  onCompareBuildChange: (build: string) => void;
   onSubmit: (question: string) => void;
   onStop: () => void;
 }
@@ -26,11 +29,14 @@ export function Composer({
   build,
   buildChanged,
   onBuildChange,
+  compareBuild,
+  onCompareBuildChange,
   onSubmit,
   onStop,
 }: Props) {
   const [question, setQuestion] = useState("");
   const [editingBuild, setEditingBuild] = useState(false);
+  const [editingCompare, setEditingCompare] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -46,6 +52,7 @@ export function Composer({
     onSubmit(question.trim());
     setQuestion("");
     setEditingBuild(false);
+    setEditingCompare(false);
   }
 
   function toggleType(type: DocType) {
@@ -68,6 +75,22 @@ export function Composer({
             placeholder="Paste it here. It stays attached for the whole conversation."
             value={build}
             onChange={(e) => onBuildChange(e.target.value)}
+          />
+        </div>
+      )}
+
+      {editingCompare && (
+        <div className="build-editor">
+          <label htmlFor="compare-build" className="build-label">
+            Build to compare with (pobb.in link or share code)
+          </label>
+          <textarea
+            id="compare-build"
+            className="build-input"
+            rows={2}
+            placeholder="Your build is A, this one is B. Ask e.g. which one is tankier."
+            value={compareBuild}
+            onChange={(e) => onCompareBuildChange(e.target.value)}
           />
         </div>
       )}
@@ -111,6 +134,31 @@ export function Composer({
               {editingBuild ? "Done" : "Attach build"}
             </button>
           )}
+          {hasBuild &&
+            (compareBuild.trim() && !editingCompare ? (
+              <span className="build-chip">
+                <button type="button" className="build-chip-label" onClick={() => setEditingCompare(true)}>
+                  Comparing with build B
+                </button>
+                <button
+                  type="button"
+                  className="build-chip-remove"
+                  aria-label="Stop comparing"
+                  onClick={() => onCompareBuildChange("")}
+                >
+                  ×
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="tool-button"
+                aria-expanded={editingCompare}
+                onClick={() => setEditingCompare(!editingCompare)}
+              >
+                {editingCompare ? "Done" : "Compare with another build"}
+              </button>
+            ))}
           <fieldset className="filters">
             <legend className="visually-hidden">Search only these page types</legend>
             {DOC_TYPES.map((type) => (

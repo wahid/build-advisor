@@ -1,5 +1,5 @@
 import type { ToolStep } from "./PobPanel";
-import type { AskEvent, Source } from "./types";
+import type { AskEvent, Comparison, Source } from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -19,6 +19,7 @@ export interface ChatTurn {
   /** The server's id for this answer, for feedback. */
   logId?: string;
   rating?: 1 | -1;
+  comparison?: Comparison;
 }
 
 /** What the server gets for each earlier turn. */
@@ -27,12 +28,21 @@ export interface HistoryTurn {
   answer: string;
 }
 
-const BUILD_LINK = /https?:\/\/(?:www\.)?(?:pobb\.in|pastebin\.com)\/[\w\-/]+/i;
+const BUILD_LINKS = /https?:\/\/(?:www\.)?(?:pobb\.in|pastebin\.com)\/[\w\-/]+/gi;
 
-/** A pobb.in or pastebin link in the question, which the server loads as the build. */
+/** pobb.in / pastebin links in the question, in order: the build, then one to compare with. */
+export function findBuildLinks(question: string): string[] {
+  const links: string[] = [];
+  for (const match of question.matchAll(BUILD_LINKS)) {
+    const link = match[0].replace(/^http:/i, "https:").replace(/\/+$/, "");
+    if (!links.includes(link)) links.push(link);
+  }
+  return links.slice(0, 2);
+}
+
+/** The first build link in the question, or "". */
 export function findBuildLink(question: string): string {
-  const match = BUILD_LINK.exec(question);
-  return match ? match[0].replace(/^http:/i, "https:").replace(/\/+$/, "") : "";
+  return findBuildLinks(question)[0] ?? "";
 }
 
 export const MAX_HISTORY = 6; // the server uses no more than this
@@ -84,6 +94,8 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       };
     case "pob_export":
       return { ...turn, exportCode: event.code };
+    case "comparison":
+      return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "done":
       return { ...turn, cited: event.cited, patch: event.patch || turn.patch, status: "done", logId: event.log_id };
     case "error":
@@ -129,6 +141,8 @@ export interface Conversation {
   turns: ChatTurn[];
   build: string;
   buildChanged: boolean;
+  /** A second build to compare with (optional). */
+  compareBuild?: string;
 }
 
 const CHATS_KEY = "build-advisor:chats";

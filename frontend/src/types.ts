@@ -10,6 +10,28 @@ export interface Source {
   doc_type: DocType | "web";
 }
 
+export interface ComparisonRow {
+  stat: string;
+  label: string;
+  a: number;
+  b: number;
+  change_pct: number | null;
+  higher_is_better: boolean;
+}
+
+export interface BuildSummary {
+  className?: string | null;
+  ascendancy?: string | null;
+  level?: number | null;
+  mainSkill?: string | null;
+}
+
+export interface Comparison {
+  a: BuildSummary;
+  b: BuildSummary;
+  rows: ComparisonRow[];
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -17,6 +39,7 @@ export type AskEvent =
   | { type: "tool_call"; id: string; name: string; arguments: Record<string, unknown> }
   | { type: "tool_result"; id: string; name: string; ok: boolean; error: string }
   | { type: "pob_export"; code: string }
+  | ({ type: "comparison" } & Comparison)
   | { type: "done"; cited: number[]; patch: string; log_id?: string }
   | { type: "error"; message: string };
 
