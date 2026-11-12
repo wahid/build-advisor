@@ -43,7 +43,7 @@ def test_refresh_downloads_changes_then_reindexes(mocker) -> None:
 
     call_command("refresh_wiki", stdout=out)
 
-    assert ingest.call_args.kwargs == {"doc_types": None, "direct": True}
+    assert ingest.call_args.kwargs == {"doc_types": None, "direct": False}  # proxies if set
     embed.assert_called_once()
     text = out.getvalue()
     assert "2 new, 5 changed, 2900 unchanged" in text and "embedded 60 new chunks" in text
@@ -59,3 +59,17 @@ def test_refresh_stops_cleanly_when_the_wiki_blocks_us(mocker) -> None:
     with pytest.raises(CommandError, match="Nothing was reindexed"):
         call_command("refresh_wiki")
     chunks.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_refresh_can_skip_the_proxies(mocker) -> None:
+    ingest = mocker.patch(
+        "wiki.management.commands.refresh_wiki.ingest", return_value=IngestResult(patch="3.29.3c")
+    )
+    chunks = mocker.patch("wiki.management.commands.refresh_wiki.build_chunks")
+    chunks.return_value.documents, chunks.return_value.chunks = 0, 0
+    mocker.patch("wiki.management.commands.refresh_wiki.embed_pending", return_value=0)
+
+    call_command("refresh_wiki", "--direct", "--type", "gem", stdout=StringIO())
+
+    assert ingest.call_args.kwargs == {"doc_types": ["gem"], "direct": True}

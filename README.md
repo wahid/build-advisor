@@ -98,7 +98,8 @@ document embeddings are already in the database.
   the `versions` table.
 - **`refresh_wiki`** brings everything up to date: changed and new pages are
   downloaded and reindexed, unchanged pages are relabelled for the new patch.
-  The server runs it weekly (`deploy/server-setup.sh`).
+  The server runs it weekly (`deploy/server-setup.sh`). Like `fetch_wiki` it
+  uses the proxies when configured; `--direct` skips them.
 - **Only changed pages are fetched.** Revision ids are checked in batches of 50;
   pages whose revision matches the stored `Source.revision_id` are skipped.
 - **Polite to the wiki:** one request per 2.5 s by default (Cloudflare challenges faster clients), `maxlag=5`,
