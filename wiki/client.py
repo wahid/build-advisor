@@ -22,7 +22,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -187,6 +187,17 @@ LISTINGS: dict[str, CargoListing | CategoryListing] = {
     # Core pages like Ignite or Endurance charge sit in subcategories (ailments, charges).
     DocumentType.MECHANIC: CategoryListing("Category:Game mechanics", MECHANIC_SUBCATEGORIES),
 }
+PATCH_NOTES_DAYS = 365  # version pages ("Version 3.29.3") released in the last year
+
+
+def recent_versions(today: date) -> CargoListing:
+    """The wiki's page per released game version of the last year: the patch notes."""
+    since = today - timedelta(days=PATCH_NOTES_DAYS)
+    return CargoListing(
+        tables="versions",
+        where=f'versions.release_date >= "{since.isoformat()}" '
+        f'AND versions.release_date <= "{today.isoformat()}"',
+    )
 
 
 class WikiClient:
@@ -263,7 +274,9 @@ class WikiClient:
     def page_url_for(self, title: str) -> str:
         return self.page_url + quote(title.replace(" ", "_"), safe="/:()'!,")
 
-    def list_titles(self, doc_type: str) -> list[str]:
+    def list_titles(self, doc_type: str, today: date | None = None) -> list[str]:
+        if doc_type == DocumentType.PATCH:
+            return sorted(set(self._cargo_titles(recent_versions(today or date.today()))))
         listing = LISTINGS[doc_type]
         if isinstance(listing, CargoListing):
             titles = self._cargo_titles(listing)

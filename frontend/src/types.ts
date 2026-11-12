@@ -1,4 +1,4 @@
-export type DocType = "gem" | "unique" | "ascendancy" | "mechanic";
+export type DocType = "gem" | "unique" | "ascendancy" | "mechanic" | "patch";
 
 export interface Source {
   number: number;
@@ -48,4 +48,5 @@ export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = 
   { value: "unique", label: "Uniques", singular: "Unique item" },
   { value: "ascendancy", label: "Ascendancies", singular: "Ascendancy" },
   { value: "mechanic", label: "Mechanics", singular: "Game mechanic" },
+  { value: "patch", label: "Patch notes", singular: "Patch notes" },
 ];

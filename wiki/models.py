@@ -10,6 +10,7 @@ class DocumentType(models.TextChoices):
     UNIQUE = "unique", "Unique item"
     ASCENDANCY = "ascendancy", "Ascendancy"
     MECHANIC = "mechanic", "Mechanic"
+    PATCH = "patch", "Patch notes"
 
 
 class Source(models.Model):

@@ -128,3 +128,22 @@ Postgres ~0.3 GB, Caddy ~30 MB: about 2.6 GB, with 4 GB of swap as a safety
 net. Lower-precision models don't help on this kind of CPU: bfloat16 was 8x
 slower per question without saving memory, and int8 shifted the vectors
 (cosine 0.95) and needed 6 GB while converting. `docker stats` shows live use.
+
+## Keeping the wiki data current
+
+`python manage.py refresh_wiki` asks the wiki which pages changed (in batches of
+50), downloads only those plus new pages and the patch notes of the last year
+("Version 3.29.3" pages), and reindexes them. `server-setup.sh` schedules it
+every Monday at 04:30; on a server set up before that, add the job once:
+
+```bash
+cat > /etc/cron.d/build-advisor-refresh <<'CRON'
+30 4 * * 1 deploy cd /srv/build-advisor && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T web python manage.py refresh_wiki >> /srv/build-advisor/backups/refresh.log 2>&1
+CRON
+```
+
+The output goes to `backups/refresh.log`. If the wiki's bot protection blocks
+the server, the job stops without touching the index and tries again next week.
+Embedding loads a second copy of the model for a few minutes (about 2 GB), which
+the swap file covers on a CX23.
+
