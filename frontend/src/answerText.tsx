@@ -1,124 +1,149 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import Markdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-import type { Source } from "./types";
+import { EntityName } from "./EntityName";
+import type { Entity, Source } from "./types";
 
 /**
- * Renders the small Markdown subset the model uses (paragraphs, bullet and
- * numbered lists, headings, **bold**) and turns [n] into source links.
- * Builds React elements directly, so model output is never injected as HTML.
+ * Renders the model's Markdown (GitHub flavour: tables, lists, links) safely:
+ * raw HTML in the text is never rendered. [n] becomes a link to source n,
+ * "(general game knowledge)" a badge, and known game names get hover cards.
  */
 
-export type Block =
-  | { kind: "paragraph"; text: string }
-  | { kind: "heading"; text: string }
-  | { kind: "list"; ordered: boolean; items: string[] };
+const CITATION = /\[(\d+)\](?:\(https?:\/\/[^)\s]*\))?/g; // the model sometimes adds the URL
+const GENERAL_KNOWLEDGE = /\(general game knowledge\)/gi;
+export const CITE_PREFIX = "#cite-";
+export const KNOWLEDGE_HREF = "#general-knowledge";
 
-const BULLET = /^\s*[-*]\s+/;
-const NUMBERED = /^\s*\d+[.)]\s+/;
-const HEADING = /^#{1,6}\s+/;
-
-export function parseBlocks(text: string): Block[] {
-  const blocks: Block[] = [];
-  let paragraph: string[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
-
-  const flush = () => {
-    if (paragraph.length) blocks.push({ kind: "paragraph", text: paragraph.join(" ") });
-    if (list) blocks.push({ kind: "list", ...list });
-    paragraph = [];
-    list = null;
-  };
-
-  for (const line of text.split("\n")) {
-    if (!line.trim()) {
-      flush();
-    } else if (HEADING.test(line)) {
-      flush();
-      blocks.push({ kind: "heading", text: line.replace(HEADING, "") });
-    } else if (BULLET.test(line) || NUMBERED.test(line)) {
-      const ordered = NUMBERED.test(line);
-      if (paragraph.length || (list && list.ordered !== ordered)) flush();
-      list ??= { ordered, items: [] };
-      list.items.push(line.replace(ordered ? NUMBERED : BULLET, ""));
-    } else if (list && /^\s{2,}/.test(line)) {
-      list.items[list.items.length - 1] += ` ${line.trim()}`;
-    } else {
-      if (list) flush();
-      paragraph.push(line.trim());
-    }
-  }
-  flush();
-  return blocks;
+/** Turn citations and the knowledge label into links the renderer recognises. */
+export function prepareMarkdown(text: string): string {
+  return text
+    .replace(GENERAL_KNOWLEDGE, `[general game knowledge](${KNOWLEDGE_HREF})`)
+    .replace(CITATION, (_match, n: string) => `[${n}](${CITE_PREFIX}${n})`);
 }
 
-export type Inline =
-  | { kind: "text"; text: string }
-  | { kind: "bold"; text: string }
-  | { kind: "italic"; text: string }
-  | { kind: "cite"; number: number };
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
 
-export function parseInline(text: string): Inline[] {
-  const parts: Inline[] = [];
-  // A citation may come as a Markdown link, "[2](https://...)"; the link part is dropped.
-  // *italic* needs a non-space after the opening star, so "2 * 3" stays as it is.
-  const pattern = /\*\*(.+?)\*\*|\[(\d+)\](?:\(https?:\/\/[^)\s]*\))?|\*(?!\s)([^*]+?)\*/g;
-  let last = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index > last) parts.push({ kind: "text", text: text.slice(last, match.index) });
-    if (match[1] !== undefined) parts.push({ kind: "bold", text: match[1] });
-    else if (match[3] !== undefined) parts.push({ kind: "italic", text: match[3] });
-    else parts.push({ kind: "cite", number: Number(match[2]) });
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push({ kind: "text", text: text.slice(last) });
-  return parts;
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** A rehype plugin: wrap the first mention of each entity name in a marked span. */
+export function markEntities(names: string[]) {
+  const sorted = [...new Set(names)].filter((n) => n.length >= 4).sort((a, b) => b.length - a.length);
+  return () => (tree: HastNode) => {
+    if (!sorted.length) return;
+    const pattern = new RegExp(`(?<![\\w'])(${sorted.map(escapeRegExp).join("|")})(?![\\w'])`, "g");
+    const seen = new Set<string>();
+    const walk = (node: HastNode) => {
+      if (!node.children || node.tagName === "a" || node.tagName === "code" || node.tagName === "pre") return;
+      const next: HastNode[] = [];
+      for (const child of node.children) {
+        if (child.type !== "text" || !child.value) {
+          walk(child);
+          next.push(child);
+          continue;
+        }
+        let last = 0;
+        for (const match of child.value.matchAll(pattern)) {
+          const name = match[1];
+          if (seen.has(name)) continue;
+          seen.add(name);
+          if (match.index > last) next.push({ type: "text", value: child.value.slice(last, match.index) });
+          next.push({
+            type: "element",
+            tagName: "span",
+            properties: { dataEntity: name },
+            children: [{ type: "text", value: name }],
+          });
+          last = match.index + name.length;
+        }
+        if (last < child.value.length) next.push({ type: "text", value: child.value.slice(last) });
+      }
+      node.children = next;
+    };
+    walk(tree);
+  };
 }
 
 interface Props {
   text: string;
   sources: Source[];
+  entities?: Entity[];
   onCiteHover: (number: number | null) => void;
 }
 
-export function AnswerText({ text, sources, onCiteHover }: Props) {
-  const byNumber = new Map(sources.map((s) => [s.number, s]));
+export function AnswerText({ text, sources, entities = [], onCiteHover }: Props) {
+  const byNumber = useMemo(() => new Map(sources.map((s) => [s.number, s])), [sources]);
+  const byName = useMemo(() => new Map(entities.map((e) => [e.name, e])), [entities]);
+  const rehypePlugins = useMemo(() => [markEntities(entities.map((e) => e.name))], [entities]);
 
-  const inline = (value: string): ReactNode[] =>
-    parseInline(value).map((part, i) => {
-      if (part.kind === "text") return part.text;
-      if (part.kind === "bold") return <strong key={i}>{inline(part.text)}</strong>;
-      if (part.kind === "italic") return <em key={i}>{inline(part.text)}</em>;
-      const source = byNumber.get(part.number);
-      if (!source) return `[${part.number}]`;
-      const label = source.section ? `${source.title}, ${source.section}` : source.title;
-      return (
-        <a
-          key={i}
-          className="cite"
-          data-type={source.doc_type}
-          href={source.url}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`Source ${part.number}: ${label}`}
-          title={label}
-          onMouseEnter={() => onCiteHover(part.number)}
-          onMouseLeave={() => onCiteHover(null)}
-          onFocus={() => onCiteHover(part.number)}
-          onBlur={() => onCiteHover(null)}
-        >
-          {part.number}
-        </a>
-      );
-    });
+  const components: Components = useMemo(
+    () => ({
+      a({ href, children }): ReactNode {
+        if (href?.startsWith(CITE_PREFIX)) {
+          const number = Number(href.slice(CITE_PREFIX.length));
+          const source = byNumber.get(number);
+          if (!source) return `[${number}]`;
+          const label = source.section ? `${source.title}, ${source.section}` : source.title;
+          return (
+            <a
+              className="cite"
+              data-type={source.doc_type}
+              href={source.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Source ${number}: ${label}`}
+              title={label}
+              onMouseEnter={() => onCiteHover(number)}
+              onMouseLeave={() => onCiteHover(null)}
+              onFocus={() => onCiteHover(number)}
+              onBlur={() => onCiteHover(null)}
+            >
+              {number}
+            </a>
+          );
+        }
+        if (href === KNOWLEDGE_HREF) {
+          return (
+            <span className="knowledge" title="Not from the cited wiki pages: the model's own knowledge of the game">
+              general game knowledge
+            </span>
+          );
+        }
+        return (
+          <a href={href} target="_blank" rel="noreferrer">
+            {children}
+          </a>
+        );
+      },
+      span({ node, children, ...rest }): ReactNode {
+        const name = node?.properties?.dataEntity;
+        const entity = typeof name === "string" ? byName.get(name) : undefined;
+        if (entity) return <EntityName entity={entity}>{children}</EntityName>;
+        return <span {...rest}>{children}</span>;
+      },
+      h1: ({ children }) => <h3>{children}</h3>,
+      h2: ({ children }) => <h3>{children}</h3>,
+      table: ({ children }) => (
+        <div className="table-scroll">
+          <table>{children}</table>
+        </div>
+      ),
+    }),
+    [byNumber, byName, onCiteHover],
+  );
 
   return (
-    <>
-      {parseBlocks(text).map((block, i) => {
-        if (block.kind === "heading") return <h3 key={i}>{inline(block.text)}</h3>;
-        if (block.kind === "paragraph") return <p key={i}>{inline(block.text)}</p>;
-        const items = block.items.map((item, j) => <li key={j}>{inline(item)}</li>);
-        return block.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
-      })}
-    </>
+    <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
+      {prepareMarkdown(text)}
+    </Markdown>
   );
 }

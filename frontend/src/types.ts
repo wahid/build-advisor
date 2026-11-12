@@ -10,6 +10,14 @@ export interface Source {
   doc_type: DocType | "web";
 }
 
+/** A gem, unique or ascendancy named in an answer, for its hover card. */
+export interface Entity {
+  name: string;
+  doc_type: DocType;
+  url: string;
+  summary: string;
+}
+
 export interface ComparisonRow {
   stat: string;
   label: string;

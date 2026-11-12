@@ -563,6 +563,116 @@ a {
   }
 }
 
+.answer-text h4 {
+  margin: 1.2rem 0 0.3rem;
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+
+.answer-text a:not(.cite):not(.entity-name) {
+  color: var(--mechanic);
+}
+
+.answer-text code {
+  padding: 0 0.25em;
+  font-size: 0.88em;
+  background: var(--stone-raised);
+  border-radius: 3px;
+}
+
+.table-scroll {
+  margin: 0 0 1rem;
+  overflow-x: auto;
+}
+
+.answer-text table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+  line-height: 1.45;
+}
+
+.answer-text th,
+.answer-text td {
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--stone-edge);
+}
+
+.answer-text thead th {
+  font-family: var(--small-caps);
+  font-weight: 500;
+  color: var(--mechanic);
+  border-bottom-width: 2px;
+}
+
+/* "(general game knowledge)": the model's own knowledge, not a cited source. */
+.knowledge {
+  display: inline-block;
+  padding: 0 0.45em;
+  font-size: 0.72em;
+  font-style: italic;
+  line-height: 1.5;
+  vertical-align: 0.15em;
+  color: var(--parchment-dim);
+  border: 1px dashed var(--stone-edge);
+  border-radius: 999px;
+  cursor: help;
+}
+
+/* Game names with a hover card, like an item tooltip. */
+.entity {
+  position: relative;
+}
+
+.entity-name {
+  color: var(--type-colour);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--type-colour) 60%, transparent);
+}
+
+.entity-card {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 4;
+  display: block;
+  width: min(20rem, 80vw);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  font-weight: 400;
+  font-style: normal;
+  color: var(--parchment);
+  background: #120f0d;
+  border: 1px solid var(--type-colour);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.entity-card-head {
+  display: grid;
+  padding: 0.4rem 0.7rem 0.35rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--type-colour) 14%, #120f0d);
+  border-bottom: 3px double color-mix(in srgb, var(--type-colour) 55%, transparent);
+}
+
+.entity-card-title {
+  font-family: var(--small-caps);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--type-colour);
+}
+
+.entity-card-kind {
+  color: var(--parchment-dim);
+}
+
+.entity-card-body {
+  display: block;
+  padding: 0.5rem 0.7rem 0.6rem;
+}
+
 /* Citation markers take the colour of their source's page type. */
 .cite {
   display: inline-block;
