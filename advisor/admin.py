@@ -88,6 +88,7 @@ class QuestionLogAdmin(admin.ModelAdmin):
         "web_searches",
         "tool_count",
         "cost_usd",
+        "unchecked_numbers",
         "has_error",
     )
     list_filter = ("rating", "completed", ("created_at", admin.DateFieldListFilter))
@@ -110,6 +111,12 @@ class QuestionLogAdmin(admin.ModelAdmin):
     @admin.display(description="Tools")
     def tool_count(self, log: QuestionLog) -> int:
         return len(log.tools)
+
+    @admin.display(description="Numbers not in sources")
+    def unchecked_numbers(self, log: QuestionLog) -> str:
+        if not log.numbers_checked:
+            return "–"
+        return f"{len(log.numbers_unsupported)} of {log.numbers_checked}"
 
     @admin.display(description="Error", boolean=True)
     def has_error(self, log: QuestionLog) -> bool:

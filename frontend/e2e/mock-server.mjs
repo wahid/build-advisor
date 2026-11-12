@@ -18,7 +18,7 @@ const ANSWER = {
   text:
     "**Short answer:** poisons stack without limit [1], while only the strongest bleed counts [2].\n\n" +
     "| Ailment | Stacks? |\n|---|---|\n| Poison | Yes |\n| Bleed | No |\n\n" +
-    "Lethal Dose Support adds more poisons [3]. Crimson Dance changes bleed (general game knowledge).",
+    "Lethal Dose Support adds more poisons [3], about 35% more poison damage. Crimson Dance changes bleed (general game knowledge).",
   entities: [{ name: "Lethal Dose Support", doc_type: "gem", url: WIKI + "Lethal_Dose_Support", summary: "Support, Chaos, Poison. Inflicts additional poisons.",
     card: { frame: "gem", header: ["Lethal Dose Support"], groups: [
       { style: "default", lines: [[{ t: "Support, Chaos, Poison", s: "default" }]] },
@@ -101,7 +101,10 @@ http
       }
       send({ type: "sources", sources: ANSWER.sources });
       for (const part of ANSWER.text.match(/[\s\S]{1,30}/g)) send({ type: "delta", text: part });
-      send({ type: "done", cited: [1, 2, 3], patch: "3.29.3c", log_id: "log-1", entities: ANSWER.entities });
+      send({
+        type: "done", cited: [1, 2, 3], patch: "3.29.3c", log_id: "log-1", entities: ANSWER.entities,
+        numbers: { checked: 1, unsupported: [{ text: "35%", context: "about 35% more poison damage" }], knowledge: 0 },
+      });
       return res.end();
     }
     if (req.method === "POST" && req.url === "/api/feedback/") return json(res, 200, { ok: true });

@@ -73,17 +73,56 @@ export function markEntities(names: string[]) {
   };
 }
 
+/** A rehype plugin that marks numbers found in no source or tool result. */
+export function markNumbers(texts: string[]) {
+  const sorted = [...new Set(texts)].filter(Boolean).sort((a, b) => b.length - a.length);
+  return () => (tree: HastNode) => {
+    if (!sorted.length) return;
+    const pattern = new RegExp(`(?<![\\w.,])(${sorted.map(escapeRegExp).join("|")})(?![\\w%]|[.,]\\d)`, "g");
+    const walk = (node: HastNode) => {
+      if (!node.children || node.tagName === "a" || node.tagName === "code" || node.tagName === "pre") return;
+      const next: HastNode[] = [];
+      for (const child of node.children) {
+        if (child.type !== "text" || !child.value) {
+          walk(child);
+          next.push(child);
+          continue;
+        }
+        let last = 0;
+        for (const match of child.value.matchAll(pattern)) {
+          if (match.index > last) next.push({ type: "text", value: child.value.slice(last, match.index) });
+          next.push({
+            type: "element",
+            tagName: "span",
+            properties: { dataUnchecked: "true" },
+            children: [{ type: "text", value: match[1] }],
+          });
+          last = match.index + match[1].length;
+        }
+        if (last < child.value.length) next.push({ type: "text", value: child.value.slice(last) });
+      }
+      node.children = next;
+    };
+    walk(tree);
+  };
+}
+
 interface Props {
   text: string;
   sources: Source[];
   entities?: Entity[];
+  /** Numbers to mark as not found in the sources (as written in the answer). */
+  unchecked?: string[];
   onCiteHover: (number: number | null) => void;
 }
 
-export function AnswerText({ text, sources, entities = [], onCiteHover }: Props) {
+export function AnswerText({ text, sources, entities = [], unchecked = [], onCiteHover }: Props) {
   const byNumber = useMemo(() => new Map(sources.map((s) => [s.number, s])), [sources]);
   const byName = useMemo(() => new Map(entities.map((e) => [e.name, e])), [entities]);
-  const rehypePlugins = useMemo(() => [markEntities(entities.map((e) => e.name))], [entities]);
+  const rehypePlugins = useMemo(
+    () => [markEntities(entities.map((e) => e.name)), markNumbers(unchecked)],
+    [entities, unchecked],
+  );
 
   const components: Components = useMemo(
     () => ({
@@ -125,6 +164,13 @@ export function AnswerText({ text, sources, entities = [], onCiteHover }: Props)
         );
       },
       span({ node, children, ...rest }): ReactNode {
+        if (node?.properties?.dataUnchecked) {
+          return (
+            <mark className="unchecked" title="Not found in the sources or Path of Building's results">
+              {children}
+            </mark>
+          );
+        }
         const name = node?.properties?.dataEntity;
         const entity = typeof name === "string" ? byName.get(name) : undefined;
         if (entity) return <EntityName entity={entity}>{children}</EntityName>;

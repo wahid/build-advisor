@@ -110,6 +110,14 @@ export interface Leveling {
   note: string;
 }
 
+/** The numbers in an answer, looked up in what the model was given. */
+export interface NumberCheck {
+  checked: number;
+  unsupported: { text: string; context: string }[];
+  /** Numbers in sentences labelled general game knowledge (not checked). */
+  knowledge: number;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -123,7 +131,7 @@ export type AskEvent =
   | ({ type: "item_check" } & ItemCheck)
   | ({ type: "passive_ranking" } & PassiveRanking)
   | ({ type: "leveling" } & Leveling)
-  | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[] }
+  | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck }
   | { type: "error"; message: string };
 
 export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = [

@@ -19,6 +19,8 @@ test("an answer renders with citations, a table, a badge and sources", async ({ 
   await expect(answer.locator("table td").first()).toHaveText("Poison");
   await expect(answer.locator("a.cite")).toHaveCount(3);
   await expect(answer.locator(".knowledge")).toHaveText("general game knowledge");
+  await expect(answer.locator("mark.unchecked")).toHaveText("35%");
+  await expect(page.locator(".unchecked-note")).toContainText("One number in this answer isn't in the wiki sources");
 
   // Sources are folded until opened.
   const sources = page.locator("details.sources");

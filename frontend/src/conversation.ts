@@ -1,6 +1,17 @@
 import type { ToolStep } from "./PobPanel";
 import { itemName } from "./items";
-import type { AskEvent, Comparison, Entity, ItemCheck, Leveling, LevelingGem, PassiveRanking, PastedItem, Source } from "./types";
+import type {
+  AskEvent,
+  Comparison,
+  Entity,
+  ItemCheck,
+  Leveling,
+  LevelingGem,
+  NumberCheck,
+  PassiveRanking,
+  PastedItem,
+  Source,
+} from "./types";
 
 export type TurnStatus = "searching" | "answering" | "done" | "error";
 
@@ -33,6 +44,8 @@ export interface ChatTurn {
   passives?: PassiveRanking;
   /** When the gems become available while leveling (all lookups of the turn, merged). */
   leveling?: Leveling;
+  /** The answer's numbers, checked against the sources and tool results. */
+  numbers?: NumberCheck;
 }
 
 function firstAct(gem: LevelingGem): number {
@@ -157,6 +170,7 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
         status: "done",
         logId: event.log_id,
         entities: event.entities ?? [],
+        ...(event.numbers ? { numbers: event.numbers } : {}),
       };
     case "error":
       return { ...turn, error: event.message, status: "error" };

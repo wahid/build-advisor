@@ -245,6 +245,8 @@ class CaseResult:
     error: str = ""
     seconds: float = 0.0
     rewrite: str = ""
+    unsupported_numbers: list[str] = field(default_factory=list)  # guardrails.check
+    numbers_checked: int = 0
 
 
 @dataclass
@@ -274,6 +276,9 @@ class Report:
                     "grounded": _avg(c.verdict.grounded for c in answerable if c.verdict),
                     "relevant": _avg(c.verdict.relevant for c in answerable if c.verdict),
                     "admits_gap": _ratio(c.verdict.admits_gap for c in unanswerable if c.verdict),
+                    "numbers_grounded": _ratio(
+                        not c.unsupported_numbers for c in self.cases if c.numbers_checked
+                    ),
                 }
             )
         return out
@@ -385,6 +390,8 @@ def _run_case(
         search_query=query,  # the pages the retrieval score saw
     )
     result.answer = produced.text
+    result.numbers_checked = int(produced.numbers.get("checked", 0))
+    result.unsupported_numbers = [n["text"] for n in produced.numbers.get("unsupported", [])]
     result.tools_called = [t["name"] for t in produced.tools]
     if produced.error:
         result.error = produced.error
@@ -438,6 +445,7 @@ LABELS = {
     "grounded": "Groundedness (judge, 1-5)",
     "relevant": "Relevance (judge, 1-5)",
     "admits_gap": "Says so when the wiki doesn't cover it",
+    "numbers_grounded": "Answers whose numbers are all in the sources or tool results",
 }
 
 

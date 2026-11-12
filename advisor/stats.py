@@ -49,6 +49,9 @@ def usage() -> dict[str, Any]:
     first_words = list(logs.exclude(first_token_ms=None).values_list("first_token_ms", flat=True))
     totals = list(logs.exclude(total_ms=None).values_list("total_ms", flat=True))
     rated = data["up"] + data["down"]
+    with_numbers = logs.filter(numbers_checked__gt=0)
+    numbered = with_numbers.count()
+    grounded = with_numbers.filter(numbers_unsupported=[]).count()
     return {
         "days": USAGE_DAYS,
         "answers": data["answers"],
@@ -57,6 +60,8 @@ def usage() -> dict[str, Any]:
         "average_cost_usd": float(data["cost"]) if data["cost"] is not None else None,
         "helpful_share": round(data["up"] / rated, 3) if rated else None,
         "rated": rated,
+        # Of the answers with numbers in them: all found in the sources or tool results.
+        "numbers_grounded_share": round(grounded / numbered, 3) if numbered else None,
     }
 
 

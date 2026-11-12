@@ -21,6 +21,7 @@ interface Stats {
     average_cost_usd: number | null;
     helpful_share: number | null;
     rated: number;
+    numbers_grounded_share?: number | null;
   };
   corpus: { pages: number; chunks: number; patch: string; by_type: Record<string, number> };
   model: string;
@@ -223,6 +224,9 @@ export function HowItWorks() {
                       <li>
                         {percent(usage.helpful_share)} rated helpful ({usage.rated} ratings)
                       </li>
+                    )}
+                    {usage.numbers_grounded_share != null && (
+                      <li>{percent(usage.numbers_grounded_share)} of answers with numbers have every number in a source</li>
                     )}
                   </ul>
                 ) : (

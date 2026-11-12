@@ -820,6 +820,22 @@ a {
   color: var(--parchment-dim);
 }
 
+/* A number the guardrail found in no source or tool result. */
+mark.unchecked {
+  color: inherit;
+  background: none;
+  text-decoration: underline wavy color-mix(in srgb, var(--danger) 70%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.unchecked-note {
+  margin: 0.75rem 0 0;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
 .passive-name {
   display: block;
   color: var(--parchment);

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { AnswerText } from "./answerText";
 import type { ChatTurn } from "./conversation";
@@ -41,6 +41,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
   const busy = turn.status === "searching" || turn.status === "answering";
   const groups = groupSources(turn.sources);
   const running = turn.steps.some((step) => step.status === "running");
+  const unchecked = useMemo(() => (turn.numbers?.unsupported ?? []).map((n) => n.text), [turn.numbers]);
 
   return (
     <section className="turn" aria-label={turn.question || (turn.itemText ? itemName(turn.itemText) : "Question")}>
@@ -112,8 +113,21 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}
         <div className="answer-text" data-streaming={turn.status === "answering" || undefined}>
-          <AnswerText text={turn.answer} sources={turn.sources} entities={turn.entities} onCiteHover={setHovered} />
+          <AnswerText
+            text={turn.answer}
+            sources={turn.sources}
+            entities={turn.entities}
+            unchecked={unchecked}
+            onCiteHover={setHovered}
+          />
         </div>
+        {unchecked.length > 0 && (
+          <p className="unchecked-note">
+            {unchecked.length === 1 ? "One number" : `${unchecked.length} numbers`} in this answer{" "}
+            {unchecked.length === 1 ? "isn't" : "aren't"} in the wiki sources or Path of Building's results (marked).
+            Check {unchecked.length === 1 ? "it" : "them"} before relying on {unchecked.length === 1 ? "it" : "them"}.
+          </p>
+        )}
         {turn.exportCode && <PobExport code={turn.exportCode} />}
         {turn.error && (
           <p className="error" role="alert">

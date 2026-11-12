@@ -32,7 +32,7 @@ from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import compare as build_compare
-from . import gemrank, items, leveling, passives, websearch
+from . import gemrank, guardrails, items, leveling, passives, websearch
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
 from .progress import Steps
@@ -128,6 +128,7 @@ class Answer:
     error: str = ""
     tools: list[dict[str, Any]] = field(default_factory=list)
     pob_export: str = ""
+    numbers: dict[str, Any] = field(default_factory=dict)  # see guardrails.check
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -710,11 +711,19 @@ def _converse(
     logger.debug(
         "Answered %r with %s/%s: %d chars", question, provider.name, provider.model, len(full)
     )
+    # Everything the model was given (not what it wrote): sources, tool results,
+    # the question and any pasted item or earlier questions.
+    evidence = [
+        m["content"]
+        for m in messages
+        if m.get("role") != "assistant" and isinstance(m.get("content"), str)
+    ]
     yield {
         "type": "done",
         "cited": cited_numbers(full, len(sources)),
         "patch": patch,
         "entities": entities_in(full),
+        "numbers": guardrails.check(full, evidence).as_dict(),
     }
 
 
@@ -736,6 +745,7 @@ def answer(question: str, **kwargs: Any) -> Answer:
             case "done":
                 result.cited = event["cited"]
                 result.patch = event["patch"]
+                result.numbers = event.get("numbers") or {}
             case "error":
                 result.error = event["message"]
     return result

@@ -250,9 +250,17 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    duplicates dropped). Results become numbered sources the model cites like
    the wiki, shown as "Web page" cards with their site and date. The evals run
    without it, so scores don't change with the web.
-6. **Streaming** (`POST /api/ask/`): sources first, then tool steps, the
-   answer token by token, an exported share code if any, and finally which
-   sources were cited.
+6. **Streaming** (`POST /api/ask/`): sources first, then tool steps (with live
+   progress for slow ones, e.g. "14 of 40: Ground Slam"), the answer token by
+   token, an exported share code if any, and finally which sources were cited.
+7. **Number guardrail** (`advisor/guardrails.py`): every number in the finished
+   answer is looked up in what the model was given (wiki sources, web results,
+   tool results, the question and a pasted item), allowing for rounding,
+   percent/fraction forms and arithmetic shown in the same sentence. Numbers
+   found nowhere are underlined in the app with a note; numbers in sentences
+   labelled general game knowledge are counted apart. The share of answers
+   whose numbers all check out is logged, shown on *How it works* and reported
+   by the evals.
 
 ## Question log, costs and feedback
 

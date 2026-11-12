@@ -40,6 +40,12 @@ class QuestionLog(models.Model):
     tools = models.JSONField(default=list, blank=True, help_text="name, ok, ms, error")
     answer = models.TextField(blank=True)
     cited = models.JSONField(default=list, blank=True)
+    numbers_checked = models.PositiveSmallIntegerField(
+        default=0, help_text="Numbers in the answer looked up in the evidence."
+    )
+    numbers_unsupported = models.JSONField(
+        default=list, blank=True, help_text="Numbers found in no source or tool result."
+    )
     error = models.TextField(blank=True)
     completed = models.BooleanField(default=False, help_text="False: stopped or disconnected.")
 

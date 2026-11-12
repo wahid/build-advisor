@@ -74,3 +74,20 @@ describe("stepLabel", () => {
     expect(stepLabel("web_search", true, { query: "x" })).toBe("Couldn't search the web for “x”");
   });
 });
+
+describe("numbers not found in the sources", () => {
+  it("are marked wherever they appear, and only whole numbers match", () => {
+    const html = renderToStaticMarkup(
+      createElement(AnswerText, {
+        text: "Cyclone needs level 34. It deals 45% more, not 145% or 45.5%. Again: 45%.",
+        sources,
+        unchecked: ["34", "45%"],
+        onCiteHover: () => {},
+      }),
+    );
+
+    expect(html.match(/<mark class="unchecked"/g)).toHaveLength(3);
+    expect(html).toContain(">34</mark>");
+    expect(html).toContain("not 145% or 45.5%");
+  });
+});
