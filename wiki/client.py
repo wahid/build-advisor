@@ -52,6 +52,20 @@ DIRECT_TIMEOUT = (10.0, 30.0)  # (connect, read) seconds without a proxy
 PROXY_ERROR_STATUSES = frozenset({407, 429, 502, 503, 504, 403})
 
 
+def connection_note(direct: bool = False) -> str:
+    """One line for the wiki commands: whether downloads go through proxies."""
+    from django.conf import settings
+
+    if direct:
+        return "Using this machine's own connection (--direct)."
+    if not settings.WIKI_PROXIES:
+        return (
+            "No proxies configured (WIKI_PROXIES / proxies.txt): "
+            "using this machine's own connection."
+        )
+    return f"Using {len(settings.WIKI_PROXIES)} proxies."
+
+
 class WikiError(RuntimeError):
     """Raised when the wiki returns an error or can't be reached."""
 
@@ -473,6 +487,12 @@ class WikiClient:
                     raise WikiBlockedError(
                         "The wiki's bot protection (Anubis) is blocking requests from this "
                         "connection. Stop for a few hours and try again with a lower request rate."
+                    )
+                if response.status_code == 403:
+                    raise WikiBlockedError(
+                        "The wiki refused requests from this connection (HTTP 403) and no "
+                        "proxy was used. Configure proxies (WIKI_PROXIES or proxies.txt) or "
+                        "try again later."
                     )
                 if response.status_code in (429, 503):
                     self._slow_down()

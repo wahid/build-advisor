@@ -2,7 +2,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from wiki.client import WikiBlockedError
+from wiki.client import WikiBlockedError, connection_note
 from wiki.ingest import ingest
 from wiki.models import DocumentType
 from wiki.tasks import ingest_wiki
@@ -61,6 +61,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Queued ingest task {task.id}")
             return
 
+        self.stdout.write(connection_note(options["direct"]))
         try:
             result = ingest(**kwargs)
         except WikiBlockedError as exc:

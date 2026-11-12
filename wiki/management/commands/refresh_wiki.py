@@ -15,7 +15,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from wiki.client import WikiBlockedError
+from wiki.client import WikiBlockedError, connection_note
 from wiki.indexing import build_chunks, embed_pending
 from wiki.ingest import ingest
 from wiki.models import DocumentType
@@ -42,6 +42,7 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:
         started = time.monotonic()
+        self.stdout.write(connection_note(options["direct"]))
         try:
             result = ingest(doc_types=options["doc_types"], direct=options["direct"])
         except WikiBlockedError as exc:

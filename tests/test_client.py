@@ -384,6 +384,25 @@ def test_anubis_block_page_stops_the_run(wiki_client: WikiClient) -> None:
 
 
 @responses.activate
+def test_a_plain_403_without_proxies_says_so(wiki_client: WikiClient) -> None:
+    responses.get(API_URL, status=403, body="Forbidden")
+
+    with pytest.raises(WikiBlockedError, match="no proxy was used"):
+        wiki_client.current_patch(today=date(2026, 11, 11))
+    assert len(responses.calls) == 1
+
+
+def test_commands_say_whether_they_use_proxies(settings) -> None:
+    from wiki.client import connection_note
+
+    settings.WIKI_PROXIES = ["http://a:1", "http://b:2"]
+    assert connection_note() == "Using 2 proxies."
+    assert "--direct" in connection_note(direct=True)
+    settings.WIKI_PROXIES = []
+    assert connection_note().startswith("No proxies configured")
+
+
+@responses.activate
 def test_non_json_response_is_a_clear_error(wiki_client: WikiClient) -> None:
     responses.get(API_URL, status=200, body="<html>maintenance</html>", content_type="text/html")
 
