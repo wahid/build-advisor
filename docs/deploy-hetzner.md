@@ -153,6 +153,18 @@ the server, the job stops without touching the index and tries again next week.
 Embedding loads a second copy of the model for a few minutes (about 2 GB), which
 the swap file covers on a CX23.
 
+## Weekly report on answers that went wrong
+
+`python manage.py feedback_report` lists the answers of the last week that were
+rated not helpful, ended in an error, or were flagged by the number or fact checks,
+grouped by the most likely cause; `--classify` also has the model read the
+thumbs-down answers with no clear cause. `server-setup.sh` schedules it for Mondays
+06:00 into `backups/feedback-report.md`; on a server set up before that, add once:
+
+```bash
+echo '0 6 * * 1 deploy cd /srv/build-advisor && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T web python manage.py feedback_report --classify > /srv/build-advisor/backups/feedback-report.md 2>> /srv/build-advisor/backups/refresh.log' >> /etc/cron.d/build-advisor-refresh
+```
+
 ## Monitoring
 
 - **Uptime:** `.github/workflows/uptime.yml` checks the live site every 15

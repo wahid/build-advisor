@@ -60,9 +60,10 @@ cat > /etc/cron.d/build-advisor-backup <<CRON
 15 3 * * * deploy cd $APP_DIR && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T db pg_dump -U build_advisor -Fc -f /backups/nightly-\$(date +\%a).dump build_advisor
 CRON
 
-echo "== Weekly wiki refresh (changed pages and recent patch notes), Mondays 04:30"
+echo "== Weekly, Mondays: wiki refresh (04:30) and the report on answers that went wrong (06:00)"
 cat > /etc/cron.d/build-advisor-refresh <<CRON
 30 4 * * 1 deploy cd $APP_DIR && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T web python manage.py refresh_wiki >> $APP_DIR/backups/refresh.log 2>&1
+0 6 * * 1 deploy cd $APP_DIR && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T web python manage.py feedback_report --classify > $APP_DIR/backups/feedback-report.md 2>> $APP_DIR/backups/refresh.log
 CRON
 
 echo
