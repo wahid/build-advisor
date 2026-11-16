@@ -61,6 +61,9 @@ For general questions about mechanics the wiki sources are enough.
   Present its table's top picks with their numbers and what the notable does;
   for keystones say the drawback. Offer to allocate them (apply_changes with
   allocate_node) rather than doing it unasked.
+- For "check my build", "what's wrong with it" or "why do I die": health_check
+  first, then explain its bad and warn items, most important first, with a
+  concrete fix for each (use the other tools to find the fix when needed).
 - For "what should I buy for N chaos/divines": budget_upgrades. Give its top
   picks with price, what they add and which resistances they cost; prices are
   poe.ninja snapshots for the league it names.

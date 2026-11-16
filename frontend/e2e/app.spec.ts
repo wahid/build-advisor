@@ -110,6 +110,21 @@ test("a chat can be shared as a read-only page and taken down again", async ({ p
   await expect(reader.locator(".status")).toContainText("doesn't exist");
 });
 
+test("an attached build can be checked for problems with one click", async ({ page, request }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Attach build" }).click();
+  await page.locator("#build").fill("https://pobb.in/abc");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Check build" }).click();
+
+  const card = page.getByRole("region", { name: "Build health check" });
+  await expect(card).toContainText("1 to fix, 1 to check, 1 fine.");
+  await expect(card.locator(".health-item").first()).toContainText("Fix");
+  await expect(card.locator(".health-item").first()).toContainText("Cold 41%");
+  const sent = await (await request.get("/api/__last__")).json();
+  expect(sent.build).toBe("https://pobb.in/abc");
+});
+
 test("the last question can be edited and asked again in place", async ({ page }) => {
   await ask(page, "How does poison stak?");
 

@@ -31,7 +31,7 @@ from wiki.embeddings import Embedder
 from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
-from . import budget, gemrank, guardrails, items, leveling, passives, websearch
+from . import budget, gemrank, guardrails, health, items, leveling, passives, websearch
 from . import compare as build_compare
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
@@ -155,7 +155,12 @@ def _for_model(text: str) -> str:
 
 
 # Tools built here on top of pob-mcp's (offered whenever Path of Building is).
-COMPOSITE_TOOLS = [gemrank.TOOL_DEFINITION, passives.TOOL_DEFINITION, budget.TOOL_DEFINITION]
+COMPOSITE_TOOLS = [
+    gemrank.TOOL_DEFINITION,
+    passives.TOOL_DEFINITION,
+    budget.TOOL_DEFINITION,
+    health.TOOL_DEFINITION,
+]
 
 ToolSteps = Generator[Event, None, tuple[list[Event], str]]
 
@@ -235,6 +240,20 @@ class _ToolRunner:
         events = self._events(call, arguments, ok=True, error="")
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         events.append({"type": "upgrades", **result})
+        return events, _for_model(text)
+
+    def _health_check(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
+        assert self.toolbox is not None
+        if not self.toolbox.has_build:
+            return self._events(call, arguments, ok=False, error=NO_BUILD_ERROR), NO_BUILD_ERROR
+        try:
+            result = yield from _follow(call, health.check_steps(self.toolbox.call_internal))
+        except PobToolError as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = json.dumps(result, ensure_ascii=False)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        events.append({"type": "health", **result})
         return events, _for_model(text)
 
     def _quest_rewards(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
@@ -317,6 +336,8 @@ class _ToolRunner:
             return (yield from self._rank_skill_gems(call, arguments))
         if call.name == passives.TOOL_NAME and self.toolbox is not None:
             return (yield from self._suggest_passives(call, arguments))
+        if call.name == health.TOOL_NAME and self.toolbox is not None:
+            return (yield from self._health_check(call, arguments))
         if call.name == budget.TOOL_NAME and self.toolbox is not None:
             return (yield from self._budget_upgrades(call, arguments))
         if call.name == leveling.TOOL_NAME:

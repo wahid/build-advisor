@@ -22,6 +22,7 @@ interface Props {
   onStop: () => void;
 }
 
+export const HEALTH_QUESTION = "Check my build for problems.";
 const MAX_HEIGHT = 220; // px; the box grows with the question up to this
 
 /** The message box: question, an optional Path of Building build, and search filters. */
@@ -161,6 +162,16 @@ export function Composer({
           ) : (
             <button type="button" className="tool-button" aria-expanded={editingBuild} onClick={() => setEditingBuild(!editingBuild)}>
               {editingBuild ? "Done" : "Attach build"}
+            </button>
+          )}
+          {hasBuild && !editingBuild && (
+            <button
+              type="button"
+              className="tool-button"
+              disabled={busy || disabled}
+              onClick={() => onSubmit(HEALTH_QUESTION, "")}
+            >
+              Check build
             </button>
           )}
           {hasBuild &&

@@ -87,6 +87,15 @@ http
         }
         send({ type: "tool_result", id: "rank", name: "rank_skill_gems", ok: true, error: "" });
       }
+      if (body.question.startsWith("Check my build")) {
+        send({ type: "tool_call", id: "health", name: "health_check", arguments: {} });
+        send({ type: "tool_result", id: "health", name: "health_check", ok: true, error: "" });
+        send({ type: "health", bad: 1, warn: 1, ok: 1, note: "", checks: [
+          { id: "resistances", label: "Elemental resistances", status: "bad", detail: "Under the 75% cap: Cold 41%." },
+          { id: "flasks", label: "Flasks", status: "warn", detail: "2 of 5 flask slots are empty." },
+          { id: "points", label: "Passive points", status: "ok", detail: "All spent." },
+        ] });
+      }
       if (body.item) {
         send({ type: "item", item: ITEM });
         send({ type: "tool_call", id: "check-item", name: "check_item", arguments: {} });

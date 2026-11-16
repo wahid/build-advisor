@@ -141,6 +141,15 @@ export interface Upgrades {
   note: string;
 }
 
+/** The build health check: the usual problems as a checklist, worst first. */
+export interface Health {
+  checks: { id: string; label: string; status: "bad" | "warn" | "ok"; detail: string }[];
+  bad: number;
+  warn: number;
+  ok: number;
+  note: string;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -155,6 +164,7 @@ export type AskEvent =
   | ({ type: "passive_ranking" } & PassiveRanking)
   | ({ type: "leveling" } & Leveling)
   | ({ type: "upgrades" } & Upgrades)
+  | ({ type: "health" } & Health)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck }
   | { type: "error"; message: string };
 

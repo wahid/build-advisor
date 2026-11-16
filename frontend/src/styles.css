@@ -828,6 +828,55 @@ a {
   color: var(--parchment-dim);
 }
 
+/* --- Build health check ---------------------------------------------------------- */
+
+.health-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+}
+
+.health-item {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(8rem, 12rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--stone-edge);
+}
+
+.health-status {
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.health-item[data-status="bad"] .health-status {
+  color: var(--danger);
+}
+
+.health-item[data-status="warn"] .health-status {
+  color: #e2b455;
+}
+
+.health-item[data-status="ok"] .health-status {
+  color: var(--good);
+}
+
+.health-item[data-status="ok"] .health-detail {
+  color: var(--parchment-dim);
+}
+
+@media (max-width: 560px) {
+  .health-item {
+    grid-template-columns: 3.6rem minmax(0, 1fr);
+  }
+
+  .health-detail {
+    grid-column: 2;
+  }
+}
+
 /* --- Sharing a chat ----------------------------------------------------------- */
 
 .share {

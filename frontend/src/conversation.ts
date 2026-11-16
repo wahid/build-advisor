@@ -5,6 +5,7 @@ import type {
   AskEvent,
   Comparison,
   Entity,
+  Health,
   ItemCheck,
   Leveling,
   LevelingGem,
@@ -46,6 +47,8 @@ export interface ChatTurn {
   passives?: PassiveRanking;
   /** When the gems become available while leveling (all lookups of the turn, merged). */
   leveling?: Leveling;
+  /** The build health check's checklist. */
+  health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
   upgrades?: Upgrades;
   /** The answer's numbers, checked against the sources and tool results. */
@@ -154,6 +157,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "item":
       return { ...turn, item: event.item };
+    case "health": {
+      const { type: _type, ...health } = event;
+      return { ...turn, health };
+    }
     case "upgrades": {
       const { type: _type, ...upgrades } = event;
       return { ...turn, upgrades };
