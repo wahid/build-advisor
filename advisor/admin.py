@@ -7,7 +7,7 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpRequest, HttpResponse
 from django.utils import timezone
 
-from .models import DailyUsage, GemRanking, QuestionLog
+from .models import DailyUsage, GemRanking, QuestionLog, SharedChat
 
 
 @admin.register(DailyUsage)
@@ -74,6 +74,18 @@ def as_eval_cases(logs: Any) -> str:
         "# drop `notes` and `seen_tools`, and paste them into evals/questions.yaml.\n"
     )
     return header + yaml.safe_dump(cases, sort_keys=False, allow_unicode=True, width=100)
+
+
+@admin.register(SharedChat)
+class SharedChatAdmin(admin.ModelAdmin):
+    """Shared chats; delete one to take its public page down."""
+
+    list_display = ("title", "slug", "created_at")
+    search_fields = ("title", "slug")
+    readonly_fields = ("slug", "delete_key", "created_at", "title", "turns")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
 
 
 @admin.register(QuestionLog)

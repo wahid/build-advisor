@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyEvent, mergeLeveling, newTurn, questionFor, titleFor, toHistory } from "./conversation";
+import { applyEvent, mergeLeveling, newTurn, questionFor, shareableIds, titleFor, toHistory } from "./conversation";
 import { isItemText, itemName } from "./items";
 
 const RING = `Item Class: Rings
@@ -60,5 +60,15 @@ describe("tool progress", () => {
 
     expect(turn.steps[0].progress).toEqual({ done: 13, total: 40, label: "Ground Slam" });
     expect(turn.steps[0].startedAt).toBeGreaterThan(0);
+  });
+});
+
+describe("sharing", () => {
+  it("offers only finished answers that the server logged", () => {
+    const done = { ...newTurn("a", "q"), status: "done" as const, answer: "A", logId: "log-a" };
+    const noLog = { ...newTurn("b", "q"), status: "done" as const, answer: "B" };
+    const failed = { ...newTurn("c", "q"), status: "error" as const, logId: "log-c" };
+
+    expect(shareableIds([done, noLog, failed])).toEqual(["log-a"]);
   });
 });

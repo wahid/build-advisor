@@ -1,4 +1,6 @@
 import json
+import re
+import secrets
 from collections.abc import Iterator
 from datetime import timedelta
 from typing import Any
@@ -6,6 +8,7 @@ from typing import Any
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
+from django.utils.html import escape
 from rest_framework import serializers
 from rest_framework.negotiation import BaseContentNegotiation
 from rest_framework.permissions import AllowAny
@@ -17,15 +20,17 @@ from rest_framework.views import APIView
 from wiki.models import DocumentType
 from wiki.search import SearchFilters
 
+from . import share
 from .items import MAX_ITEM_TEXT, item_title, split_item
 from .limits import take_question
-from .models import QuestionLog
+from .models import QuestionLog, SharedChat
 from .pob import split_build_links
 from .prompts import Turn
 from .questionlog import record
 from .rag import Answer, Event, Source, answer_stream
 from .stats import public_stats
 
+OG_TITLE_RE = re.compile(r'<meta property="og:title" content="[^"]*" />')
 DAILY_LIMIT_MESSAGE = (
     "The demo has reached today's limit of {limit} questions. "
     "It resets at midnight UTC, so try again tomorrow."
@@ -89,6 +94,10 @@ class AskThrottle(AnonRateThrottle):
 
 class FeedbackThrottle(AnonRateThrottle):
     scope = "feedback"
+
+
+class ShareThrottle(AnonRateThrottle):
+    scope = "share"
 
 
 def sse(events: Iterator[Event]) -> Iterator[str]:
@@ -200,6 +209,51 @@ class FeedbackView(APIView):
         return Response({"ok": True})
 
 
+class ShareSerializer(serializers.Serializer):
+    log_ids = serializers.ListField(
+        child=serializers.UUIDField(), min_length=1, max_length=share.MAX_TURNS
+    )
+
+
+class ShareView(APIView):
+    """POST the log ids of a chat's answers to publish it read-only; returns its link."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ShareThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = ShareSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            chat = share.create(serializer.validated_data["log_ids"])
+        except share.ShareError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        url = request.build_absolute_uri(f"/c/{chat.slug}/")
+        return Response({"slug": chat.slug, "url": url, "delete_key": chat.delete_key}, status=201)
+
+
+class SharedChatView(APIView):
+    """GET a shared chat; DELETE it with the key its sharer got."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, slug: str) -> Response:
+        chat = SharedChat.objects.filter(slug=slug).first()
+        if chat is None:
+            return Response({"detail": "This shared chat doesn't exist (any more)."}, status=404)
+        return Response(share.public(chat))
+
+    def delete(self, request: Request, slug: str) -> Response:
+        key = str(request.data.get("delete_key", ""))
+        chat = SharedChat.objects.filter(slug=slug).first()
+        if chat is None or not key or not secrets.compare_digest(key, chat.delete_key):
+            return Response({"detail": "This link can't be removed with that key."}, status=403)
+        chat.delete()
+        return Response(status=204)
+
+
 class StatsView(APIView):
     """Public, aggregated numbers for the How it works page."""
 
@@ -224,4 +278,17 @@ def frontend(request: HttpRequest) -> HttpResponse:
     # Link previews need absolute URLs: this host, as the visitor reached it.
     html = html.replace("__SITE_URL__", request.build_absolute_uri("/").rstrip("/"))
     html = html.replace("__PAGE_URL__", request.build_absolute_uri(request.path))
+    return HttpResponse(html)
+
+
+def shared_chat_page(request: HttpRequest, slug: str) -> HttpResponse:
+    """The app on a shared chat's page, with the chat's title in its link preview."""
+    response = frontend(request)
+    chat = SharedChat.objects.filter(slug=slug).only("title").first()
+    if chat is None or response.status_code != 200:
+        return response
+    html = response.content.decode("utf-8")
+    title = escape(f"{chat.title} | Build Advisor")
+    html = OG_TITLE_RE.sub(f'<meta property="og:title" content="{title}" />', html, count=1)
+    html = html.replace("<title>Build Advisor</title>", f"<title>{title}</title>", 1)
     return HttpResponse(html)

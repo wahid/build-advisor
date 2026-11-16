@@ -1,6 +1,6 @@
 import { SSEParser } from "./sse";
 import type { HistoryTurn } from "./conversation";
-import type { AskEvent, DocType } from "./types";
+import type { AskEvent, DocType, Entity, Source } from "./types";
 
 export class AskError extends Error {
   constructor(
@@ -92,4 +92,67 @@ export async function sendFeedback(
     body: JSON.stringify({ log_id: logId, rating, feedback }),
   });
   if (!response.ok) throw new AskError("Your feedback couldn't be sent. Try again later.");
+}
+
+/** A chat published as a read-only page. */
+export interface ShareLink {
+  slug: string;
+  url: string;
+  /** Lets this browser take the page down again. */
+  deleteKey: string;
+  /** How many answers the page shows (to tell when the chat has grown since). */
+  turns: number;
+}
+
+/** Publish the answers with these log ids as a read-only page. */
+export async function shareChat(logIds: string[], fetchImpl: typeof fetch = fetch): Promise<ShareLink> {
+  const response = await fetchImpl("/api/share/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ log_ids: logIds }),
+  });
+  if (!response.ok) {
+    const message =
+      response.status === 429 ? "You've shared a lot of chats in a short time. Try again later." : "The chat couldn't be shared. Try again later.";
+    throw new AskError(message);
+  }
+  const body = (await response.json()) as { slug: string; url: string; delete_key: string };
+  return { slug: body.slug, url: body.url, deleteKey: body.delete_key, turns: logIds.length };
+}
+
+/** Take a shared page down. */
+export async function unshareChat(link: ShareLink, fetchImpl: typeof fetch = fetch): Promise<void> {
+  const response = await fetchImpl(`/api/share/${link.slug}/`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ delete_key: link.deleteKey }),
+  });
+  // 404/403: it's already gone (e.g. removed by the site's owner).
+  if (!response.ok && response.status !== 403 && response.status !== 404) {
+    throw new AskError("The link couldn't be removed. Try again later.");
+  }
+}
+
+export interface SharedTurn {
+  question: string;
+  answer: string;
+  sources: Source[];
+  cited: number[];
+  patch: string;
+  entities: Entity[];
+}
+
+export interface SharedChat {
+  slug: string;
+  title: string;
+  created_at: string;
+  turns: SharedTurn[];
+}
+
+/** A shared chat, or null when it doesn't exist (any more). */
+export async function fetchSharedChat(slug: string, fetchImpl: typeof fetch = fetch): Promise<SharedChat | null> {
+  const response = await fetchImpl(`/api/share/${encodeURIComponent(slug)}/`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new AskError("The shared chat couldn't be loaded. Try again later.");
+  return (await response.json()) as SharedChat;
 }

@@ -82,7 +82,10 @@ class Recorder:
                         if log.search_ms is None:
                             log.search_ms = self._ms(started)
                         log.sources = [
-                            {k: s.get(k) for k in ("number", "title", "section", "url", "doc_type")}
+                            {
+                                k: s.get(k)
+                                for k in ("number", "title", "section", "url", "doc_type", "patch")
+                            }
                             for s in event["sources"]
                         ]
                     elif kind == "delta":

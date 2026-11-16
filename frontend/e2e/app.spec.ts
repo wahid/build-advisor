@@ -91,6 +91,25 @@ test("a slow tool shows how far it is", async ({ page }) => {
   await expect(page.locator(".pob-step[data-status=ok]")).toContainText("Ranked skill gems");
 });
 
+test("a chat can be shared as a read-only page and taken down again", async ({ page }) => {
+  await ask(page, "How does poison stack?");
+  await page.getByRole("button", { name: "Share this chat" }).click();
+  const link = page.getByLabel("Link to the shared chat");
+  await expect(link).toHaveValue(/\/c\/abc123\/$/);
+
+  const reader = await page.context().newPage();
+  await reader.goto("/c/abc123/");
+  await expect(reader.locator(".bubble")).toHaveText("How does poison stack?");
+  await expect(reader.locator(".answer-text a.cite")).toHaveCount(3);
+  await expect(reader.locator("#question")).toHaveCount(0); // read-only
+  await expect(reader.getByRole("link", { name: "Ask your own question" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Stop sharing" }).click();
+  await expect(page.getByRole("button", { name: "Share this chat" })).toBeVisible();
+  await reader.reload();
+  await expect(reader.locator(".status")).toContainText("doesn't exist");
+});
+
 test("the last question can be edited and asked again in place", async ({ page }) => {
   await ask(page, "How does poison stak?");
 

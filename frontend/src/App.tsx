@@ -12,11 +12,13 @@ import {
   saveActiveId,
   saveConversations,
   titleFor,
+  shareableIds,
   toHistory,
   type ChatTurn,
   type Conversation,
 } from "./conversation";
 import { LimitBanner } from "./LimitBanner";
+import { ShareChat } from "./ShareChat";
 import { Sidebar } from "./Sidebar";
 import { TurnView } from "./TurnView";
 import type { AskEvent, DocType } from "./types";
@@ -318,6 +320,13 @@ export default function App() {
                   onEdit={turn.id === latest?.id ? (question) => void submit(question, true, turn.itemText) : undefined}
                 />
               ))}
+              {!busy && active && (
+                <ShareChat
+                  logIds={shareableIds(turns)}
+                  link={active.share}
+                  onChange={(share) => updateChat(active.id, (chat) => ({ ...chat, share }))}
+                />
+              )}
             </main>
             <div className="dock">
               {limitUntil > 0 && <LimitBanner until={limitUntil} onOver={limitOver} />}

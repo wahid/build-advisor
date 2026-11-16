@@ -85,3 +85,23 @@ class GemRanking(models.Model):
 
     def __str__(self) -> str:
         return f"{self.arguments} ({self.pob_version})"
+
+
+class SharedChat(models.Model):
+    """A conversation its asker made public: a read-only copy at /c/<slug>.
+
+    Built from the question log by the server, so a shared page only ever shows
+    questions that were asked and the answers the app gave.
+    """
+
+    slug = models.CharField(max_length=16, unique=True)
+    delete_key = models.CharField(max_length=32, help_text="Lets the sharer take it down.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(max_length=120)
+    turns = models.JSONField(help_text="question, answer, sources, cited, patch, entities")
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.title

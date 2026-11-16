@@ -820,6 +820,72 @@ a {
   color: var(--parchment-dim);
 }
 
+/* --- Sharing a chat ----------------------------------------------------------- */
+
+.share {
+  margin: 0 0 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--stone-edge);
+}
+
+.share-text {
+  margin: 0 0 0.5rem;
+  font-size: var(--step--1);
+  color: var(--parchment-dim);
+}
+
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.share-link {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: var(--step--1);
+  color: var(--parchment);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--stone-edge);
+  border-radius: 8px;
+}
+
+.shared {
+  margin-left: 0;
+}
+
+.shared-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(100%, 46rem);
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
+}
+
+.shared-name {
+  font-family: var(--small-caps);
+  font-weight: 700;
+  font-size: var(--step-1);
+  color: var(--mechanic);
+  text-decoration: none;
+}
+
+.shared-note {
+  margin: 0 0 2rem;
+  font-size: var(--step--1);
+  font-style: italic;
+  color: var(--parchment-dim);
+}
+
+a.turn-action {
+  text-decoration: none;
+}
+
 /* A number the guardrail found in no source or tool result. */
 mark.unchecked {
   color: inherit;

@@ -123,6 +123,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "ask": env("ASK_RATE_LIMIT", default="60/hour"),
         "feedback": env("FEEDBACK_RATE_LIMIT", default="120/hour"),
+        "share": env("SHARE_RATE_LIMIT", default="20/hour"),
     },
 }
 # Questions per day for the whole site (UTC days); 0 = no limit. Protects the LLM budget.

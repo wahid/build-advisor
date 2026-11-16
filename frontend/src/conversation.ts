@@ -1,4 +1,5 @@
 import type { ToolStep } from "./PobPanel";
+import type { ShareLink } from "./api";
 import { itemName } from "./items";
 import type {
   AskEvent,
@@ -224,6 +225,13 @@ export interface Conversation {
   buildChanged: boolean;
   /** A second build to compare with (optional). */
   compareBuild?: string;
+  /** The chat's public read-only page, when it's shared. */
+  share?: ShareLink;
+}
+
+/** Log ids of the chat's finished answers, in order: what a share link shows. */
+export function shareableIds(turns: ChatTurn[]): string[] {
+  return turns.filter((t) => t.status === "done" && t.logId && t.answer.trim()).map((t) => t.logId as string);
 }
 
 const CHATS_KEY = "build-advisor:chats";

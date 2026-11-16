@@ -12,6 +12,7 @@ const source = (number, title, section, doc_type = "mechanic") => ({
   number, title, section, url: WIKI + title.replace(/ /g, "_"), patch: "3.29.3c", doc_type,
 });
 let lastAsk = null;
+let shared = null;
 
 const ANSWER = {
   sources: [source(1, "Poison", "Mechanics"), source(2, "Bleeding", "Mechanics > Damage"), source(3, "Lethal Dose Support", "", "gem")],
@@ -108,6 +109,22 @@ http
       return res.end();
     }
     if (req.method === "POST" && req.url === "/api/feedback/") return json(res, 200, { ok: true });
+    if (req.method === "POST" && req.url === "/api/share/") {
+      shared = await readBody(req);
+      return json(res, 201, { slug: "abc123", url: `http://localhost:${port}/c/abc123/`, delete_key: "key" });
+    }
+    if (req.url === "/api/share/abc123/") {
+      if (req.method === "DELETE") {
+        shared = null;
+        res.writeHead(204);
+        return res.end();
+      }
+      if (!shared) return json(res, 404, { detail: "gone" });
+      return json(res, 200, {
+        slug: "abc123", title: "How does poison stack?", created_at: "2026-11-16T07:00:00Z",
+        turns: [{ question: "How does poison stack?", answer: ANSWER.text, sources: ANSWER.sources, cited: [1, 2, 3], patch: "3.29.3c", entities: ANSWER.entities }],
+      });
+    }
     if (req.url === "/api/stats/") return json(res, 200, STATS);
     if (req.url === "/api/__last__") return json(res, 200, lastAsk);
 
