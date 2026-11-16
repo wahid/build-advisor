@@ -231,3 +231,25 @@ def test_an_exported_build_can_be_continued_without_loading(pool: PobPool) -> No
     with pool.toolbox(build=code) as toolbox:
         assert toolbox.reused is True
         assert toolbox.call("get_build_summary", {}).data == {"ascendancy": "Slayer"}
+
+
+def test_a_character_import_takes_only_an_account_and_a_name() -> None:
+    from advisor.pob import sanitize_arguments
+
+    clean = sanitize_arguments(
+        "import_character",
+        {
+            "account": " Some Name#1234 ",
+            "character": "MyArcher",
+            "realm": "XBOX",
+            "json_path": "/etc/passwd",
+        },
+    )
+    assert clean == {"account": "Some Name#1234", "character": "MyArcher", "realm": "xbox"}
+    for bad in (
+        {"account": "NoNumber", "character": "MyArcher"},
+        {"account": "Name#1234", "character": "../../etc"},
+        {"json_path": "/etc/passwd"},
+    ):
+        with pytest.raises(PobToolError):
+            sanitize_arguments("import_character", bad)

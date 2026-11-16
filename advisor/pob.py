@@ -71,6 +71,7 @@ DEFAULT_TOOLS = (
     "rank_gear_upgrades",
     "list_item_slots",
     "plan_leveling",
+    "import_character",
 )
 
 # Tools that only read the build, or try a change and put the build back exactly as
@@ -108,6 +109,7 @@ NO_BUILD_NEEDED = frozenset(
     {
         "new_build",
         "load_build",
+        "import_character",
         "search_gems",
         "search_uniques",
         "list_classes",
@@ -125,6 +127,10 @@ NO_BUILD_ERROR = (
 SHARE_CODE_RE = re.compile(r"^[A-Za-z0-9_\-+/=]{100,}$")
 BUILD_LINK_HOSTS = {"pobb.in", "pastebin.com", "www.pastebin.com"}
 BUILD_LINK_RE = re.compile(r"https?://(?:www\.)?(?:pobb\.in|pastebin\.com)/[\w\-/]+", re.IGNORECASE)
+ACCOUNT_RE = re.compile(r"^[\w\-. ]{2,40}#\d{3,5}$")
+CHARACTER_RE = re.compile(r"^\w{2,30}$")
+REALMS = ("pc", "xbox", "sony")
+BUILD_STARTERS = ("new_build", "load_build", "import_character")
 LINK_ONLY_QUESTION = "What do you think of this build?"
 MAX_DESCRIPTION = 2000
 
@@ -152,6 +158,22 @@ def validate_build_source(source: str) -> str:
         "Only Path of Building share codes and https links to pobb.in or pastebin.com "
         "can be loaded."
     )
+
+
+def validate_character(arguments: dict[str, Any]) -> dict[str, str]:
+    """An account and character on pathofexile.com, for import_character."""
+    account = str(arguments.get("account") or "").strip()
+    character = str(arguments.get("character") or "").strip()
+    if not ACCOUNT_RE.match(account):
+        raise PobToolError("Give the pathofexile.com account name with its number, like Name#1234.")
+    if not CHARACTER_RE.match(character):
+        raise PobToolError("Give the character's name as it's written in the game.")
+    realm = str(arguments.get("realm") or "pc").lower()
+    return {
+        "account": account,
+        "character": character,
+        "realm": realm if realm in REALMS else "pc",
+    }
 
 
 def split_build_links(question: str) -> tuple[str, list[str]]:
@@ -195,6 +217,8 @@ def sanitize_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return {"source": validate_build_source(str(arguments.get("source", "")))}
     if name == "export_build":
         return {"format": "code"}  # never `save_to`, never XML
+    if name == "import_character":
+        return validate_character(arguments)  # never `json_path` (a file on the server)
     return arguments
 
 
@@ -376,7 +400,7 @@ class PobToolbox:
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
         result = self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
-        if name in ("new_build", "load_build") and result.ok:
+        if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         if name == "export_build" and result.ok and isinstance(result.data, dict):
             code = result.data.get("code")
@@ -396,7 +420,7 @@ class PobToolbox:
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
         result = self._server.call(name, arguments, self._timeout)
-        if name in ("new_build", "load_build") and result.ok:
+        if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         return result
 

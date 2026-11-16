@@ -80,7 +80,7 @@ export function Composer({
             id="build"
             className="build-input"
             rows={2}
-            placeholder="Paste it here. It stays attached for the whole conversation."
+            placeholder="Paste it here. It stays attached for the whole conversation. Or ask in the chat to import a character: your account (Name#1234) and the character's name."
             value={build}
             onChange={(e) => onBuildChange(e.target.value)}
           />

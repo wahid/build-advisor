@@ -63,6 +63,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   list_item_slots: ["Looked up item slots", "look up item slots"],
   quest_rewards: ["Looked up quest rewards and vendors", "look up quest rewards"],
   new_build: ["Started a new build", "start a new build"],
+  import_character: ["Imported your character from pathofexile.com", "import your character"],
   get_build_summary: ["Read the build summary", "read the build summary"],
   get_stats: ["Read stats", "read stats"],
   get_skills: ["Read the gem setup", "read the gem setup"],
@@ -95,6 +96,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
 // While they run, the slow steps say what they're doing.
 const RUNNING: Record<string, string> = {
   load_build: "Loading your build",
+  import_character: "Importing your character from pathofexile.com",
   compare_builds: "Comparing the builds",
   check_item: "Trying your item on the build",
   health_check: "Checking the build for the usual problems",

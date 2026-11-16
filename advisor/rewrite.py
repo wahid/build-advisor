@@ -38,7 +38,8 @@ without naming it.
 build: true only if answering needs calculations on a concrete character build
 in Path of Building: creating or changing a build, numbers like DPS, life, EHP
 or resistances for a build, ranking gems or passives for a build, a question
-about the user's own build, or which skill gems deal the most damage ("strongest
+about the user's own build or character (also importing it by account and
+character name), or which skill gems deal the most damage ("strongest
 skill for Slayer", "best scaling slam skill"), which is calculated in Path of
 Building. False for questions about how the game works.
 

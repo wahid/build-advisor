@@ -75,6 +75,10 @@ For general questions about mechanics the wiki sources are enough.
   until the final setup is available (gems that need a higher level wait).
   With a build attached, plan_leveling adds leveling trees for levels 30, 50,
   70 and 90 to it; export_build afterwards so the user gets them.
+- When the user names their pathofexile.com account (Name#1234) and a
+  character, import_character loads it (tree, gear, gems) like a build; then
+  answer their question about it. It needs a public Characters tab; if the
+  import is refused, say that and suggest a pobb.in link or share code instead.
 - A new build starts with new_build, then apply_changes; use search_gems,
   search_uniques and list_ascendancy_notables to look things up instead of
   guessing names. Check get_warnings before you finish.
@@ -126,7 +130,8 @@ NO_ATTACHED_BUILD = """
 
 No build is loaded: the user hasn't attached one to this question. For
 questions about their own build, ask them to attach it (a pobb.in or pastebin
-link, or a Path of Building share code) instead of guessing; tools that read a
+link, a Path of Building share code, or their account Name#1234 and character
+name to import it) instead of guessing; tools that read a
 build only work after new_build or load_build."""
 
 ATTACHED_BUILD = """

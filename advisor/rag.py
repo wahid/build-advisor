@@ -62,7 +62,13 @@ OUT_OF_ROUNDS = (
 TOOL_PREVIEW_CHARS = 1500  # of each tool result, for clients and the eval judge
 WEB_PREVIEW_CHARS = 8000  # web results are kept whole (at most ~5 x 1,200 characters)
 # Tools that change the loaded build; if any ran and nothing was exported, export at the end.
-MODIFYING_TOOLS = {"new_build", "apply_changes", "auto_allocate_passives", "fix_gaps"}
+MODIFYING_TOOLS = {
+    "new_build",
+    "import_character",
+    "apply_changes",
+    "auto_allocate_passives",
+    "fix_gaps",
+}
 # DeepSeek's own tool-call markup ("<｜｜DSML｜｜ ...", "<｜tool▁calls▁begin｜>") can leak
 # into the text when it wants a tool it wasn't offered.
 MARKUP_START = "<\uff5c"
