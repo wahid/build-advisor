@@ -1,27 +1,34 @@
-/* Build Advisor: Wraeclast stone, parchment text, and the game's own item colours. */
+/* Build Advisor: a dark slate, data-first look (tool sites for the game look like
+   this); the game's own item colours for gems, uniques and ascendancies. The
+   in-game tooltips keep their own serif small caps. Token names are historical:
+   --stone is the page, --parchment the text, --mechanic the accent. */
 :root {
-  --stone: #211c18;
-  --stone-raised: #2b2520;
-  --stone-edge: #4a3f35;
-  --parchment: #d9cfbd;
-  --parchment-dim: #9c9183;
-  --gem: #1ba29b;
-  --unique: #c16d2c;
-  --ascendancy: #8f8fff;
-  --mechanic: #b8a77e;
+  --stone: #11151c;
+  --stone-raised: #1a202b;
+  --stone-deep: #0c0f15;
+  --stone-edge: #2b3443;
+  --parchment: #dfe5ee;
+  --parchment-bright: #f5f8fc;
+  --parchment-dim: #8a96a8;
+  --gem: #22b8ae;
+  --unique: #d97a34;
+  --ascendancy: #9a9aff;
+  --mechanic: #63aee8;
   --web: #9db4c6;
-  --patch: #c9a3d9;
-  --danger: #d86a5a;
+  --patch: #cfa3e0;
+  --danger: #ef7167;
+  --good: #58c98a;
 
-  --serif: "Alegreya", Georgia, serif;
-  --small-caps: "Alegreya SC", "Alegreya", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-body);
+  --font-game: "Alegreya SC", "Alegreya", Georgia, serif; /* in-game style tooltips */
 
-  /* Modular scale, ratio 1.25 from 17px body text. */
-  --step--1: 0.85rem;
-  --step-0: 1.0625rem;
-  --step-1: 1.33rem;
-  --step-2: 1.66rem;
-  --step-3: 2.6rem;
+  /* Compact scale from 15px body text. */
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.4rem;
+  --step-3: 2.1rem;
 
   color-scheme: dark;
 }
@@ -36,9 +43,9 @@ body {
   margin: 0;
   background: var(--stone);
   color: var(--parchment);
-  font-family: var(--serif);
+  font-family: var(--font-body);
   font-size: var(--step-0);
-  line-height: 1.6;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -86,7 +93,7 @@ a {
   display: flex;
   flex-direction: column;
   width: var(--sidebar-width);
-  background: #191512;
+  background: var(--stone-deep);
   border-right: 1px solid var(--stone-edge);
 }
 
@@ -99,7 +106,7 @@ a {
 }
 
 .sidebar-name {
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: var(--step-1);
   color: var(--mechanic);
@@ -116,7 +123,7 @@ a {
 .chat-item {
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .chat-item:hover,
@@ -190,7 +197,7 @@ a {
 
 .wordmark {
   margin: 0;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: var(--step-3);
   line-height: 1.05;
@@ -224,13 +231,13 @@ a {
   text-align: left;
   background: none;
   border: 1px solid var(--stone-edge);
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
 .examples button:hover {
   border-color: var(--mechanic);
-  color: #efe6d6;
+  color: var(--parchment-bright);
 }
 
 .topbar {
@@ -246,7 +253,7 @@ a {
 }
 
 .topbar-name {
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: var(--step-1);
   color: var(--mechanic);
@@ -259,7 +266,7 @@ a {
   color: var(--parchment);
   background: none;
   border: 1px solid var(--stone-edge);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -288,7 +295,7 @@ a {
   overflow-wrap: anywhere;
   background: var(--stone-raised);
   border: 1px solid var(--stone-edge);
-  border-radius: 16px 16px 4px 16px;
+  border-radius: 8px 8px 2px 8px;
 }
 
 .reply {
@@ -311,7 +318,7 @@ a {
   padding: 0.7rem 0.8rem 0.55rem 1rem;
   background: var(--stone-raised);
   border: 1px solid var(--stone-edge);
-  border-radius: 16px;
+  border-radius: 6px;
 }
 
 .composer:focus-within {
@@ -367,7 +374,7 @@ a {
   color: var(--parchment-dim);
   background: none;
   border: 1px solid var(--stone-edge);
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .tool-button {
@@ -450,13 +457,13 @@ a {
 .send-button {
   flex: none;
   padding: 0.3rem 1.1rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--stone);
   background: var(--mechanic);
   border: 1px solid var(--mechanic);
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -491,7 +498,7 @@ a {
   color: var(--parchment);
   background: var(--stone);
   border: 1px solid var(--stone-edge);
-  border-radius: 8px;
+  border-radius: 6px;
   resize: vertical;
   word-break: break-all;
 }
@@ -516,7 +523,7 @@ a {
 
 .answer-text h3 {
   margin: 1.6rem 0 0.4rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: var(--step-1);
   font-weight: 500;
   color: var(--mechanic);
@@ -543,7 +550,7 @@ a {
 
 .answer-text strong {
   font-weight: 700;
-  color: #efe6d6;
+  color: var(--parchment-bright);
 }
 
 .answer-text[data-streaming] > :last-child::after {
@@ -601,7 +608,7 @@ a {
 }
 
 .answer-text thead th {
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 500;
   color: var(--mechanic);
   border-bottom-width: 2px;
@@ -617,7 +624,7 @@ a {
   vertical-align: 0.15em;
   color: var(--parchment-dim);
   border: 1px dashed var(--stone-edge);
-  border-radius: 999px;
+  border-radius: 6px;
   cursor: help;
 }
 
@@ -652,7 +659,7 @@ a {
   --frame-dark: #3a3a3a;
   display: block;
   min-width: 16rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-game);
   font-size: 0.95rem;
   line-height: 1.35;
   background: rgba(0, 0, 0, 0.97);
@@ -802,6 +809,7 @@ a {
 }
 
 .eval-run-tag {
+  white-space: nowrap;
   margin-left: 0.5rem;
   padding: 0 0.35rem;
   border: 1px solid var(--stone-edge);
@@ -850,7 +858,7 @@ a {
   color: var(--parchment);
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--stone-edge);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .shared {
@@ -868,7 +876,7 @@ a {
 }
 
 .shared-name {
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: var(--step-1);
   color: var(--mechanic);
@@ -962,20 +970,20 @@ mark.unchecked {
 
 .comparison-table thead th {
   vertical-align: bottom;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-weight: 500;
   color: var(--mechanic);
 }
 
 .comparison-build {
   display: block;
-  font-family: var(--serif);
+  font-family: var(--font-body);
   font-size: 0.8rem;
   color: var(--parchment-dim);
 }
 
 .comparison-table td[data-better="true"] {
-  color: #8fbf7a;
+  color: var(--good);
 }
 
 .comparison-table td[data-better="false"] {
@@ -1011,7 +1019,7 @@ mark.unchecked {
   color: var(--parchment-dim);
   background: none;
   border: 1px solid var(--stone-edge);
-  border-radius: 999px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -1094,7 +1102,7 @@ mark.unchecked {
   color: var(--parchment);
   background: color-mix(in srgb, var(--mechanic) 12%, var(--stone));
   border: 1px solid color-mix(in srgb, var(--mechanic) 45%, transparent);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 @media (hover: none) {
@@ -1123,7 +1131,7 @@ mark.unchecked {
   color: var(--parchment);
   background: none;
   border: 1px solid var(--stone-edge);
-  border-radius: 999px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -1148,7 +1156,7 @@ mark.unchecked {
   color: var(--parchment);
   background: var(--stone-raised);
   border: 1px solid var(--stone-edge);
-  border-radius: 8px;
+  border-radius: 6px;
   resize: vertical;
 }
 
@@ -1179,7 +1187,7 @@ mark.unchecked {
 
 .pob-heading {
   margin: 0 0 0.35rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: 1rem;
   font-weight: 500;
   color: var(--parchment-dim);
@@ -1261,7 +1269,7 @@ mark.unchecked {
 .pob-export {
   margin: 1.5rem 0 0;
   padding: 0.8rem 1rem 1rem;
-  background: #120f0d;
+  background: var(--stone-deep);
   border: 1px solid var(--stone-edge);
   border-top: 3px double var(--mechanic);
 }
@@ -1279,7 +1287,7 @@ mark.unchecked {
 
 .pob-copy {
   padding: 0.25rem 0.8rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--stone);
@@ -1322,7 +1330,7 @@ mark.unchecked {
 .sources-summary {
   width: fit-content;
   margin-bottom: 0.75rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: 1rem;
   color: var(--parchment-dim);
   cursor: pointer;
@@ -1343,7 +1351,7 @@ mark.unchecked {
 
 .tooltip {
   border: 1px solid var(--stone-edge);
-  background: #120f0d;
+  background: var(--stone-deep);
   transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease;
 }
 
@@ -1358,12 +1366,12 @@ mark.unchecked {
   gap: 0.05rem;
   padding: 0.45rem 0.75rem 0.4rem;
   text-align: center;
-  background: color-mix(in srgb, var(--type-colour) 14%, #120f0d);
+  background: color-mix(in srgb, var(--type-colour) 14%, var(--stone-deep));
   border-bottom: 3px double color-mix(in srgb, var(--type-colour) 55%, transparent);
 }
 
 .tooltip-title {
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: 1.12rem;
   font-weight: 700;
   line-height: 1.25;
@@ -1395,7 +1403,7 @@ mark.unchecked {
 }
 
 .tooltip-entry[data-highlighted] {
-  color: #efe6d6;
+  color: var(--parchment-bright);
 }
 
 /* Same marker as the citations in the answer, so [2] is easy to find. */
@@ -1516,7 +1524,7 @@ mark.unchecked {
 
 .pipeline-title {
   margin: 0;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: var(--step-1);
   font-weight: 500;
   color: var(--type-colour);
@@ -1532,7 +1540,7 @@ mark.unchecked {
 .item-card {
   position: sticky;
   top: 1.5rem;
-  background: #0c0a09;
+  background: #07090d;
   border: 1px solid color-mix(in srgb, var(--type-colour) 70%, transparent);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
@@ -1541,19 +1549,19 @@ mark.unchecked {
   display: grid;
   padding: 0.6rem 1rem 0.5rem;
   text-align: center;
-  background: color-mix(in srgb, var(--type-colour) 16%, #0c0a09);
+  background: color-mix(in srgb, var(--type-colour) 16%, #07090d);
   border-bottom: 3px double color-mix(in srgb, var(--type-colour) 60%, transparent);
 }
 
 .item-card-name {
-  font-family: var(--small-caps);
+  font-family: var(--font-game);
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--type-colour);
 }
 
 .item-card-base {
-  font-family: var(--small-caps);
+  font-family: var(--font-game);
   font-size: 1.05rem;
   color: var(--type-colour);
 }
@@ -1609,7 +1617,7 @@ mark.unchecked {
 
 .about-heading {
   margin: 1.5rem 0 0.4rem;
-  font-family: var(--small-caps);
+  font-family: var(--font-heading);
   font-size: var(--step-1);
   font-weight: 500;
   color: var(--mechanic);
@@ -1672,7 +1680,7 @@ mark.unchecked {
     color: var(--parchment);
     background: none;
     border: 1px solid var(--stone-edge);
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
   }
 
@@ -1730,4 +1738,49 @@ mark.unchecked {
   .pob-step[data-status="running"] .pob-marker {
     animation: none;
   }
+}
+
+/* --- Data-first details: headings and tables as on a stats site ------------------ */
+
+h1,
+h2,
+h3,
+.pob-heading,
+.about-heading,
+.sources-summary {
+  letter-spacing: -0.005em;
+}
+
+.comparison-table thead th,
+.answer-text table thead th {
+  background: var(--stone-raised);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--parchment-dim);
+  white-space: nowrap;
+}
+
+.comparison-table tbody tr:hover,
+.answer-text table tbody tr:hover {
+  background: color-mix(in srgb, var(--stone-raised) 70%, transparent);
+}
+
+.comparison-table tbody th[scope="row"] {
+  color: var(--parchment);
+}
+
+.comparison,
+.answer-text .table-scroll {
+  border: 1px solid var(--stone-edge);
+  border-radius: 6px;
+}
+
+.comparison > .pob-heading,
+.comparison > .comparison-note {
+  padding: 0.6rem 0.75rem 0;
+  margin-bottom: 0.4rem;
+}
+
+.comparison .comparison-table tr:last-child > * {
+  border-bottom: 0;
 }
