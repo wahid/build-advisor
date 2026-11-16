@@ -27,6 +27,66 @@ interface Stats {
   model: string;
   web_search: boolean;
   eval_history?: EvalRun[];
+  model_comparison?: ModelRun[];
+}
+
+/** One model's latest run of the evaluation set (evals/models.jsonl). */
+interface ModelRun {
+  date: string;
+  model: string;
+  judge: string;
+  cases: number | null;
+  pass_rate: number | null;
+  grounded: number | null;
+  numbers_grounded: number | null;
+  median_answer_seconds: number | null;
+  avg_cost_usd: number | null;
+}
+
+/** The same evaluation set answered by different models: quality, speed and cost. */
+function ModelComparison({ runs, current }: { runs: ModelRun[]; current: string }) {
+  if (runs.length < 2) return null;
+  return (
+    <section className="about-section eval-history">
+      <h2 className="about-heading">Models compared</h2>
+      <p>
+        The same {runs[0].cases ?? ""} evaluation cases answered by each model and graded by one judge (
+        {runs[0].judge}), so the scores can be compared. The app runs on the one marked in use.
+      </p>
+      <div className="table-scroll">
+        <table className="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Model</th>
+              <th scope="col">Cases passing</th>
+              <th scope="col">Groundedness</th>
+              <th scope="col">Numbers all sourced</th>
+              <th scope="col">Answer time (median)</th>
+              <th scope="col">Cost per answer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => (
+              <tr key={run.model}>
+                <th scope="row">
+                  <span className="eval-run-label">
+                    {run.model}
+                    {run.model === current && <span className="eval-run-tag">in use</span>}
+                  </span>
+                  <span className="eval-run-meta">{run.date}</span>
+                </th>
+                <td>{percent(run.pass_rate)}</td>
+                <td>{run.grounded == null ? "–" : `${run.grounded.toFixed(2)} / 5`}</td>
+                <td>{percent(run.numbers_grounded)}</td>
+                <td>{run.median_answer_seconds == null ? "–" : `${run.median_answer_seconds.toFixed(1)} s`}</td>
+                <td>{run.avg_cost_usd == null ? "–" : `$${run.avg_cost_usd.toFixed(4)}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 /** One run of the evaluation set (evals/history.jsonl). */
@@ -120,7 +180,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Calculate with Path of Building",
-    text: "For builds, the model drives Path of Building's own calculation engine through 26 tools: load your build, rank support or skill gems, test changes, compare two builds, or create one and hand over the share code.",
+    text: "For builds, the model drives Path of Building's own calculation engine: load or import your build, check it for problems, try a pasted item or the uniques within a budget, rank gems and passives, compare two builds, or create one and hand over the share code.",
     kind: "gem",
   },
   {
@@ -135,7 +195,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Measure it",
-    text: "Every answer is logged with its timings, tokens and cost, and can be rated. Bad answers become test cases in an evaluation set that runs in CI.",
+    text: "The numbers and simple game facts in each answer are checked against the sources and Path of Building's data. Every answer is logged with its timings, tokens and cost, and can be rated. Bad answers become test cases in an evaluation set that runs in CI.",
     kind: "mechanic",
   },
 ];
@@ -241,6 +301,7 @@ export function HowItWorks() {
         </aside>
       </section>
 
+      {stats?.model_comparison && <ModelComparison runs={stats.model_comparison} current={stats.model} />}
       {stats?.eval_history && <EvalHistory runs={stats.eval_history} />}
 
       <section className="about-section">

@@ -80,3 +80,28 @@ def test_settings_are_read_from_the_eval_meta_line() -> None:
         "retrieval only, 5 PoB/web cases skipped._"
     )
     assert evalhistory.config_from_meta(meta) == "query rewriting, retrieval only"
+
+
+def test_models_are_compared_on_their_latest_run_with_cost(tmp_path, settings, monkeypatch) -> None:
+    monkeypatch.setenv("GIT_COMMIT", "abc1234")
+    settings.LLM_MODEL_PRICES = {"fast": [0.30, 0.006, 1.20]}
+    path = tmp_path / "models.jsonl"
+    fast = {
+        "cases": 50,
+        "pass_rate": 0.9,
+        "grounded": 4.5,
+        "median_answer_seconds": 8.0,
+        "avg_prompt_tokens": 6000.0,
+        "avg_cached_prompt_tokens": 1000.0,
+        "avg_completion_tokens": 500.0,
+    }
+
+    evalhistory.append(evalhistory.model_entry({**fast, "pass_rate": 0.5}, "fast", "fast"), path)
+    evalhistory.append(evalhistory.model_entry(fast, "fast", "fast"), path)
+    evalhistory.append(evalhistory.model_entry({**fast, "pass_rate": 0.96}, "big", "fast"), path)
+
+    rows = evalhistory.load_models(path)
+    assert [(r["model"], r["pass_rate"]) for r in rows] == [("big", 0.96), ("fast", 0.9)]
+    # (5000 x 0.30 + 1000 x 0.006 + 500 x 1.20) / 1e6
+    assert rows[1]["avg_cost_usd"] == pytest.approx(0.00211, abs=1e-5)
+    assert rows[0]["avg_cost_usd"] is None  # no price known for "big"

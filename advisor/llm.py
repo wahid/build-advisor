@@ -196,19 +196,21 @@ class OpenAICompatibleProvider:
 
 
 @lru_cache(maxsize=1)
-def get_provider() -> LLMProvider:
+def get_provider(model: str = "") -> LLMProvider:
+    """The configured provider; `model` overrides LLM_MODEL (for comparing models)."""
     name = settings.LLM_PROVIDER
     if name not in BASE_URLS and not settings.LLM_BASE_URL:
         raise ImproperlyConfigured(
             f"Unknown LLM_PROVIDER {name!r}; use one of {sorted(BASE_URLS)} or set LLM_BASE_URL."
         )
-    if not settings.LLM_MODEL:
+    model = model or settings.LLM_MODEL
+    if not model:
         raise ImproperlyConfigured("Set LLM_MODEL to the model name of your provider.")
     if not settings.LLM_API_KEY:
         raise ImproperlyConfigured("Set LLM_API_KEY.")
     return OpenAICompatibleProvider(
         name=name,
-        model=settings.LLM_MODEL,
+        model=model,
         api_key=settings.LLM_API_KEY,
         base_url=settings.LLM_BASE_URL or BASE_URLS[name],
         temperature=settings.LLM_TEMPERATURE,

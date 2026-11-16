@@ -19,6 +19,25 @@ about a concrete build the model can also drive
 through [pob-mcp](https://github.com/wahid/pob-mcp): load your build, rank
 support gems, test changes, or create a build and hand you the share code.
 
+## What it can do
+
+- **Answer with sources:** wiki facts are cited, the model's own game knowledge is
+  labelled, and numbers and simple game facts in the answer are checked afterwards
+  (see *How answering works*).
+- **Work on your build:** attach a pobb.in link or share code, or import a character
+  by account and name. Path of Building runs the numbers.
+- **Check a build:** one click for a checklist of the usual problems (resistances,
+  requirements, unspent points, empty slots, shaky configuration assumptions).
+- **Is this item an upgrade?** Paste an item copied from the game (Ctrl+C); it's
+  equipped in Path of Building and the stats before and after are shown.
+- **What to buy:** the best unique items within a chaos or divine budget, priced
+  with poe.ninja's economy data and tried on the build.
+- **What to take next:** passive notables ranked for damage and toughness per point;
+  skill gems ranked by calculated damage; two builds compared side by side.
+- **Leveling:** which quest or vendor gives each gem to your class, and when.
+- **Patches:** what the recent patch notes say about your build's gems and items.
+- **Share:** publish a chat as a read-only page with a link.
+
 ## Status
 
 | Phase | | Status |
@@ -261,6 +280,11 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    labelled general game knowledge are counted apart. The share of answers
    whose numbers all check out is logged, shown on *How it works* and reported
    by the evals.
+8. **Fact check** (`advisor/gamefacts.py`): a few kinds of statements with a
+   definite answer are checked against Path of Building's data: a weapon base's
+   handedness, whether a gem is an attack or a spell, and a gem's required level.
+   It only speaks up when a sentence makes the claim plainly; contradictions are
+   shown under the answer and logged.
 
 ## Question log, costs and feedback
 
@@ -275,6 +299,10 @@ Under each answer visitors can say whether it helped, and what was wrong. In
 the admin, filter on "Not helpful", select answers and choose **Download as
 eval cases** to get YAML for `evals/questions.yaml`: real failures become
 regression tests once their checks are filled in.
+
+`python manage.py feedback_report` lists the week's answers that went wrong (rated
+not helpful, errors, flagged numbers or facts) grouped by the most likely cause;
+the server writes it every Monday.
 
 ## Evaluation
 
@@ -341,7 +369,13 @@ Every run worth keeping goes into [`evals/history.jsonl`](evals/history.jsonl)
 (`run_evals --record "what changed"`, with `--experiment` for things tried and
 switched off), shown on the app's *How it works* page.
 
-**Reranker experiment.** A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`,
+**Comparing models.** `run_evals --answers --model NAME --record-model` answers
+the set with another model of the configured provider, graded by the same judge,
+and records pass rate, groundedness, answer time and cost per answer (from token
+counts and `LLM_MODEL_PRICES`) in [`evals/models.jsonl`](evals/models.jsonl); *How
+it works* shows the models side by side.
+
+**Reranker experiment** ([write-up](docs/reranker-experiment.md)). A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`,
 small enough to sit next to bge-m3 on a 4 GB server) reordering the top 30
 candidates found one page the search missed (hit@8 96% to 98%, retrieval only,
 no query rewriting) but pushed the best page down more often than up (MRR 0.88

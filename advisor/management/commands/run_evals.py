@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.utils import timezone
 
-from advisor.evalhistory import HISTORY, append, config_from_meta, entry
+from advisor.evalhistory import HISTORY, MODELS, append, config_from_meta, entry, model_entry
 from advisor.evaluation import CaseResult, load_cases, render_markdown, run, update_readme
 from advisor.llm import get_provider
 from advisor.pob import get_pool
@@ -47,6 +47,15 @@ class Command(BaseCommand):
             "--update-readme", action="store_true", help="Put the scores into README.md."
         )
         parser.add_argument(
+            "--model",
+            help="Answer with this model of the configured provider (the judge stays LLM_MODEL).",
+        )
+        parser.add_argument(
+            "--record-model",
+            action="store_true",
+            help="With --answers: add this run to evals/models.jsonl (the model comparison).",
+        )
+        parser.add_argument(
             "--record",
             metavar="LABEL",
             help="Add this run to evals/history.jsonl with a label (what changed).",
@@ -72,7 +81,10 @@ class Command(BaseCommand):
                 "No embedded chunks. Run fetch_wiki (or load_eval_corpus) and build_index."
             )
 
-        provider = get_provider() if options["answers"] or options["rewrite"] else None
+        needs_llm = options["answers"] or options["rewrite"]
+        provider = get_provider(options["model"] or "") if needs_llm else None
+        # One judge for every model, so their scores can be compared.
+        judge = get_provider() if options["answers"] and options["model"] else None
         pob = options["answers"] and get_pool() is not None
         self.stdout.write(
             f"Running {len(cases)} cases (k={options['k']}, answers={options['answers']})"
@@ -83,6 +95,7 @@ class Command(BaseCommand):
             k=options["k"],
             answer_questions=options["answers"],
             provider=provider,
+            judge_provider=judge,
             pob_available=pob,
             progress=self._progress,
             rewrite=options["rewrite"],
@@ -114,6 +127,13 @@ class Command(BaseCommand):
         output.with_suffix(".md").write_text(markdown + "\n", encoding="utf-8")
 
         self.stdout.write("\n" + markdown)
+        if options["record_model"]:
+            if not (options["answers"] and provider):
+                raise CommandError("--record-model needs --answers.")
+            judged_by = (judge or provider).model
+            row = model_entry(report.summary(), provider.model, judged_by)
+            append(row, MODELS)
+            self.stdout.write(self.style.SUCCESS(f"Recorded {provider.model} in {MODELS.name}"))
         if options["record"]:
             config = config_from_meta(meta)
             if settings.SEARCH_RERANK:

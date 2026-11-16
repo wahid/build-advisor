@@ -87,3 +87,56 @@ def config_from_meta(meta: str) -> str:
     noise = r"^\d{4}-|^patch |^\d+\.\d+|\d+ (wiki pages|chunks)$|cases skipped$"
     keep = [p for p in parts if p and not re.search(noise, p)]
     return ", ".join(keep)
+
+
+# --- comparing models -----------------------------------------------------------
+
+MODELS = Path(settings.BASE_DIR) / "evals" / "models.jsonl"
+MODEL_SCORES = (
+    "cases",
+    "pass_rate",
+    "grounded",
+    "relevant",
+    "must_mention",
+    "numbers_grounded",
+    "median_answer_seconds",
+    "avg_prompt_tokens",
+    "avg_completion_tokens",
+)
+
+
+def answer_cost(summary: dict[str, Any], model: str) -> float | None:
+    """Average USD per answer from the average tokens, when the model's prices are known."""
+    prices = settings.LLM_MODEL_PRICES.get(model)
+    prompt, completion = summary.get("avg_prompt_tokens"), summary.get("avg_completion_tokens")
+    if not prices or prompt is None or completion is None:
+        return None
+    cached = summary.get("avg_cached_prompt_tokens") or 0
+    price_in, price_cached, price_out = prices
+    dollars = ((prompt - cached) * price_in + cached * price_cached + completion * price_out) / 1e6
+    return round(dollars, 5)
+
+
+def model_entry(
+    summary: dict[str, Any], model: str, judge: str, when: date | None = None
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "date": (when or date.today()).isoformat(),
+        "model": model,
+        "judge": judge,
+        "commit": current_commit(),
+    }
+    for key in MODEL_SCORES:
+        value = summary.get(key)
+        row[key] = round(value, 3) if isinstance(value, float) else value
+    row["avg_cost_usd"] = answer_cost(summary, model)
+    return row
+
+
+def load_models(path: Path = MODELS) -> list[dict[str, Any]]:
+    """The latest run of each model, best pass rate first."""
+    latest: dict[str, dict[str, Any]] = {}
+    for row in load(path):
+        if row.get("model"):
+            latest[row["model"]] = row
+    return sorted(latest.values(), key=lambda r: -(r.get("pass_rate") or 0))

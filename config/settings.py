@@ -226,6 +226,12 @@ _flash = LLM_MODEL == "deepseek-flash"
 LLM_PRICE_INPUT = env.float("LLM_PRICE_INPUT", default=0.30 if _flash else 0.0)
 LLM_PRICE_CACHED_INPUT = env.float("LLM_PRICE_CACHED_INPUT", default=0.006 if _flash else 0.0)
 LLM_PRICE_OUTPUT = env.float("LLM_PRICE_OUTPUT", default=1.20 if _flash else 0.0)
+# For comparing models in the evals: USD per million tokens as [input, cached input, output].
+LLM_MODEL_PRICES = env.json(
+    "LLM_MODEL_PRICES",
+    # DeepSeek's peak prices (off-peak is half), api-docs.deepseek.com, November 2026.
+    default={"deepseek-flash": [0.30, 0.006, 1.20], "deepseek-v4-pro": [1.32, 0.044, 3.96]},
+)
 WEB_SEARCH_PRICE = env.float("WEB_SEARCH_PRICE", default=0.00075)  # USD per search
 # Keep a QuestionLog per answer (traces, costs, feedback in the admin).
 QUESTION_LOG_ENABLED = env.bool("QUESTION_LOG_ENABLED", default=True)

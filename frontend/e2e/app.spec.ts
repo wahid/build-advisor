@@ -161,7 +161,11 @@ test("the How it works page shows live numbers", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "How Build Advisor works" })).toBeVisible();
   await expect(page.locator(".item-card-mods").first()).toContainText("96% of 60 evaluation cases pass");
-  const history = page.locator(".eval-history tbody tr");
+  const models = page.locator("section", { hasText: "Models compared" }).locator("tbody tr");
+  await expect(models).toHaveCount(2);
+  await expect(models.nth(1)).toContainText("in use");
+  await expect(models.nth(1)).toContainText("$0.0021");
+  const history = page.locator("section", { hasText: "Evaluation history" }).locator("tbody tr");
   await expect(history).toHaveCount(2);
   await expect(history.first()).toContainText("not kept"); // newest first
 });

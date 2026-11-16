@@ -29,7 +29,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median
 from typing import Any
 
 import yaml
@@ -37,9 +37,9 @@ import yaml
 from wiki.embeddings import Embedder
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
-from .llm import LLMProvider, Message
+from .llm import LLMProvider, Message, metering
 from .prompts import Turn, format_sources
-from .rag import CITATION_RE, answer
+from .rag import CITATION_RE, Answer, answer
 from .rewrite import Rewrite, rewrite_question
 
 logger = logging.getLogger(__name__)
@@ -248,6 +248,11 @@ class CaseResult:
     unsupported_numbers: list[str] = field(default_factory=list)  # guardrails.check
     numbers_checked: int = 0
     wrong_facts: list[str] = field(default_factory=list)  # gamefacts.check
+    # Tokens of the answer step (search rewriting and the judge aren't counted).
+    prompt_tokens: int = 0
+    cached_prompt_tokens: int = 0
+    completion_tokens: int = 0
+    answer_seconds: float = 0.0
 
 
 @dataclass
@@ -280,6 +285,10 @@ class Report:
                     "numbers_grounded": _ratio(
                         not c.unsupported_numbers for c in self.cases if c.numbers_checked
                     ),
+                    "median_answer_seconds": _median(c.answer_seconds for c in self.cases),
+                    "avg_prompt_tokens": _avg(c.prompt_tokens for c in self.cases),
+                    "avg_cached_prompt_tokens": _avg(c.cached_prompt_tokens for c in self.cases),
+                    "avg_completion_tokens": _avg(c.completion_tokens for c in self.cases),
                 }
             )
         return out
@@ -309,6 +318,11 @@ class Report:
 def _ratio(values: Iterable[bool]) -> float | None:
     items = list(values)
     return round(sum(items) / len(items), 3) if items else None
+
+
+def _median(values: Iterable[float]) -> float | None:
+    items = sorted(values)
+    return round(median(items), 1) if items else None
 
 
 def _avg(values: Iterable[float]) -> float | None:
@@ -374,7 +388,29 @@ def _run_case(
         result.passed = retrieval_ok
         return result
 
-    produced = answer(
+    started = time.monotonic()
+    with metering() as usage:
+        produced = _answer(case, k, filters, provider, embedder, rewrite, routed, history, query)
+    result.answer_seconds = round(time.monotonic() - started, 1)
+    result.prompt_tokens = usage.prompt_tokens
+    result.cached_prompt_tokens = usage.cached_prompt_tokens
+    result.completion_tokens = usage.completion_tokens
+    return _grade(case, result, produced, hits, provider, judge_provider, retrieval_ok)
+
+
+def _answer(
+    case: EvalCase,
+    k: int,
+    filters: SearchFilters,
+    provider: LLMProvider | None,
+    embedder: Embedder | None,
+    rewrite: bool,
+    routed: Rewrite,
+    history: list[Turn],
+    query: str,
+) -> Answer:
+    expansion = routed.terms
+    return answer(
         case.question,
         filters=filters,
         provider=provider,
@@ -390,6 +426,17 @@ def _run_case(
         build=case.build,
         search_query=query,  # the pages the retrieval score saw
     )
+
+
+def _grade(
+    case: EvalCase,
+    result: CaseResult,
+    produced: Answer,
+    hits: list[SearchHit],
+    provider: LLMProvider | None,
+    judge_provider: LLMProvider | None,
+    retrieval_ok: bool,
+) -> CaseResult:
     result.answer = produced.text
     result.numbers_checked = int(produced.numbers.get("checked", 0))
     result.wrong_facts = [w["fact"] for w in produced.facts.get("wrong", [])]

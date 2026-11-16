@@ -43,6 +43,10 @@ const STATS = {
   corpus: { pages: 2952, chunks: 27377, patch: "3.29.3d", by_type: { gem: 827 } },
   model: "deepseek-flash",
   web_search: true,
+  model_comparison: [
+    { date: "2026-11-16", model: "deepseek-v4-pro", judge: "deepseek-flash", cases: 55, pass_rate: 0.95, grounded: 4.7, numbers_grounded: 0.9, median_answer_seconds: 21.4, avg_cost_usd: 0.0123 },
+    { date: "2026-11-16", model: "deepseek-flash", judge: "deepseek-flash", cases: 55, pass_rate: 0.93, grounded: 4.5, numbers_grounded: 0.88, median_answer_seconds: 9.8, avg_cost_usd: 0.0021 },
+  ],
   eval_history: [
     { date: "2026-11-11", commit: "6d3fc3c", label: "First full eval", config: "query rewriting", experiment: false, cases: 53, "hit@8": 1.0, mrr: 0.884, pass_rate: 0.962, grounded: 4.6 },
     { date: "2026-11-12", commit: "", label: "Cross-encoder reranker", config: "retrieval only", experiment: true, cases: 55, "hit@8": 0.98, mrr: 0.848, pass_rate: null, grounded: null },

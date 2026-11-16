@@ -83,6 +83,7 @@ def public_stats() -> dict[str, Any]:
     stats = {
         "evals": eval_scores(),
         "eval_history": evalhistory.load(),
+        "model_comparison": evalhistory.load_models(),
         "usage": usage(),
         "corpus": corpus(),
         "model": settings.LLM_MODEL,
