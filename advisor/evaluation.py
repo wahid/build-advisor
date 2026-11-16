@@ -247,6 +247,7 @@ class CaseResult:
     rewrite: str = ""
     unsupported_numbers: list[str] = field(default_factory=list)  # guardrails.check
     numbers_checked: int = 0
+    wrong_facts: list[str] = field(default_factory=list)  # gamefacts.check
 
 
 @dataclass
@@ -391,6 +392,7 @@ def _run_case(
     )
     result.answer = produced.text
     result.numbers_checked = int(produced.numbers.get("checked", 0))
+    result.wrong_facts = [w["fact"] for w in produced.facts.get("wrong", [])]
     result.unsupported_numbers = [n["text"] for n in produced.numbers.get("unsupported", [])]
     result.tools_called = [t["name"] for t in produced.tools]
     if produced.error:

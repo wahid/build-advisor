@@ -109,6 +109,7 @@ class Recorder:
                         numbers = event.get("numbers") or {}
                         log.numbers_checked = min(int(numbers.get("checked", 0)), 32767)
                         log.numbers_unsupported = numbers.get("unsupported", [])[:20]
+                        log.facts_wrong = (event.get("facts") or {}).get("wrong", [])[:10]
                         log.completed = True
                         event = {**event, "log_id": str(log.id)}
                     elif kind == "error":

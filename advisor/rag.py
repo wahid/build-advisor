@@ -31,7 +31,18 @@ from wiki.embeddings import Embedder
 from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
-from . import budget, gemrank, guardrails, health, items, leveling, passives, patchimpact, websearch
+from . import (
+    budget,
+    gamefacts,
+    gemrank,
+    guardrails,
+    health,
+    items,
+    leveling,
+    passives,
+    patchimpact,
+    websearch,
+)
 from . import compare as build_compare
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
@@ -137,6 +148,7 @@ class Answer:
     tools: list[dict[str, Any]] = field(default_factory=list)
     pob_export: str = ""
     numbers: dict[str, Any] = field(default_factory=dict)  # see guardrails.check
+    facts: dict[str, Any] = field(default_factory=dict)  # see gamefacts.check
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -792,6 +804,7 @@ def _converse(
         "patch": patch,
         "entities": entities_in(full),
         "numbers": guardrails.check(full, evidence).as_dict(),
+        "facts": gamefacts.check(full),
     }
 
 
@@ -814,6 +827,7 @@ def answer(question: str, **kwargs: Any) -> Answer:
                 result.cited = event["cited"]
                 result.patch = event["patch"]
                 result.numbers = event.get("numbers") or {}
+                result.facts = event.get("facts") or {}
             case "error":
                 result.error = event["message"]
     return result

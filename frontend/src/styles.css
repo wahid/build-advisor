@@ -967,6 +967,24 @@ mark.unchecked {
   cursor: help;
 }
 
+.fact-note {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--step--1);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 6px;
+}
+
+.fact-note p {
+  margin: 0;
+  color: var(--parchment-dim);
+}
+
+.fact-note ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
 .unchecked-note {
   margin: 0.75rem 0 0;
   font-size: var(--step--1);

@@ -46,6 +46,9 @@ class QuestionLog(models.Model):
     numbers_unsupported = models.JSONField(
         default=list, blank=True, help_text="Numbers found in no source or tool result."
     )
+    facts_wrong = models.JSONField(
+        default=list, blank=True, help_text="Statements that contradict Path of Building's data."
+    )
     error = models.TextField(blank=True)
     completed = models.BooleanField(default=False, help_text="False: stopped or disconnected.")
 

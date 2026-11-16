@@ -134,6 +134,16 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
             Check {unchecked.length === 1 ? "it" : "them"} before relying on {unchecked.length === 1 ? "it" : "them"}.
           </p>
         )}
+        {turn.facts && turn.facts.wrong.length > 0 && (
+          <div className="fact-note" role="note">
+            <p>Path of Building's data disagrees with this answer:</p>
+            <ul>
+              {turn.facts.wrong.map((wrong) => (
+                <li key={wrong.fact}>{wrong.fact}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {turn.exportCode && <PobExport code={turn.exportCode} />}
         {turn.error && (
           <p className="error" role="alert">

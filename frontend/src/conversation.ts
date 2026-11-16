@@ -5,6 +5,7 @@ import type {
   AskEvent,
   Comparison,
   Entity,
+  FactCheck,
   Health,
   ItemCheck,
   Leveling,
@@ -54,6 +55,8 @@ export interface ChatTurn {
   health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
   upgrades?: Upgrades;
+  /** Statements in the answer that contradict Path of Building's data. */
+  facts?: FactCheck;
   /** The answer's numbers, checked against the sources and tool results. */
   numbers?: NumberCheck;
 }
@@ -193,6 +196,7 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
         logId: event.log_id,
         entities: event.entities ?? [],
         ...(event.numbers ? { numbers: event.numbers } : {}),
+        ...(event.facts?.wrong.length ? { facts: event.facts } : {}),
       };
     case "error":
       return { ...turn, error: event.message, status: "error" };

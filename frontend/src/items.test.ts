@@ -72,3 +72,14 @@ describe("sharing", () => {
     expect(shareableIds([done, noLog, failed])).toEqual(["log-a"]);
   });
 });
+
+describe("fact check", () => {
+  it("is kept on the turn only when something is wrong", () => {
+    const wrong = { text: "Vaal Axe", context: "A Vaal Axe is one-handed.", fact: "Vaal Axe is a two-handed axe: two-handed." };
+    const flagged = applyEvent(newTurn("a", "q"), { type: "done", cited: [], patch: "", facts: { wrong: [wrong] } });
+    const clean = applyEvent(newTurn("b", "q"), { type: "done", cited: [], patch: "", facts: { wrong: [] } });
+
+    expect(flagged.facts?.wrong[0].text).toBe("Vaal Axe");
+    expect(clean.facts).toBeUndefined();
+  });
+});

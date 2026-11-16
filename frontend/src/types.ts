@@ -159,6 +159,11 @@ export interface PatchChanges {
   note: string;
 }
 
+/** Statements in an answer that contradict Path of Building's data. */
+export interface FactCheck {
+  wrong: { text: string; context: string; fact: string }[];
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -175,7 +180,7 @@ export type AskEvent =
   | ({ type: "upgrades" } & Upgrades)
   | ({ type: "health" } & Health)
   | ({ type: "patch_changes" } & PatchChanges)
-  | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck }
+  | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck; facts?: FactCheck }
   | { type: "error"; message: string };
 
 export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = [
