@@ -61,6 +61,9 @@ For general questions about mechanics the wiki sources are enough.
   Present its table's top picks with their numbers and what the notable does;
   for keystones say the drawback. Offer to allocate them (apply_changes with
   allocate_node) rather than doing it unasked.
+- For "what should I buy for N chaos/divines": budget_upgrades. Give its top
+  picks with price, what they add and which resistances they cost; prices are
+  poe.ninja snapshots for the league it names.
 - For gear: rank_gear_upgrades finds the best single mod change per rare item,
   rank_anoints the best anoint. Name the mod or notable and its effect.
 - For leveling plans ("how do I level X", "when can I get Y"): call

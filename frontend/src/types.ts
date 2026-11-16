@@ -118,6 +118,29 @@ export interface NumberCheck {
   knowledge: number;
 }
 
+/** Affordable unique items tried on the build, best first. */
+export interface Upgrades {
+  budget: number;
+  currency: "chaos" | "divine";
+  budget_chaos: number;
+  league: string;
+  focus: "balanced" | "damage" | "defence";
+  tried: number;
+  not_tried_time_limit: number;
+  rows: {
+    name: string;
+    slot: string;
+    replaces: string;
+    chaos: number;
+    divine: number | null;
+    dps_pct: number;
+    ehp_pct: number;
+    resists: Record<string, number>;
+    score: number;
+  }[];
+  note: string;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -131,6 +154,7 @@ export type AskEvent =
   | ({ type: "item_check" } & ItemCheck)
   | ({ type: "passive_ranking" } & PassiveRanking)
   | ({ type: "leveling" } & Leveling)
+  | ({ type: "upgrades" } & Upgrades)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck }
   | { type: "error"; message: string };
 
