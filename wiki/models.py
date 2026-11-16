@@ -11,6 +11,11 @@ class DocumentType(models.TextChoices):
     ASCENDANCY = "ascendancy", "Ascendancy"
     MECHANIC = "mechanic", "Mechanic"
     PATCH = "patch", "Patch notes"
+    GUIDE = "guide", "Build guide"
+
+
+# Types fetched from the wiki; guides come from Maxroll (wiki.maxroll).
+WIKI_DOC_TYPES = [t for t in DocumentType.values if t != DocumentType.GUIDE]
 
 
 class Source(models.Model):
@@ -22,6 +27,9 @@ class Source(models.Model):
     page_id = models.PositiveIntegerField(null=True, blank=True)
     revision_id = models.PositiveIntegerField(null=True, blank=True)
     fetched_at = models.DateTimeField()
+    # Byline and "last updated" date of a published guide (Maxroll's licence asks to keep them).
+    author = models.CharField(max_length=255, blank=True)
+    updated_on = models.DateField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -136,3 +144,17 @@ class GemLevel(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} (level {self.required_level})"
+
+
+class MaxrollRequest(models.Model):
+    """One HTTP request to maxroll.gg, to keep within the licence's monthly page cap."""
+
+    url = models.URLField(max_length=500)
+    requested_at = models.DateTimeField(db_index=True)
+    status = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self) -> str:
+        return f"{self.requested_at:%Y-%m-%d %H:%M:%S} {self.url} ({self.status})"

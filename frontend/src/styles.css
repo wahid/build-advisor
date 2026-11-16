@@ -16,6 +16,7 @@
   --mechanic: #63aee8;
   --web: #9db4c6;
   --patch: #cfa3e0;
+  --guide: #e8c766;
   --danger: #ef7167;
   --good: #58c98a;
 
@@ -453,6 +454,7 @@ a {
 [data-type="mechanic"] { --type-colour: var(--mechanic); }
 [data-type="web"] { --type-colour: var(--web); }
 [data-type="patch"] { --type-colour: var(--patch); }
+[data-type="guide"] { --type-colour: var(--guide); }
 
 .send-button {
   flex: none;
@@ -1462,6 +1464,10 @@ mark.unchecked {
 .tooltip-meta {
   font-size: var(--step--1);
   color: var(--parchment-dim);
+}
+
+.tooltip-byline {
+  display: block;
 }
 
 .tooltip-body {

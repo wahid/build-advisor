@@ -3,6 +3,7 @@
 All configuration comes from environment variables (see `.env.example`).
 """
 
+from datetime import date
 from pathlib import Path
 
 import environ
@@ -133,6 +134,27 @@ ASK_DAILY_LIMIT = env.int("ASK_DAILY_LIMIT", default=100)
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+
+# --- Maxroll build guides (licence LIC-2026-114) ------------------------------
+# Maxroll's written permission allows automated retrieval, embeddings and RAG use of its
+# build guides, tier lists, patch-notes summaries and mechanics articles, on these terms:
+# at most 1 request per second and 50,000 pages per month, from the licence start date,
+# with attribution (link, author byline, last-updated date) and quotes of at most 100
+# consecutive words. Fetching stays off until MAXROLL_ENABLED is set.
+MAXROLL_ENABLED = env.bool("MAXROLL_ENABLED", default=False)
+MAXROLL_LICENCE_REF = env("MAXROLL_LICENCE_REF", default="LIC-2026-114")
+MAXROLL_LICENCE_START = date.fromisoformat(env("MAXROLL_LICENCE_START", default="2026-12-01"))
+# Set when the licence ends (notice or revocation): fetching stops from that day.
+_maxroll_end = env("MAXROLL_LICENCE_END", default="")
+MAXROLL_LICENCE_END = date.fromisoformat(_maxroll_end) if _maxroll_end else None
+# Values above the licence's limits are capped to them in wiki.maxroll.
+MAXROLL_REQUEST_INTERVAL = env.float("MAXROLL_REQUEST_INTERVAL", default=1.5)  # seconds
+MAXROLL_MONTHLY_LIMIT = env.int("MAXROLL_MONTHLY_LIMIT", default=50_000)
+MAXROLL_USER_AGENT = env(
+    "MAXROLL_USER_AGENT",
+    default="build-advisor/0.1 (Maxroll licence LIC-2026-114; set MAXROLL_USER_AGENT)",
+)
+MAXROLL_MAX_QUOTE_WORDS = 100
 
 # --- Path of Exile wiki ingestion -------------------------------------------
 WIKI_NAME = "poewiki"

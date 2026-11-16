@@ -422,4 +422,7 @@ Tests use `DATABASE_URL`; CI runs them against Postgres with pgvector.
 
 Wiki content is from [poewiki.net](https://www.poewiki.net), under a Creative
 Commons non-commercial licence ([CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)). This project is non-commercial and links every answer back to
-its source page. Path of Exile is a trademark of Grinding Gear Games.
+its source page. Build guides from [maxroll.gg](https://maxroll.gg) are used with
+Maxroll's written permission (LIC-2026-114); they stay Maxroll's content, credited
+with author and date, and are not redistributed. Path of Exile is a trademark of
+Grinding Gear Games.

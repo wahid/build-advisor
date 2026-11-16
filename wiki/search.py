@@ -324,7 +324,7 @@ def _fuse(
     for rank, chunk_id in enumerate(first, start=1):
         ranks[chunk_id]["pinned"] = rank
 
-    chunks = Chunk.objects.select_related("document").in_bulk([*scores, *first])
+    chunks = Chunk.objects.select_related("document__source").in_bulk([*scores, *first])
     if listing_weight != 1.0:
         for chunk_id in scores:
             if LISTING_SECTION_RE.match(chunks[chunk_id].section):

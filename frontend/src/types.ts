@@ -1,4 +1,4 @@
-export type DocType = "gem" | "unique" | "ascendancy" | "mechanic" | "patch";
+export type DocType = "gem" | "unique" | "ascendancy" | "mechanic" | "patch" | "guide";
 
 export interface Source {
   number: number;
@@ -8,6 +8,9 @@ export interface Source {
   patch: string;
   /** "web": a page found by web search; `section` then names the site and date. */
   doc_type: DocType | "web";
+  /** Guides: the author's byline and the page's last-updated date (YYYY-MM-DD). */
+  author?: string;
+  updated?: string;
 }
 
 /** One piece of tooltip text and how the game colours it (value, mod, gemdesc, ...). */
@@ -189,4 +192,5 @@ export const DOC_TYPES: { value: DocType; label: string; singular: string }[] = 
   { value: "ascendancy", label: "Ascendancies", singular: "Ascendancy" },
   { value: "mechanic", label: "Mechanics", singular: "Game mechanic" },
   { value: "patch", label: "Patch notes", singular: "Patch notes" },
+  { value: "guide", label: "Maxroll guides", singular: "Maxroll build guide" },
 ];

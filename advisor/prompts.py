@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from wiki.models import DocumentType
 from wiki.search import SearchHit
 
 from .llm import Message
@@ -36,7 +37,11 @@ Rules:
 5. The wiki explains mechanics, not complete builds. When asked for a build,
    explain which options the sources support and why, instead of presenting
    it as a complete, tested build.
-6. Answer in the language of the question. Be concise: short paragraphs or a
+6. Sources marked "Maxroll guide" are written by Maxroll's guide authors, not
+   the wiki. Say so when you use one ("according to Maxroll's guide by ..."),
+   paraphrase it in your own words and never copy more than a sentence from it.
+   The guide is the author's recommendation for one build, not a game rule.
+7. Answer in the language of the question. Be concise: short paragraphs or a
    short list, no filler."""
 
 TOOLS_PROMPT = """
@@ -189,7 +194,13 @@ def format_sources(hits: list[SearchHit]) -> str:
         chunk = hit.chunk
         heading = hit.title + (f" > {chunk.section}" if chunk.section else "")
         body = chunk.text.split("\n\n", 1)[-1]
-        blocks.append(f"[{number}] {heading} (patch {chunk.patch})\n{body}")
+        label = f"patch {chunk.patch}"
+        if chunk.doc_type == DocumentType.GUIDE:
+            source = chunk.document.source
+            byline = f" by {source.author}" if source.author else ""
+            updated = f", updated {source.updated_on:%Y-%m-%d}" if source.updated_on else ""
+            label = f"Maxroll guide{byline}{updated}, {label}"
+        blocks.append(f"[{number}] {heading} ({label})\n{body}")
     return "\n\n---\n\n".join(blocks)
 
 

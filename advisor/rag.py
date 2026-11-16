@@ -27,8 +27,10 @@ from typing import Any
 
 from django.conf import settings
 
+from wiki import maxroll
 from wiki.embeddings import Embedder
 from wiki.entities import entities_in
+from wiki.models import DocumentType
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import (
@@ -125,11 +127,25 @@ class Source:
     url: str
     patch: str
     doc_type: str
+    # Guides: the author's byline and the page's last-updated date (ISO), shown with the link.
+    author: str = ""
+    updated: str = ""
 
     @classmethod
     def from_hit(cls, number: int, hit: SearchHit) -> Source:
         chunk = hit.chunk
-        return cls(number, hit.title, chunk.section, chunk.url, chunk.patch, chunk.doc_type)
+        source = chunk.document.source
+        updated = source.updated_on.isoformat() if source.updated_on else ""
+        return cls(
+            number,
+            hit.title,
+            chunk.section,
+            chunk.url,
+            chunk.patch,
+            chunk.doc_type,
+            source.author,
+            updated,
+        )
 
     @classmethod
     def from_web(cls, number: int, result: websearch.WebResult) -> Source:
@@ -149,6 +165,7 @@ class Answer:
     pob_export: str = ""
     numbers: dict[str, Any] = field(default_factory=dict)  # see guardrails.check
     facts: dict[str, Any] = field(default_factory=dict)  # see gamefacts.check
+    long_quotes: dict[int, int] = field(default_factory=dict)  # guide source -> words quoted
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -805,7 +822,21 @@ def _converse(
         "entities": entities_in(full),
         "numbers": guardrails.check(full, evidence).as_dict(),
         "facts": gamefacts.check(full),
+        "long_quotes": _long_guide_quotes(full, hits),
     }
+
+
+def _long_guide_quotes(text: str, hits: list[SearchHit]) -> dict[int, int]:
+    """Guide sources quoted at more than the licence's 100 consecutive words."""
+    guides = {
+        n: hit.chunk.text.split("\n\n", 1)[-1]
+        for n, hit in enumerate(hits, start=1)
+        if hit.chunk.doc_type == DocumentType.GUIDE
+    }
+    quotes = maxroll.long_quotes(text, guides) if guides else {}
+    if quotes:
+        logger.warning("Answer quotes guide sources at length: %s", quotes)
+    return quotes
 
 
 def answer(question: str, **kwargs: Any) -> Answer:
@@ -828,6 +859,7 @@ def answer(question: str, **kwargs: Any) -> Answer:
                 result.patch = event["patch"]
                 result.numbers = event.get("numbers") or {}
                 result.facts = event.get("facts") or {}
+                result.long_quotes = event.get("long_quotes") or {}
             case "error":
                 result.error = event["message"]
     return result

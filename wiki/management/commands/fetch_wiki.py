@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from wiki.client import WikiBlockedError, connection_note
 from wiki.ingest import ingest
-from wiki.models import DocumentType
+from wiki.models import WIKI_DOC_TYPES
 from wiki.tasks import ingest_wiki
 
 
@@ -16,7 +16,7 @@ class Command(BaseCommand):
             "--type",
             dest="doc_types",
             action="append",
-            choices=DocumentType.values,
+            choices=WIKI_DOC_TYPES,
             help="Document type to fetch (repeatable). Defaults to all types.",
         )
         parser.add_argument("--limit", type=int, help="Max pages per type (for testing).")
@@ -51,10 +51,10 @@ class Command(BaseCommand):
             "direct": options["direct"],
         }
         if options["subcategories"]:
-            self._subcategories(options["doc_types"] or DocumentType.values)
+            self._subcategories(options["doc_types"] or WIKI_DOC_TYPES)
             return
         if options["list_only"]:
-            self._list(options["doc_types"] or DocumentType.values)
+            self._list(options["doc_types"] or WIKI_DOC_TYPES)
             return
         if options["run_async"]:
             task = ingest_wiki.delay(**kwargs)

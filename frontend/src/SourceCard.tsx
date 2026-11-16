@@ -21,6 +21,20 @@ export function groupSources(sources: Source[]): SourceGroup[] {
   return [...groups.values()];
 }
 
+/** "Source: Maxroll · by Helm Breaker · updated 13 Nov 2026" (Maxroll's attribution terms). */
+export function guideByline(source: Pick<Source, "author" | "updated">): string {
+  const parts = ["Source: Maxroll"];
+  if (source.author) parts.push(`by ${source.author}`);
+  if (source.updated) {
+    const date = new Date(`${source.updated}T00:00:00Z`);
+    const shown = Number.isNaN(date.getTime())
+      ? source.updated
+      : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    parts.push(`updated ${shown}`);
+  }
+  return parts.join(" · ");
+}
+
 interface Props {
   group: SourceGroup;
   cited: number[];
@@ -47,6 +61,9 @@ export function SourceCard({ group, cited, hovered, answered }: Props) {
           <span className="tooltip-meta">
             {group.doc_type === "web" ? "Web page" : `${KIND[group.doc_type]}, patch ${group.patch}`}
           </span>
+          {group.doc_type === "guide" && (
+            <span className="tooltip-meta tooltip-byline">{guideByline(group.entries[0])}</span>
+          )}
         </span>
         <span className="tooltip-body">
           {group.entries.map((entry) => (

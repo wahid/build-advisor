@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from .cards import parse_card
 from .client import WikiBlockedError, WikiClient, WikiError, WikiPage
-from .models import Chunk, Document, DocumentType, Source
+from .models import WIKI_DOC_TYPES, Chunk, Document, Source
 from .parsing import html_to_text
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ def ingest(
     client = client or WikiClient.from_settings(direct=direct)
     workers = 1 if direct else max(workers or settings.WIKI_WORKERS, 1)
     clients = [client] if workers == 1 else [client.for_worker(i, workers) for i in range(workers)]
-    types = list(doc_types or DocumentType.values)
+    types = list(doc_types or WIKI_DOC_TYPES)
     result = IngestResult(patch=settings.POE_PATCH or client.current_patch())
     logger.info(
         "Ingesting %s for patch %s with %d worker(s)", ", ".join(types), result.patch, workers
