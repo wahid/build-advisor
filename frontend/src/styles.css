@@ -828,6 +828,20 @@ a {
   color: var(--parchment-dim);
 }
 
+.patch-changes .comparison-table td {
+  text-align: left;
+}
+
+.patch-changes .comparison-table th[scope="row"] {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.patch-rest {
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
 /* --- Build health check ---------------------------------------------------------- */
 
 .health-list {

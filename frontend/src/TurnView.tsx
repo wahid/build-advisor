@@ -6,6 +6,7 @@ import { ComparisonTable, ItemCheckTable } from "./ComparisonTable";
 import { Feedback } from "./Feedback";
 import { LevelingTable } from "./LevelingTable";
 import { PassiveTable } from "./PassiveTable";
+import { PatchChangesTable } from "./PatchChangesTable";
 import { PobExport, PobSteps } from "./PobPanel";
 import { HealthCard } from "./HealthCard";
 import { ItemTooltip } from "./ItemTooltip";
@@ -112,6 +113,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
         {turn.passives && <PassiveTable ranking={turn.passives} />}
         {turn.leveling && <LevelingTable leveling={turn.leveling} />}
         {turn.health && <HealthCard health={turn.health} />}
+        {turn.patchChanges && <PatchChangesTable changes={turn.patchChanges} />}
         {turn.upgrades && <UpgradesTable upgrades={turn.upgrades} />}
         {turn.status === "answering" && !turn.answer && !running && (
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>

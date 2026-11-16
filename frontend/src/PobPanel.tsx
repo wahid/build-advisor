@@ -47,7 +47,7 @@ function RunningNote({ step }: { step: ToolStep }) {
   );
 }
 
-const LOOKUPS = new Set(["web_search", "quest_rewards"]); // not Path of Building
+const LOOKUPS = new Set(["web_search", "quest_rewards", "patch_changes"]); // not Path of Building
 
 // Past tense once a step worked; the infinitive for "Couldn't ..." when it failed.
 const LABELS: Record<string, [done: string, failed: string]> = {
@@ -62,6 +62,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   plan_leveling: ["Planned the leveling trees", "plan the leveling trees"],
   list_item_slots: ["Looked up item slots", "look up item slots"],
   quest_rewards: ["Looked up quest rewards and vendors", "look up quest rewards"],
+  patch_changes: ["Searched the patch notes", "search the patch notes"],
   new_build: ["Started a new build", "start a new build"],
   import_character: ["Imported your character from pathofexile.com", "import your character"],
   get_build_summary: ["Read the build summary", "read the build summary"],

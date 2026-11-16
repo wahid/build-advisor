@@ -150,6 +150,15 @@ export interface Health {
   note: string;
 }
 
+/** Lines from the patch notes that name the build's gems, items or ascendancy. */
+export interface PatchChanges {
+  versions: string[];
+  changes: { version: string; name: string; section: string; line: string; url: string }[];
+  more: number;
+  not_mentioned: string[];
+  note: string;
+}
+
 export type AskEvent =
   | { type: "rewrite"; terms: string; tools?: boolean }
   | { type: "sources"; sources: Source[] }
@@ -165,6 +174,7 @@ export type AskEvent =
   | ({ type: "leveling" } & Leveling)
   | ({ type: "upgrades" } & Upgrades)
   | ({ type: "health" } & Health)
+  | ({ type: "patch_changes" } & PatchChanges)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck }
   | { type: "error"; message: string };
 

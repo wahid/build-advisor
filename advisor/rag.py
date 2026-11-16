@@ -31,7 +31,7 @@ from wiki.embeddings import Embedder
 from wiki.entities import entities_in
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
-from . import budget, gemrank, guardrails, health, items, leveling, passives, websearch
+from . import budget, gemrank, guardrails, health, items, leveling, passives, patchimpact, websearch
 from . import compare as build_compare
 from .llm import LLMError, LLMProvider, Message, Reasoning, ToolCall, get_provider
 from .pob import NO_BUILD_ERROR, PobToolbox, PobToolError, PobUnavailable, get_pool
@@ -42,8 +42,10 @@ from .rewrite import rewrite_question
 logger = logging.getLogger(__name__)
 DEFAULT_ITEM_QUESTION = "Is this item an upgrade for my build?"
 LOOKUP_ROUNDS = 2  # tool rounds when only the leveling lookup is offered
-LEVELING_RE = re.compile(
-    r"\blevel(?:l?ing|ed)?\b|\bquests?\b|\bvendors?\b|\bact \d|league ?start|campaign",
+# Questions that get the database lookups (leveling tables, patch notes) on their own.
+LOOKUP_RE = re.compile(
+    r"\blevel(?:l?ing|ed)?\b|\bquests?\b|\bvendors?\b|\bact \d|league ?start|campaign"
+    r"|\bpatch|\bnerf|\bbuff(?:ed|s)?\b|\bchanged?\b|\bchanges\b|this league",
     re.IGNORECASE,
 )
 
@@ -168,6 +170,9 @@ COMPOSITE_TOOLS = [
     health.TOOL_DEFINITION,
 ]
 
+# Database lookups: they work without Path of Building.
+LOOKUP_TOOLS = [leveling.TOOL_DEFINITION, patchimpact.TOOL_DEFINITION]
+
 ToolSteps = Generator[Event, None, tuple[list[Event], str]]
 
 
@@ -262,6 +267,17 @@ class _ToolRunner:
         events.append({"type": "health", **result})
         return events, _for_model(text)
 
+    def _patch_changes(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
+        try:
+            result = patchimpact.run(arguments, self.toolbox)
+        except (ValueError, PobToolError) as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = json.dumps(result, ensure_ascii=False)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:WEB_PREVIEW_CHARS]  # whole: the judge checks against it
+        events.append({"type": "patch_changes", **result})
+        return events, _for_model(text)
+
     def _quest_rewards(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
         try:
             result = leveling.run(arguments, self.toolbox)
@@ -346,6 +362,8 @@ class _ToolRunner:
             return (yield from self._health_check(call, arguments))
         if call.name == budget.TOOL_NAME and self.toolbox is not None:
             return (yield from self._budget_upgrades(call, arguments))
+        if call.name == patchimpact.TOOL_NAME:
+            return self._patch_changes(call, arguments)
         if call.name == leveling.TOOL_NAME:
             return self._quest_rewards(call, arguments)
         if self.toolbox is None:
@@ -651,7 +669,7 @@ def _converse(
     pob_rounds = settings.POB_MAX_TOOL_ROUNDS if toolbox is not None else 0
     # The leveling lookup (a database query) comes with the other tools, or alone
     # when the question is about leveling.
-    lookup = toolbox is not None or web or bool(LEVELING_RE.search(question))
+    lookup = toolbox is not None or web or bool(LOOKUP_RE.search(question))
     rounds = pob_rounds or (
         settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup else 0
     )
@@ -671,7 +689,7 @@ def _converse(
         *(toolbox.definitions if toolbox is not None else []),
         *(COMPOSITE_TOOLS if toolbox is not None else []),
         *([websearch.TOOL_DEFINITION] if web else []),
-        *([leveling.TOOL_DEFINITION] if lookup else []),
+        *(LOOKUP_TOOLS if lookup else []),
     ]
     runner = _ToolRunner(toolbox, sources, question) if definitions else None
     answer_parts: list[str] = []

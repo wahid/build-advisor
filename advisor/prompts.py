@@ -69,6 +69,10 @@ For general questions about mechanics the wiki sources are enough.
   poe.ninja snapshots for the league it names.
 - For gear: rank_gear_upgrades finds the best single mod change per rare item,
   rank_anoints the best anoint. Name the mod or notable and its effect.
+- For "what did the patch change for my build" or "was X nerfed": call
+  patch_changes. Report the lines it returns per version (they are from the
+  wiki's patch-note pages; link the version page), say plainly which parts
+  aren't mentioned, and don't guess at changes it didn't return.
 - For leveling plans ("how do I level X", "when can I get Y"): call
   quest_rewards for the build's gems and the class, then give the plan act by
   act: which gems to pick up from which quest or vendor, and the links to use

@@ -6,10 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from advisor import leveling
 from advisor.llm import OpenAICompatibleProvider, Reasoning, ToolCall
 from advisor.pob import PobToolError, PobUnavailable, ToolResult
-from advisor.rag import COMPOSITE_TOOLS, MAX_TOOL_RESULT_CHARS, answer, answer_stream
+from advisor.rag import COMPOSITE_TOOLS, LOOKUP_TOOLS, MAX_TOOL_RESULT_CHARS, answer, answer_stream
 from wiki.indexing import build_chunks, embed_pending
 
 from .factories import FakeEmbedder, make_document
@@ -99,7 +98,7 @@ def test_model_calls_a_tool_and_answers_with_the_result(embedder, toolbox) -> No
     messages, tools = provider.calls[1]
     assert messages[-2]["tool_calls"][0]["function"]["name"] == "get_build_summary"
     assert messages[-1] == {"role": "tool", "tool_call_id": "c1", "content": json.dumps(SUMMARY)}
-    assert tools == [*FakeToolbox.definitions, *COMPOSITE_TOOLS, leveling.TOOL_DEFINITION]
+    assert tools == [*FakeToolbox.definitions, *COMPOSITE_TOOLS, *LOOKUP_TOOLS]
     assert "Path of Building tools" in messages[0]["content"]
 
 

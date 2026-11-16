@@ -12,6 +12,7 @@ import type {
   NumberCheck,
   PassiveRanking,
   PastedItem,
+  PatchChanges,
   Source,
   Upgrades,
 } from "./types";
@@ -47,6 +48,8 @@ export interface ChatTurn {
   passives?: PassiveRanking;
   /** When the gems become available while leveling (all lookups of the turn, merged). */
   leveling?: Leveling;
+  /** What the patch notes say about the build's parts (the latest lookup of the turn). */
+  patchChanges?: PatchChanges;
   /** The build health check's checklist. */
   health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
@@ -157,6 +160,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
       return { ...turn, comparison: { a: event.a, b: event.b, rows: event.rows } };
     case "item":
       return { ...turn, item: event.item };
+    case "patch_changes": {
+      const { type: _type, ...patchChanges } = event;
+      return { ...turn, patchChanges };
+    }
     case "health": {
       const { type: _type, ...health } = event;
       return { ...turn, health };
