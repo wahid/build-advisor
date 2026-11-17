@@ -752,7 +752,7 @@ def _converse(
     # read one that web search found, or one linked earlier in the conversation.
     linked = guides.urls_in(question)
     mentioned = linked or any(guides.urls_in(turn.question) for turn in history)
-    guide_tool = guides.available() and (toolbox is not None or web or bool(mentioned))
+    guide_tool = toolbox is not None or web or bool(mentioned)
     rounds = pob_rounds or (
         settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup or guide_tool else 0
     )

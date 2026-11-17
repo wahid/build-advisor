@@ -3,10 +3,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from wiki.maxroll import (
-    MaxrollError,
-    fetch_guides
-)
+from wiki.maxroll import MaxrollError, fetch_guides
 
 
 class Command(BaseCommand):

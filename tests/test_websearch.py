@@ -103,6 +103,7 @@ def test_web_results_become_numbered_sources(web, embedder) -> None:
     tools = provider.calls[0][1]
     assert [t["function"]["name"] for t in tools] == [
         "web_search",
+        "read_maxroll_guide",
         "quest_rewards",
         "patch_changes",
     ]

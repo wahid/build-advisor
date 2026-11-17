@@ -9,9 +9,8 @@ from django.utils import timezone
 from advisor import guides
 from advisor.llm import ToolCall
 from advisor.rag import answer
-from wiki import maxroll
 from wiki.indexing import build_chunks, embed_pending
-from wiki.maxroll import MaxrollClient, MaxrollUnavailable, read_guide
+from wiki.maxroll import MaxrollClient, read_guide
 from wiki.models import Document, MaxrollRequest, Source
 
 from .factories import FakeEmbedder, make_document
@@ -19,6 +18,7 @@ from .test_advisor import FakeProvider
 from .test_maxroll import GUIDE_HTML, URL, FakeClock
 
 pytestmark = pytest.mark.django_db
+
 
 @pytest.fixture
 def embedder() -> FakeEmbedder:
@@ -135,29 +135,6 @@ def test_the_model_reads_a_guide_with_the_tool(embedder, no_waiting) -> None:
     assert tool_messages[1] == "You already have this guide: it is source [4]."
     assert tool_messages[2].startswith("Error: You have read all the Maxroll guides")
     assert tool_messages[3].startswith("Error: Not a maxroll.gg URL")
-
-
-@responses.activate
-def test_before_the_licence_starts_a_link_is_not_fetched(embedder) -> None:
-    provider = FakeProvider(["I can't read that guide yet."])
-
-    result = answer(f"Summarise {URL}", provider=provider, embedder=embedder, top_k=3)
-
-    assert len(responses.calls) == 0
-    assert [t["ok"] for t in result.tools] == [False]
-    messages, tools = provider.calls[0]
-    assert tools is None
-    assert "couldn't be read" in messages[-1]["content"]
-    assert "licence starts" in messages[-1]["content"]
-
-
-def test_switched_off_nothing_changes(embedder) -> None:
-    provider = FakeProvider(["Answer [1]."])
-
-    result = answer(f"Summarise {URL}", provider=provider, embedder=embedder, top_k=3)
-
-    assert result.tools == []
-    assert provider.calls[0][1] is None
 
 
 @responses.activate
