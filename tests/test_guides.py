@@ -109,8 +109,9 @@ def test_a_linked_guide_is_read_before_the_model_answers(embedder, no_waiting) -
 
 
 @responses.activate
-def test_the_model_reads_a_guide_with_the_tool(embedder, no_waiting) -> None:
+def test_the_model_reads_a_guide_with_the_tool(embedder, no_waiting, settings) -> None:
     responses.get(URL, body=GUIDE_HTML)
+    settings.MAXROLL_CHAT_MAX_GUIDES = 1
     other = "https://maxroll.gg/poe/build-guides/other"
     provider = FakeProvider(
         [
