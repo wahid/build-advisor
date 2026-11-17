@@ -11,10 +11,12 @@ RUN npm run build
 FROM python:3.12-slim AS pob
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-# Pin a tag or commit with --build-arg POB_REF=... ; rebuild when PoB updates for a league.
+# The Path of Building release in the image. To upgrade, change the tag here: that
+# rebuilds these layers on the next deploy (an unpinned clone stays cached forever).
+# .github/workflows/pob-update.yml opens a pull request when a newer release is out.
 # Only src/ and runtime/lua/ are checked out, and tree/item images are deleted
 # (~400 MB, only needed for drawing): the headless engine runs without them.
-ARG POB_REF=
+ARG POB_REF=v2.68.1
 RUN git clone --depth 1 --filter=blob:none --sparse ${POB_REF:+--branch "$POB_REF"} \
         https://github.com/PathOfBuildingCommunity/PathOfBuilding /opt/PathOfBuilding \
     && cd /opt/PathOfBuilding \

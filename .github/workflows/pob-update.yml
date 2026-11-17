@@ -1,0 +1,64 @@
+name: Path of Building update
+
+# Path of Building is pinned to a release in the Dockerfile (ARG POB_REF). Every
+# Monday this checks for a newer release and opens a pull request that changes the
+# pin; merging it deploys the new version. Check the pull request before merging:
+# a new Path of Building can need a newer pob-mcp, and advisor/data/gamefacts.json.gz
+# is built from its data (python manage.py build_gamefacts).
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" (repository
+# Settings > Actions > General). Pull requests opened by a workflow don't start
+# other workflows: close and reopen the pull request to run CI and the Docker build.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1" # Mondays
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare the pin with the latest release
+        id: versions
+        run: |
+          set -euo pipefail
+          current=$(sed -n 's/^ARG POB_REF=//p' Dockerfile)
+          latest=$(gh api repos/PathOfBuildingCommunity/PathOfBuilding/releases/latest --jq .tag_name)
+          echo "pinned: $current, latest: $latest"
+          case "$latest" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Unexpected release tag: $latest" >&2; exit 1 ;;
+          esac
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+      - name: Open a pull request
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        env:
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+          branch="pob-$LATEST"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "A pull request branch for $LATEST already exists."
+            exit 0
+          fi
+          sed -i "s/^ARG POB_REF=.*/ARG POB_REF=$LATEST/" Dockerfile
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "Update Path of Building to $LATEST"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Update Path of Building to $LATEST" \
+            --body "Path of Building $LATEST is out (pinned: ${CURRENT:-none}). Release notes: https://github.com/PathOfBuildingCommunity/PathOfBuilding/releases/tag/$LATEST
+
+          Before merging: close and reopen this pull request to run CI and the Docker build, check that pob-mcp works with this version, and rebuild \`advisor/data/gamefacts.json.gz\` (\`python manage.py build_gamefacts\`) if the game data changed."
