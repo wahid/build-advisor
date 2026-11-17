@@ -47,7 +47,7 @@ function RunningNote({ step }: { step: ToolStep }) {
   );
 }
 
-const LOOKUPS = new Set(["web_search", "quest_rewards", "patch_changes"]); // not Path of Building
+const LOOKUPS = new Set(["web_search", "quest_rewards", "patch_changes", "read_maxroll_guide"]); // not Path of Building
 
 // Past tense once a step worked; the infinitive for "Couldn't ..." when it failed.
 const LABELS: Record<string, [done: string, failed: string]> = {
@@ -91,6 +91,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   export_build: ["Exported the build", "export the build"],
   price_check: ["Checked prices on poe.ninja", "check prices on poe.ninja"],
   web_search: ["Searched the web", "search the web"],
+  read_maxroll_guide: ["Read the Maxroll guide", "read the Maxroll guide"],
   suggest_passives: ["Ranked passives for damage and toughness", "rank passives"],
 };
 
@@ -113,6 +114,7 @@ const RUNNING: Record<string, string> = {
   evaluate_scenarios: "Comparing mapping and bossing",
   quest_rewards: "Looking up quest rewards and vendors",
   web_search: "Searching the web",
+  read_maxroll_guide: "Reading the Maxroll guide",
 };
 
 export function stepLabel(

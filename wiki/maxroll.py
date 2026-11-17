@@ -4,15 +4,16 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup, Tag
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from .ingest import content_hash
@@ -30,6 +31,9 @@ MAX_PAGES_PER_MONTH = 50_000
 MAX_QUOTE_WORDS = 100
 MAX_REDIRECTS = 3
 TIMEOUT = 30
+# Postgres advisory lock ("MXRL"): one process at a time fetches for the chat.
+LOCK_KEY = 0x4D58524C
+SLOT_WAIT = 15.0  # seconds a chat question waits for another one's fetch
 
 # Not stored: media, embedded tools, comments, site chrome.
 _REMOVE_SELECTORS = [
@@ -70,8 +74,12 @@ _WORD_RE = re.compile(r"[\w'’-]+")
 class MaxrollError(RuntimeError):
     pass
 
-# --- URLs -------------------------------------------------------------------------
 
+class MaxrollUnavailable(MaxrollError):
+    """Pages can't be fetched now: switched off, outside the licence, monthly cap."""
+
+
+# --- URLs -------------------------------------------------------------------------
 
 def normalise_url(url: str) -> str:
     """The canonical https://maxroll.gg/poe/... URL, or ValueError for anything else."""
@@ -352,6 +360,90 @@ def store_guide(page: GuidePage) -> str:
             },
         )
     return "created" if existing is None else "updated"
+
+
+# --- reading for a chat question --------------------------------------------------
+
+
+def stored_guide(url: str, max_age: timedelta) -> GuidePage | None:
+    """The stored copy of the page, if it was fetched within `max_age`."""
+    document = (
+        Document.objects.select_related("source")
+        .filter(
+            source__wiki=WIKI_NAME,
+            source__url=url,
+            source__fetched_at__gte=timezone.now() - max_age,
+        )
+        .first()
+    )
+    if document is None:
+        return None
+    source = document.source
+    return GuidePage(
+        source.url,
+        document.title,
+        source.author,
+        source.updated_on,
+        document.patch,
+        document.raw_text,
+    )
+
+
+@contextmanager
+def _shared_slot(
+    interval: float, sleep: Callable[[float], None] = time.sleep, wait: float = SLOT_WAIT
+) -> Iterator[None]:
+    """Hold the fetch lock, at least `interval` after the last request by any process.
+
+    The web server answers several questions at once, in several processes; the
+    licence's one request per second counts for all of them together.
+    """
+    deadline = time.monotonic() + wait
+    with connection.cursor() as cursor:
+        while True:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", [LOCK_KEY])
+            if cursor.fetchone()[0]:
+                break
+            if time.monotonic() >= deadline:
+                raise MaxrollError("Another guide is being fetched from Maxroll. Try again.")
+            sleep(0.25)
+    try:
+        latest = MaxrollRequest.objects.values_list("requested_at", flat=True).first()
+        if latest is not None:
+            remaining = interval - (timezone.now() - latest).total_seconds()
+            if remaining > 0:
+                sleep(min(remaining, interval))
+        yield
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_unlock(%s)", [LOCK_KEY])
+
+
+def read_guide(
+    url: str,
+    client: MaxrollClient | None = None,
+    max_age: timedelta | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GuidePage:
+    """A page for a question in the chat: the stored copy while it is recent,
+    otherwise fetched now and stored (indexed by the next build_index).
+
+    Raises ValueError for a URL that isn't a Maxroll PoE page, MaxrollUnavailable
+    when the licence or the monthly cap doesn't allow it, MaxrollError otherwise.
+    """
+    url = normalise_url(url)
+
+    if max_age is None:
+        max_age = timedelta(hours=settings.MAXROLL_CHAT_CACHE_HOURS)
+    if page := stored_guide(url, max_age):
+        return page
+    client = client or MaxrollClient.from_settings()
+    with _shared_slot(client.request_interval, sleep):
+        if page := stored_guide(url, max_age):
+            return page  # another question fetched it while this one waited
+        page = parse_guide(url, client.fetch(url))
+    store_guide(page)
+    return page
 
 
 def purge() -> int:

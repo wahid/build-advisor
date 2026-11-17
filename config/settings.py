@@ -155,6 +155,10 @@ MAXROLL_USER_AGENT = env(
     default="build-advisor/0.1 (Maxroll licence LIC-2026-114; set MAXROLL_USER_AGENT)",
 )
 MAXROLL_MAX_QUOTE_WORDS = 100
+# In the chat: a guide the user links to (or web search finds) is fetched for the answer.
+MAXROLL_CHAT_MAX_GUIDES = env.int("MAXROLL_CHAT_MAX_GUIDES", default=2)  # per question
+MAXROLL_CHAT_CACHE_HOURS = env.int("MAXROLL_CHAT_CACHE_HOURS", default=24)  # before refetching
+MAXROLL_CHAT_MAX_CHARS = env.int("MAXROLL_CHAT_MAX_CHARS", default=24_000)  # given to the model
 
 # --- Path of Exile wiki ingestion -------------------------------------------
 WIKI_NAME = "poewiki"

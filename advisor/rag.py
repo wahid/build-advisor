@@ -6,6 +6,7 @@ sources first and then the answer as it streams in:
     {"type": "sources", "sources": [...]}
     {"type": "tool_call", "id": ..., "name": ..., "arguments": {...}}   (tools only)
     {"type": "tool_result", "id": ..., "name": ..., "ok": bool, "error": str}
+    {"type": "sources", ...} again, with the web pages or Maxroll guide a tool added
     {"type": "pob_export", "code": "..."}                               (build exported)
     {"type": "item", "item": {...}}             (a pasted item, with its tooltip card)
     {"type": "item_check", "slot": ..., "rows": [...]} (the item tried on the build)
@@ -38,6 +39,7 @@ from . import (
     gamefacts,
     gemrank,
     guardrails,
+    guides,
     health,
     items,
     leveling,
@@ -153,6 +155,14 @@ class Source:
         section = ", ".join(part for part in (result.site, result.date) if part)
         return cls(number, result.title, section, result.url, "", "web")
 
+    @classmethod
+    def from_guide(cls, number: int, page: maxroll.GuidePage) -> Source:
+        """A Maxroll guide read for this question, credited like an indexed one."""
+        updated = page.updated_on.isoformat() if page.updated_on else ""
+        return cls(
+            number, page.title, "", page.url, page.patch, DocumentType.GUIDE, page.author, updated
+        )
+
 
 @dataclass
 class Answer:
@@ -218,7 +228,8 @@ def _follow[T](call: ToolCall, steps: Steps[T]) -> Generator[Event, None, T]:
 class _ToolRunner:
     """Runs one round of tool calls and records them for the conversation.
 
-    Path of Building calls go to the toolbox; web searches add numbered sources.
+    Path of Building calls go to the toolbox; web searches and Maxroll guides
+    add numbered sources.
     """
 
     def __init__(
@@ -231,6 +242,9 @@ class _ToolRunner:
         self.sources = sources if sources is not None else []
         self.question = question
         self.web_searches = 0
+        self.guides_read = 0
+        # Source number -> the guide text the model was given (for the quote limit).
+        self.guide_texts: dict[int, str] = {}
 
     def _rank_skill_gems(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
         assert self.toolbox is not None
@@ -350,6 +364,38 @@ class _ToolRunner:
         events[1]["preview"] = text[:WEB_PREVIEW_CHARS]
         return events, text
 
+    def _read_guide(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
+        def failed(error: str) -> tuple[list[Event], str]:
+            return self._events(call, arguments, ok=False, error=error), f"Error: {error}"
+
+        try:
+            url = maxroll.normalise_url(str(arguments.get("url", "")))
+        except ValueError as exc:
+            return failed(str(exc))
+        known = next(
+            (s for s in self.sources if s.number in self.guide_texts and s.url == url), None
+        )
+        if known is not None:
+            events = self._events(call, arguments, ok=True, error="")
+            return events, f"You already have this guide: it is source [{known.number}]."
+        if self.guides_read >= settings.MAXROLL_CHAT_MAX_GUIDES:
+            return failed("You have read all the Maxroll guides allowed for this question.")
+        self.guides_read += 1
+        try:
+            page = guides.read(url)
+        except guides.GuideError as exc:
+            logger.info("read_maxroll_guide(%s) failed: %s", url, exc)
+            return failed(str(exc))
+        logger.info("read_maxroll_guide(%s) -> %d chars", url, len(page.text))
+        source = Source.from_guide(len(self.sources) + 1, page)
+        self.sources.append(source)
+        self.guide_texts[source.number] = guides.body(page)
+        events = self._events(call, arguments, ok=True, error="")
+        # No preview of the text: the guide stays on the server, only the credit is shown.
+        events[1]["preview"] = f"[{source.number}] {guides.label(page)}"
+        events.append({"type": "sources", "sources": [asdict(s) for s in self.sources]})
+        return events, guides.for_model(source.number, page)
+
     def run(self, call: ToolCall) -> tuple[list[Event], str]:
         """Run a tool to the end: (events for the client, text for the model)."""
         steps = self.stream(call)
@@ -383,6 +429,8 @@ class _ToolRunner:
     def _dispatch(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
         if call.name == websearch.TOOL_NAME:
             return self._web_search(call, arguments)
+        if call.name == guides.TOOL_NAME:
+            return self._read_guide(call, arguments)
         if call.name == gemrank.TOOL_NAME and self.toolbox is not None:
             return (yield from self._rank_skill_gems(call, arguments))
         if call.name == passives.TOOL_NAME and self.toolbox is not None:
@@ -608,7 +656,8 @@ def answer_stream(
         yield {"type": "sources", "sources": [asdict(s) for s in sources]}
         patch = ", ".join(sorted({s.patch for s in sources}))
 
-        if not hits and toolbox is None:
+        linked_guide = bool(guides.urls_in(question))
+        if not hits and toolbox is None and not linked_guide:
             yield {"type": "delta", "text": NO_SOURCES_ANSWER}
             yield {"type": "done", "cited": [], "patch": patch}
             return
@@ -699,9 +748,32 @@ def _converse(
     # The leveling lookup (a database query) comes with the other tools, or alone
     # when the question is about leveling.
     lookup = toolbox is not None or web or bool(LOOKUP_RE.search(question))
+    # Maxroll guides: the ones linked in the question are read now; the model can
+    # read one that web search found, or one linked earlier in the conversation.
+    linked = guides.urls_in(question)
+    mentioned = linked or any(guides.urls_in(turn.question) for turn in history)
+    guide_tool = guides.available() and (toolbox is not None or web or bool(mentioned))
     rounds = pob_rounds or (
-        settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup else 0
+        settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup or guide_tool else 0
     )
+    definitions = [
+        *(toolbox.definitions if toolbox is not None else []),
+        *(COMPOSITE_TOOLS if toolbox is not None else []),
+        *([websearch.TOOL_DEFINITION] if web else []),
+        *([guides.TOOL_DEFINITION] if guide_tool else []),
+        *(LOOKUP_TOOLS if lookup else []),
+    ]
+    runner = _ToolRunner(toolbox, sources, question) if definitions or linked else None
+    guide_blocks: list[str] = []
+    for n, url in enumerate(linked[: settings.MAXROLL_CHAT_MAX_GUIDES], start=1):
+        assert runner is not None
+        call = ToolCall(f"linked-guide-{n}", guides.TOOL_NAME, json.dumps({"url": url}))
+        events, result = runner.run(call)
+        yield from events
+        if events[-1]["type"] == "sources":
+            guide_blocks.append(result)
+        else:
+            guide_blocks.append(f"The Maxroll guide at {url} couldn't be read. {result}")
     messages: list[Message] = build_messages(
         question,
         hits,
@@ -713,14 +785,9 @@ def _converse(
         item_text=item_text,
         item_check=item_check,
         item_note=item_note,
+        guides=guide_blocks,
+        guide_tool=guide_tool,
     )
-    definitions = [
-        *(toolbox.definitions if toolbox is not None else []),
-        *(COMPOSITE_TOOLS if toolbox is not None else []),
-        *([websearch.TOOL_DEFINITION] if web else []),
-        *(LOOKUP_TOOLS if lookup else []),
-    ]
-    runner = _ToolRunner(toolbox, sources, question) if definitions else None
     answer_parts: list[str] = []
 
     final_text = ""
@@ -822,18 +889,24 @@ def _converse(
         "entities": entities_in(full),
         "numbers": guardrails.check(full, evidence).as_dict(),
         "facts": gamefacts.check(full),
-        "long_quotes": _long_guide_quotes(full, hits),
+        "long_quotes": _long_guide_quotes(full, hits, runner.guide_texts if runner else {}),
     }
 
 
-def _long_guide_quotes(text: str, hits: list[SearchHit]) -> dict[int, int]:
-    """Guide sources quoted at more than the licence's 100 consecutive words."""
-    guides = {
+def _long_guide_quotes(
+    text: str, hits: list[SearchHit], read: dict[int, str] | None = None
+) -> dict[int, int]:
+    """Guide sources quoted at more than the licence's 100 consecutive words.
+
+    read: guides read for this question (source number -> text), next to the hits.
+    """
+    texts = {
         n: hit.chunk.text.split("\n\n", 1)[-1]
         for n, hit in enumerate(hits, start=1)
         if hit.chunk.doc_type == DocumentType.GUIDE
     }
-    quotes = maxroll.long_quotes(text, guides) if guides else {}
+    texts.update(read or {})
+    quotes = maxroll.long_quotes(text, texts) if texts else {}
     if quotes:
         logger.warning("Answer quotes guide sources at length: %s", quotes)
     return quotes
