@@ -19,6 +19,7 @@ from django.utils import timezone
 from .ingest import content_hash
 from .models import Document, DocumentType, MaxrollRequest, Source
 from .parsing import html_to_text
+from .progression import planner_ref, planner_text, profile_url
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ TIMEOUT = 30
 LOCK_KEY = 0x4D58524C
 SLOT_WAIT = 15.0  # seconds a chat question waits for another one's fetch
 
-# Not stored: media, embedded tools, comments, site chrome.
+# Not stored: media, embedded tools, comments, site chrome. The Build Progression Tool is
+# the exception: its text is read from the planner's profile (wiki.progression).
 _REMOVE_SELECTORS = [
     "script",
     "style",
@@ -107,7 +109,10 @@ class GuidePage:
     text: str
 
 
-def parse_guide(url: str, html: str) -> GuidePage:
+def parse_guide(
+    url: str, html: str, profile: dict | None = None, embed_id: int | None = None
+) -> GuidePage:
+    """profile: the page's Build Progression Tool data, added after the article's text."""
     soup = BeautifulSoup(html, "html.parser")
     meta = _json_ld(soup)
     title = _title(soup, meta)
@@ -124,6 +129,8 @@ def parse_guide(url: str, html: str) -> GuidePage:
     _drop_byline_block(root)
 
     text = html_to_text(str(root))
+    progression = planner_text(profile, embed_id) if profile else ""
+    text = "\n\n".join(part for part in (text.strip(), progression) if part)
     if not text.strip():
         raise MaxrollError(f"No article text found on {url}")
     return GuidePage(url, title, author, updated_on, patch, text)
@@ -282,6 +289,34 @@ class MaxrollClient:
             return response.text
         raise MaxrollError(f"Too many redirects for {url}")
 
+    def fetch_profile(self, profile_id: str) -> dict:
+        """A Build Progression Tool profile from Maxroll's planner. Raises MaxrollError."""
+        url = profile_url(profile_id)
+        response = self._get(url)
+        if response.status_code != 200:
+            raise MaxrollError(f"Maxroll's planner answered {response.status_code} for {url}")
+        try:
+            profile = response.json()
+        except ValueError as exc:
+            raise MaxrollError(f"Maxroll's planner sent something unreadable for {url}") from exc
+        if not isinstance(profile, dict):
+            raise MaxrollError(f"Maxroll's planner sent something unreadable for {url}")
+        return profile
+
+    def load_guide(self, url: str) -> GuidePage:
+        """The page with its Build Progression Tool, if it has one (a second request)."""
+        url = normalise_url(url)
+        html = self.fetch(url)
+        ref = planner_ref(html)
+        if ref is None:
+            return parse_guide(url, html)
+        try:
+            profile = self.fetch_profile(ref[0])
+        except (MaxrollError, ValueError) as exc:
+            logger.warning("Storing %s without its progression tool: %s", url, exc)
+            return parse_guide(url, html)
+        return parse_guide(url, html, profile, ref[1])
+
     def _get(self, url: str) -> requests.Response:
         self._throttle()
         log = MaxrollRequest.objects.create(url=url, requested_at=timezone.now())
@@ -320,7 +355,7 @@ def fetch_guides(urls: Iterable[str], client: MaxrollClient | None = None) -> Fe
     result = FetchResult()
     for url in urls:
         try:
-            page = parse_guide(normalise_url(url), client.fetch(url))
+            page = client.load_guide(url)
         except (MaxrollError, ValueError) as exc:
             logger.warning("%s", exc)
             result.failed.append(url)
@@ -442,7 +477,7 @@ def read_guide(
     with _shared_slot(client.request_interval, sleep):
         if page := stored_guide(url, max_age):
             return page  # another question fetched it while this one waited
-        page = parse_guide(url, client.fetch(url))
+        page = client.load_guide(url)
     store_guide(page)
     return page
 
