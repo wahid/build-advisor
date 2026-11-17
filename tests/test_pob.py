@@ -175,6 +175,44 @@ def test_a_hung_server_is_replaced(pool: PobPool) -> None:
         assert _summary(toolbox) == {"ascendancy": None}
 
 
+def test_a_crashed_path_of_building_is_replaced(pool: PobPool) -> None:
+    with pool.toolbox() as toolbox:
+        toolbox.call("new_build", {})
+        result = toolbox._server.call("crash", {}, 5)
+        assert result.ok is False
+        assert result.text.startswith("Path of Building crashed on this build (In 'OnFrame': ")
+        assert "Build.lua:872: attempt to index a nil value)" in result.text
+        assert "Press Enter" not in result.text
+        assert toolbox._server.call("get_stats", {}, 5).ok is False  # stuck on its crash screen
+
+    with pool.toolbox() as toolbox:  # the next question gets a fresh process
+        assert toolbox._server.call("get_stats", {}, 5).data == {"Life": 5000}
+
+
+def test_a_build_with_an_unknown_tree_is_refused_and_harms_no_one_else(pool: PobPool) -> None:
+    with pool.toolbox() as toolbox:
+        result = toolbox.call("load_build", {"source": "https://pobb.in/newer-tree"})
+        assert result.ok
+        result = toolbox.call_internal("load_build", {"source": "newer-tree"})
+        assert result.ok is False
+        assert "newest passive tree is 3.29" in result.text
+        assert toolbox.has_build is True  # from the first load
+
+    with pool.toolbox(build="other") as toolbox:  # the next question: a fresh process
+        assert toolbox.call("load_build", {"source": "https://pobb.in/other"}).ok
+        assert toolbox._server.call("get_stats", {}, 5).data == {"Life": 5000}
+
+
+def test_a_reset_that_crashes_gets_a_fresh_process(pool: PobPool) -> None:
+    with pool.toolbox() as toolbox:
+        toolbox._server.call("load_build", {"source": "newer-tree"}, 5)  # unnoticed
+        toolbox._server.changed = True
+
+    with pool.toolbox() as toolbox:
+        assert toolbox._server.crashed is False
+        assert toolbox._server.call("get_stats", {}, 5).data == {"Life": 5000}
+
+
 # --- keeping a loaded build for follow-up questions --------------------------------
 
 

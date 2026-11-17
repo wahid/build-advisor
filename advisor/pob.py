@@ -133,6 +133,19 @@ REALMS = ("pc", "xbox", "sony")
 BUILD_STARTERS = ("new_build", "load_build", "import_character")
 LINK_ONLY_QUESTION = "What do you think of this build?"
 MAX_DESCRIPTION = 2000
+# Path of Building's own crash screen. Once it shows, the process answers every later
+# call with the same error (also for builds that are fine), so it is replaced.
+POB_CRASH_RE = re.compile(r"In '\w+': .*|Press Enter/Escape to dismiss", re.DOTALL)
+# A build whose passive tree version Path of Building doesn't know loads without an
+# error, as an empty character, and the process crashes on its next reset.
+TREE_NOT_LOADED = (
+    "The build's passive tree couldn't be loaded: it is probably made for a newer game "
+    "version than this Path of Building knows (its newest passive tree is {version})."
+)
+POB_CRASHED = (
+    "Path of Building crashed on this build ({detail}). It may be made with a newer "
+    "version of Path of Building or have a damaged passive tree."
+)
 
 
 class PobUnavailable(RuntimeError):
@@ -282,6 +295,7 @@ class _Server:
         self.command = command
         self.env = env
         self.broken = False
+        self.crashed = False  # PoB shows its crash screen: retire the process after this question
         # Which build the process holds, so a follow-up with the same build can skip
         # reloading it: the source it was loaded from (or the share code it was last
         # exported as), and whether anything changed it since. "" = unknown.
@@ -367,6 +381,13 @@ class _Server:
             data = json.loads(text) if text else None
         except json.JSONDecodeError:
             data = None
+        if result.is_error and POB_CRASH_RE.search(text):
+            self.crashed = True
+            logger.warning("Path of Building crashed in %s: %s", name, text[:300])
+            detail = re.split(r"\sv\d+\.\d+", POB_CRASH_RE.search(text).group(0))[0][:120].strip()
+            if detail.startswith("Press"):
+                detail = "no details"
+            return ToolResult(ok=False, text=POB_CRASHED.format(detail=detail), data=None)
         return ToolResult(ok=not result.is_error, text=text, data=data)
 
     def close(self) -> None:
@@ -400,6 +421,7 @@ class PobToolbox:
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
         result = self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
+        result = self._loaded(name, result)
         if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         if name == "export_build" and result.ok and isinstance(result.data, dict):
@@ -419,10 +441,22 @@ class PobToolbox:
         composite tool. It skips the allowlist but still tracks changes."""
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
-        result = self._server.call(name, arguments, self._timeout)
+        result = self._loaded(name, self._server.call(name, arguments, self._timeout))
         if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         return result
+
+    def _loaded(self, name: str, result: ToolResult) -> ToolResult:
+        """A loaded build without a single passive is one whose tree didn't load."""
+        if name != "load_build" or not result.ok or not isinstance(result.data, dict):
+            return result
+        level = result.data.get("level")
+        if result.data.get("passivePointsUsed") != 0 or not isinstance(level, int) or level < 10:
+            return result
+        self._server.crashed = True  # it would crash on the next question's reset
+        version = str(result.data.get("treeVersion") or "unknown").replace("_", ".")
+        logger.warning("load_build gave a level %s character without passives", level)
+        return ToolResult(ok=False, text=TREE_NOT_LOADED.format(version=version), data=None)
 
     def mark_loaded(self, source: str) -> None:
         """The build from `source` was just loaded and nothing has changed it yet."""
@@ -484,8 +518,8 @@ class PobPool:
             raise PobUnavailable("Path of Building is busy with other questions.") from exc
 
     def _release(self, server: _Server) -> None:
-        if server.broken:
-            server.close()
+        if server.broken or server.crashed:
+            server.close()  # a crashed one still answers, so this shuts it down
             with self._lock:
                 self._count -= 1
         else:
@@ -503,12 +537,20 @@ class PobPool:
         try:
             reused = bool(build) and server.build_source == build and not server.changed
             if not reused and (server.build_source or server.changed):
-                server.call("new_build", {}, self.call_timeout)
-                server.build_source, server.changed, server.has_build = "", False, False
+                self._reset(server)
+                if server.crashed:
+                    # The previous question left Path of Building broken: start another.
+                    self._release(server)
+                    server = self._acquire(wait)
+                    self._reset(server)
             definitions = openai_tool_definitions(server.tools, self.allowed)
             yield PobToolbox(server, definitions, self.call_timeout, reused=reused)
         finally:
             self._release(server)
+
+    def _reset(self, server: _Server) -> None:
+        server.call("new_build", {}, self.call_timeout)
+        server.build_source, server.changed, server.has_build = "", False, False
 
     def close(self) -> None:
         while True:
