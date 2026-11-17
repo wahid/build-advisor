@@ -27,7 +27,7 @@ class Command(BaseCommand):
 
         try:
             result = fetch_guides(urls)
-        except (MaxrollError) as exc:
+        except MaxrollError as exc:
             raise CommandError(str(exc)) from exc
         self.stdout.write(
             self.style.SUCCESS(

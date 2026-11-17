@@ -81,6 +81,7 @@ class MaxrollUnavailable(MaxrollError):
 
 # --- URLs -------------------------------------------------------------------------
 
+
 def normalise_url(url: str) -> str:
     """The canonical https://maxroll.gg/poe/... URL, or ValueError for anything else."""
     parts = urlsplit(url.strip())

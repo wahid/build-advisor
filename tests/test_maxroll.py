@@ -2,9 +2,8 @@ from datetime import date
 
 import pytest
 import responses
-from django.core.management import CommandError, call_command
+from django.core.management import call_command
 
-from wiki import maxroll
 from wiki.indexing import build_chunks
 from wiki.maxroll import (
     GuidePage,
@@ -72,6 +71,7 @@ def _client(clock: FakeClock | None = None, interval: float = 1.0) -> MaxrollCli
     clock = clock or FakeClock()
     return MaxrollClient("tests", request_interval=interval, clock=clock, sleep=clock.sleep)
 
+
 # --- URLs -------------------------------------------------------------------------
 
 
@@ -107,6 +107,7 @@ def test_at_most_one_request_per_second() -> None:
     assert client.request_interval == 1.0
     assert clock.slept == [1.0]
     assert MaxrollRequest.objects.filter(status=200).count() == 2
+
 
 @responses.activate
 def test_redirects_count_as_requests_and_stay_on_maxroll() -> None:
