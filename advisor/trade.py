@@ -1,15 +1,18 @@
 """Trade links: searches on pathofexile.com/trade for a better item in a slot.
 
 pob-mcp's trade_search asks Path of Building what every mod that can roll on the
-slot's item type is worth to the loaded build, and builds a trade-site search on
-that weighted value, with the current item as the minimum. Here its result becomes
-a link the app shows (the model gets the mods and weights, not the URL), optionally
-capped at a price.
+slot's item type is worth to the loaded build. Here the most valuable of those
+mods become a trade-site search with real minimum rolls: a rare item for the slot
+with at least a few of them (a "Count" group), optionally capped at a price. The
+app shows the link; the model gets the mods and minimums, not the URL.
 
-The link is the trade site's ?q=<query> form. The site doesn't take a sort order
-from a link, so it lists the matches cheapest first; the weighted value is shown
-per listing ("Sum") and sorts with one click there. The compressed link pob-mcp
-also returns holds the query in a shape the site rejects ("search is no longer
+pob-mcp's own query is one "Weighted Sum" group (a weight per mod). That is hard
+to read and to adjust on the site, so only its item filters (category, rarity,
+online sellers) are kept.
+
+The link is the trade site's ?q=<query> form. The site lists matches cheapest
+first and doesn't take a sort order from a link. The compressed link pob-mcp also
+returns holds the query in a shape the site rejects ("search is no longer
 valid"), so it isn't used.
 
 Nothing is fetched from the trade site: the link is only opened by the user, in
@@ -20,17 +23,24 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from typing import Any
 from urllib.parse import quote
 
 TOOL_NAME = "trade_search"
 TRADE_ROOT = "https://www.pathofexile.com/trade/search/"
 CURRENCIES = ("chaos", "divine")
-MAX_STATS = 6  # mods named to the model and the user, heaviest first
+MAX_STATS = 5  # mods in the search, most valuable for the build first
+NEED = 2  # how many of them an item must have
+# The minimum asked of each mod, as a share of its best tier's lowest roll: a good
+# roll, not only the top tier (which few listings have, fewer within a budget).
+ROLL_SHARE = 0.7
+_RANGE_RE = re.compile(r"\((\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\)")
+_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 RARE_SEARCHES = 3  # slots that get a search with budget_upgrades
 # What the model may set: the rest of pob-mcp's arguments (league, stat count,
 # offline sellers) stay at their defaults.
-ARGUMENTS = ("slot", "weights", "base", "better_than_current")
+ARGUMENTS = ("slot", "weights", "base")
 PRICE_PROPERTIES = {
     "max_price": {
         "type": "number",
@@ -65,8 +75,29 @@ def trade_url(league: str, query: dict[str, Any]) -> str:
     return f"{TRADE_ROOT}{quote(league, safe='')}?q={quote(payload, safe='')}"
 
 
+def minimum_roll(text: str) -> float | None:
+    """The minimum to ask for a mod, from its text ("+(351-480) to Accuracy Rating").
+
+    A mod with two numbers ("Adds (6-9) to (13-15) ...") is searched by their average,
+    as the trade site does.
+    """
+    lows = [float(low) for low, _high in _RANGE_RE.findall(text)]
+    if not lows:
+        lows = [float(n) for n in _NUMBER_RE.findall(text)]
+    if not lows:
+        return None
+    value = sum(lows) / len(lows) * ROLL_SHARE
+    return float(round(value)) if value >= 10 else round(value, 1)
+
+
+def _label(text: str, minimum: float | None) -> str:
+    """ "+# to Accuracy Rating: 246+" """
+    generic = _RANGE_RE.sub("#", text)
+    return generic if minimum is None else f"{generic}: {minimum:g}+"
+
+
 def search(data: Any, max_price: float | None = None, currency: str = "chaos") -> dict[str, Any]:
-    """A trade_search result as the app shows it: the link and what it ranks by."""
+    """A trade_search result as the app shows it: the link and the mods it asks for."""
     if not isinstance(data, dict):
         raise TradeError("The trade search came back empty.")
     league, query = data.get("league"), data.get("query")
@@ -74,24 +105,42 @@ def search(data: Any, max_price: float | None = None, currency: str = "chaos") -
         raise TradeError("The trade search came back without a query.")
     if not isinstance(league, str) or not league:
         raise TradeError("The trade search came back without a league.")
+    mods = [
+        s
+        for s in data.get("statWeights") or []
+        if isinstance(s, dict) and s.get("text") and s.get("tradeId")
+    ]
+    if not mods:
+        raise TradeError("No mod on this item type improves the build.")
+    mods.sort(key=lambda s: -float(s.get("scoreAtExample") or 0))
+    mods = mods[:MAX_STATS]
+    minimums = [minimum_roll(str(s["text"])) for s in mods]
+    need = min(NEED, len(mods))
+
+    inner = copy.deepcopy(query["query"])
+    inner["stats"] = [
+        {
+            "type": "count",
+            "value": {"min": need},
+            "filters": [
+                {"id": str(s["tradeId"]), **({"value": {"min": low}} if low is not None else {})}
+                for s, low in zip(mods, minimums, strict=True)
+            ],
+        }
+    ]
     if max_price:
-        query = copy.deepcopy(query)
-        filters = query["query"].setdefault("filters", {})
-        filters["trade_filters"] = {
+        inner.setdefault("filters", {})["trade_filters"] = {
             "filters": {"price": {"max": round(max_price, 1), "option": currency}}
         }
-    url = trade_url(league, query)
-    weights = [s for s in data.get("statWeights") or [] if isinstance(s, dict) and s.get("text")]
-    weights.sort(key=lambda s: -float(s.get("scoreAtExample") or 0))
     return {
         "slot": str(data.get("slot") or ""),
-        "league": str(league or ""),
+        "league": league,
         "item": str(data.get("currentItem") or ""),
-        "better_than_current": bool(data.get("minimumWeightedSum")),
         "max_price": max_price,
         "currency": currency if max_price else None,
-        "stats": [str(s["text"]) for s in weights[:MAX_STATS]],
-        "url": url,
+        "need": need,
+        "stats": [_label(str(s["text"]), low) for s, low in zip(mods, minimums, strict=True)],
+        "url": trade_url(league, {"query": inner}),
     }
 
 
@@ -100,10 +149,11 @@ def for_model(found: dict[str, Any]) -> str:
     summary = {k: v for k, v in found.items() if k != "url" and v not in (None, "")}
     summary["note"] = (
         "The app shows the link to this search under your answer: don't write a URL. "
-        "The search finds rare items by the mods in `stats` (most valuable first), "
-        "weighted by what Path of Building says they add to this build. The trade site "
-        "lists the matches cheapest first and shows each one's weighted value as 'Sum': "
-        "clicking that sorts by value."
+        "The search finds rare items for the slot that have at least `need` of the mods "
+        "in `stats`, each with the minimum roll shown (e.g. 246+). Those are the mods "
+        "Path of Building values most for this build, most valuable first. The trade "
+        "site lists the matches cheapest first, and the user can change every minimum "
+        "there."
     )
     return json.dumps(summary, ensure_ascii=False)
 

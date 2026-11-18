@@ -39,9 +39,33 @@ def trade_result(slot: str = "Ring 1") -> dict:
         "currentItem": "Doom Loop, Coral Ring",
         "minimumWeightedSum": 120.5,
         "statWeights": [
-            {"text": "+(13-16) to all Attributes", "weight": 38.2, "scoreAtExample": 15.8},
-            {"text": "+(351-480) to Accuracy Rating", "weight": 10, "scoreAtExample": 123.7},
-            *({"text": f"mod {n}", "scoreAtExample": n} for n in range(8)),
+            {
+                "text": "+(13-16) to all Attributes",
+                "tradeId": "explicit.stat_1379411836",
+                "weight": 38.2,
+                "scoreAtExample": 15.8,
+            },
+            {
+                "text": "+(351-480) to Accuracy Rating",
+                "tradeId": "explicit.stat_803737631",
+                "weight": 10,
+                "scoreAtExample": 123.7,
+            },
+            {
+                "text": "Adds (6-9) to (13-15) Physical Damage to Attacks",
+                "tradeId": "explicit.stat_3032590688",
+                "weight": 51,
+                "scoreAtExample": 11.8,
+            },
+            {"text": "no trade id", "scoreAtExample": 500},
+            *(
+                {
+                    "text": f"+(1{n}-2{n}) to mod {n}",
+                    "tradeId": f"explicit.stat_{n}",
+                    "scoreAtExample": n,
+                }
+                for n in range(8)
+            ),
         ],
         "url": COMPRESSED,
         "url_plain": ROOT + "Covens%20of%20Umbra?q=plain",
@@ -56,20 +80,36 @@ def _decode(url: str) -> dict:
     return json.loads(parse_qs(parts.query)["q"][0])
 
 
-def test_a_search_keeps_the_link_and_names_the_heaviest_mods() -> None:
+def test_a_search_asks_for_the_most_valuable_mods_with_real_minimums() -> None:
     result = trade_result()
     found = trade.search(result)
 
-    assert _decode(found["url"]) == result["query"]  # not pob-mcp's compressed link
     assert (found["slot"], found["league"], found["item"]) == (
         "Ring 1",
         "Covens of Umbra",
         "Doom Loop, Coral Ring",
     )
-    assert found["better_than_current"] is True
-    assert (found["max_price"], found["currency"]) == (None, None)
-    assert found["stats"][:2] == ["+(351-480) to Accuracy Rating", "+(13-16) to all Attributes"]
+    assert (found["max_price"], found["currency"], found["need"]) == (None, None, 2)
+    assert found["stats"][:3] == [
+        "+# to Accuracy Rating: 246+",  # 70% of the best tier's lowest roll (351)
+        "+# to all Attributes: 9.1+",
+        "Adds # to # Physical Damage to Attacks: 6.6+",  # 70% of the average of 6 and 13
+    ]
     assert len(found["stats"]) == trade.MAX_STATS
+
+    query = _decode(found["url"])
+    assert set(query) == {"query"}  # no sort: the site ignores it in a link
+    [group] = query["query"]["stats"]
+    assert (group["type"], group["value"]) == ("count", {"min": 2})
+    assert group["filters"][:2] == [
+        {"id": "explicit.stat_803737631", "value": {"min": 246}},
+        {"id": "explicit.stat_1379411836", "value": {"min": 9.1}},
+    ]
+    assert len(group["filters"]) == trade.MAX_STATS
+    # pob-mcp's item filters are kept, its weighted sum isn't.
+    assert query["query"]["filters"] == result["query"]["query"]["filters"]
+    assert query["query"]["status"] == {"option": "online"}
+    assert "weight" not in json.dumps(query)
 
 
 def test_a_price_cap_is_added_to_the_search() -> None:
@@ -80,9 +120,37 @@ def test_a_price_cap_is_added_to_the_search() -> None:
     assert query["query"]["filters"]["trade_filters"] == {
         "filters": {"price": {"max": 50, "option": "divine"}}
     }
-    assert query["query"]["stats"] == result["query"]["query"]["stats"]  # rest unchanged
+    assert query["query"]["stats"][0]["type"] == "count"
     assert "trade_filters" not in result["query"]["query"]["filters"]  # not edited in place
     assert (found["max_price"], found["currency"]) == (50, "divine")
+
+
+@pytest.mark.parametrize(
+    ("text", "minimum"),
+    [
+        ("+(351-480) to Accuracy Rating", 246),
+        ("(5-7)% increased Attack Speed", 3.5),
+        ("Adds (22-29) to (45-52) Physical Damage", 23),
+        ("+12% to Chaos Resistance", 8.4),
+        ("Cannot be Frozen", None),
+    ],
+)
+def test_minimum_rolls(text: str, minimum: float | None) -> None:
+    assert trade.minimum_roll(text) == minimum
+
+
+def test_one_mod_is_enough_when_only_one_helps() -> None:
+    result = trade_result()
+    result["statWeights"] = [
+        {"text": "Cannot be Frozen", "tradeId": "explicit.stat_1", "weight": 1}
+    ]
+    found = trade.search(result)
+
+    assert (found["need"], found["stats"]) == (1, ["Cannot be Frozen"])
+    assert _decode(found["url"])["query"]["stats"][0]["filters"] == [{"id": "explicit.stat_1"}]
+    result["statWeights"] = []
+    with pytest.raises(trade.TradeError, match="No mod"):
+        trade.search(result)
 
 
 @pytest.mark.parametrize(

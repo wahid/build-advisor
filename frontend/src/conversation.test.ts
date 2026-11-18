@@ -60,10 +60,10 @@ describe("trade searches", () => {
     slot: "Ring 1",
     league: "Covens",
     item: "Doom Loop, Coral Ring",
-    better_than_current: true,
     max_price: null,
     currency: null,
-    stats: ["+# to maximum Life"],
+    need: 1,
+    stats: ["+# to maximum Life: 70+"],
     url: "https://www.pathofexile.com/trade/search/Covens/abc",
   };
 

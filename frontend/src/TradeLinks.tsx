@@ -5,7 +5,7 @@ function label(search: TradeSearch): string {
   return `${search.slot}${cap}`;
 }
 
-/** Links to pathofexile.com/trade: rare items for a slot, ranked by what they add to the build. */
+/** Links to pathofexile.com/trade: rare items for a slot with the mods the build gains most from. */
 export function TradeLinks({ searches, heading = "Trade searches" }: { searches: TradeSearch[]; heading?: string }) {
   if (!searches.length) return null;
   const league = searches[0].league;
@@ -13,9 +13,9 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
     <section className="comparison trade-links" aria-label={heading}>
       <h3 className="pob-heading">{heading}</h3>
       <p className="comparison-note">
-        Rare items on pathofexile.com/trade{league && ` (${league} league)`}, found by the mods Path of Building values
-        for your build. The site lists them cheapest first; click a listing's "Sum" to sort by value. Searching needs a
-        pathofexile.com login.
+        Rare items on pathofexile.com/trade{league && ` (${league} league)`} with the mods Path of Building values most
+        for your build, cheapest first. You can change the minimums on the site. Searching needs a pathofexile.com
+        login.
       </p>
       <ul className="trade-list">
         {searches.map((search) => (
@@ -24,9 +24,9 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
               {label(search)}
             </a>
             <span className="passive-stats">
-              {search.item && (search.better_than_current ? `Better than your ${search.item}. ` : `You wear ${search.item}. `)}
+              {search.item && `You wear ${search.item}. `}
               {search.best_mod && `Biggest single gain: ${search.best_mod}. `}
-              {search.stats.length > 0 && `Valued by: ${search.stats.slice(0, 4).join("; ")}.`}
+              {search.stats.length > 0 && `At least ${search.need} of: ${search.stats.join("; ")}.`}
             </span>
           </li>
         ))}

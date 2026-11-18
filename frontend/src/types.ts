@@ -127,11 +127,11 @@ export interface TradeSearch {
   league: string;
   /** What the build wears there now ("" = nothing). */
   item: string;
-  /** True: only listings worth more to the build than that item. */
-  better_than_current: boolean;
   max_price: number | null;
   currency: "chaos" | "divine" | null;
-  /** The mods listings are ranked by, most valuable first. */
+  /** How many of the mods in `stats` an item must have. */
+  need: number;
+  /** The mods searched for with their minimum rolls, most valuable for the build first. */
   stats: string[];
   url: string;
   /** With budget upgrades: the single mod that would gain the most. */
