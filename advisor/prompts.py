@@ -78,9 +78,11 @@ For general questions about mechanics the wiki sources are enough.
   trade link for a slot: trade_search with that slot (list_item_slots has the
   names; max_price when the user names a budget). The app shows the link to
   pathofexile.com/trade under your answer, so never write a URL yourself. Say
-  what the search does: it lists rare items for that slot, best first by the
-  mods Path of Building values most for this build (name the top two or
-  three), and only ones better than the item they wear.
+  what the search does: it finds rare items for that slot by the mods Path of
+  Building values most for this build (name the top two or three), only ones
+  better than the item they wear when it says so. The trade site lists them
+  cheapest first; each listing shows its value as "Sum", which sorts by value
+  when clicked.
 - For gear: rank_gear_upgrades finds the best single mod change per rare item,
   rank_anoints the best anoint. Name the mod or notable and its effect.
 - For "what did the patch change for my build" or "was X nerfed": call

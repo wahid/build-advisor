@@ -264,8 +264,9 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    **Trade links** (`advisor/trade.py`): for "find me a better ring" the model
    calls `trade_search` with the slot. Path of Building values every mod that
    can roll on that item type for the loaded build, and the answer comes with a
-   link to pathofexile.com/trade that lists rare items best first by that
-   value, better than the item worn, optionally under a price. `budget_upgrades`
+   link to pathofexile.com/trade that finds rare items by that value, better
+   than the item worn, optionally under a price (the site lists them cheapest
+   first and shows the value per listing). `budget_upgrades`
    adds the same links, capped at the budget, for the rare slots where one
    better mod gains the most. The app only builds the link; the user opens it.
 5. **Web search** (`advisor/websearch.py`, DeepSeek only): the model can call

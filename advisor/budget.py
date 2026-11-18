@@ -47,7 +47,8 @@ TOOL_DEFINITION = {
             "for 'best upgrade for 50 chaos', 'what should I buy with 2 divines' and similar. "
             "Covers armour, belts, amulets and rings (not weapons). Rare items can't be "
             "priced, so it also gives trade-site searches for the rare slots where one "
-            "better mod gains the most, capped at the budget: the app shows those links. "
+            "better mod gains the most, capped at the budget: the app shows those links "
+            "(matches are listed cheapest first). "
             "Prices are market snapshots: say so, and name the league."
         ),
         "parameters": {

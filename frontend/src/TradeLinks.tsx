@@ -13,8 +13,9 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
     <section className="comparison trade-links" aria-label={heading}>
       <h3 className="pob-heading">{heading}</h3>
       <p className="comparison-note">
-        Rare items on pathofexile.com/trade{league && ` (${league} league)`}, best first by the mods Path of Building
-        values for your build. Searching needs a pathofexile.com login.
+        Rare items on pathofexile.com/trade{league && ` (${league} league)`}, found by the mods Path of Building values
+        for your build. The site lists them cheapest first; click a listing's "Sum" to sort by value. Searching needs a
+        pathofexile.com login.
       </p>
       <ul className="trade-list">
         {searches.map((search) => (
@@ -25,7 +26,7 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
             <span className="passive-stats">
               {search.item && (search.better_than_current ? `Better than your ${search.item}. ` : `You wear ${search.item}. `)}
               {search.best_mod && `Biggest single gain: ${search.best_mod}. `}
-              {search.stats.length > 0 && `Ranked by: ${search.stats.slice(0, 4).join("; ")}.`}
+              {search.stats.length > 0 && `Valued by: ${search.stats.slice(0, 4).join("; ")}.`}
             </span>
           </li>
         ))}

@@ -1,9 +1,8 @@
 """Trade links: pob-mcp's trade_search as a link the app shows (advisor.trade)."""
 
-import base64
-import gzip
 import json
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -18,7 +17,9 @@ from advisor.pob import (
 )
 from advisor.rag import _ToolRunner
 
-URL = "https://www.pathofexile.com/trade/search/Covens/H4sIAAAAAAAC_original"
+ROOT = "https://www.pathofexile.com/trade/search/"
+# pob-mcp's compressed link: the trade site answers it with "search is no longer valid".
+COMPRESSED = ROOT + "Covens%20of%20Umbra/H4sIAAAAAAAAC_compressed"
 
 
 def trade_result(slot: str = "Ring 1") -> dict:
@@ -32,7 +33,7 @@ def trade_result(slot: str = "Ring 1") -> dict:
         "sort": {"statgroup.0": "desc"},
     }
     return {
-        "league": "Covens",
+        "league": "Covens of Umbra",
         "slot": slot,
         "category": "accessory.ring",
         "currentItem": "Doom Loop, Coral Ring",
@@ -42,24 +43,27 @@ def trade_result(slot: str = "Ring 1") -> dict:
             {"text": "+(351-480) to Accuracy Rating", "weight": 10, "scoreAtExample": 123.7},
             *({"text": f"mod {n}", "scoreAtExample": n} for n in range(8)),
         ],
-        "url": URL,
-        "url_plain": URL + "?q=plain",
+        "url": COMPRESSED,
+        "url_plain": ROOT + "Covens%20of%20Umbra?q=plain",
         "query": query,
     }
 
 
 def _decode(url: str) -> dict:
-    encoded = url.rsplit("/", 1)[1]
-    return json.loads(gzip.decompress(base64.urlsafe_b64decode(encoded)))
+    """The query in a link, which must be the site's ?q= form for that league."""
+    parts = urlsplit(url)
+    assert url.startswith(ROOT) and parts.path == "/trade/search/Covens%20of%20Umbra"
+    return json.loads(parse_qs(parts.query)["q"][0])
 
 
 def test_a_search_keeps_the_link_and_names_the_heaviest_mods() -> None:
-    found = trade.search(trade_result())
+    result = trade_result()
+    found = trade.search(result)
 
-    assert found["url"] == URL
+    assert _decode(found["url"]) == result["query"]  # not pob-mcp's compressed link
     assert (found["slot"], found["league"], found["item"]) == (
         "Ring 1",
-        "Covens",
+        "Covens of Umbra",
         "Doom Loop, Coral Ring",
     )
     assert found["better_than_current"] is True
@@ -72,7 +76,6 @@ def test_a_price_cap_is_added_to_the_search() -> None:
     result = trade_result()
     found = trade.search(result, 50, "divine")
 
-    assert found["url"].startswith("https://www.pathofexile.com/trade/search/Covens/")
     query = _decode(found["url"])
     assert query["query"]["filters"]["trade_filters"] == {
         "filters": {"price": {"max": 50, "option": "divine"}}
@@ -84,9 +87,15 @@ def test_a_price_cap_is_added_to_the_search() -> None:
 
 @pytest.mark.parametrize(
     "data",
-    [None, {}, {"url": "https://evil.example/trade/search/x"}, {"url": "javascript:alert(1)"}],
+    [
+        None,
+        {},
+        {"url": "https://evil.example/trade/search/x", "league": "Covens"},
+        {"url": COMPRESSED, "league": "Covens", "query": {"sort": {}}},
+        {"url": COMPRESSED, "query": {"query": {}}},
+    ],
 )
-def test_only_links_to_the_trade_site_are_shown(data) -> None:
+def test_a_result_without_a_query_and_league_gives_no_link(data) -> None:
     with pytest.raises(trade.TradeError):
         trade.search(data)
 
@@ -163,7 +172,8 @@ def test_the_tool_sends_the_link_to_the_user_and_the_mods_to_the_model() -> None
     assert [e["type"] for e in events] == ["tool_call", "tool_result", "trade_search"]
     link = events[-1]
     assert (link["slot"], link["max_price"], link["currency"]) == ("Ring 1", 2, "divine")
-    assert link["url"].startswith("https://www.pathofexile.com/trade/search/Covens/")
+    price = _decode(link["url"])["query"]["filters"]["trade_filters"]["filters"]["price"]
+    assert price == {"max": 2, "option": "divine"}
     assert "pathofexile.com" not in text and "Accuracy Rating" in text
     assert "pathofexile.com" not in events[1]["preview"]
     assert toolbox.calls[0][0] == "trade_search"
