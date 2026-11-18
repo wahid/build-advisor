@@ -3,12 +3,14 @@
 pob-mcp's trade_search asks Path of Building what every mod that can roll on the
 slot's item type is worth to the loaded build. Here the most valuable of those
 mods become a trade-site search with real minimum rolls: a rare item for the slot
-with at least a few of them (a "Count" group), optionally capped at a price. The
-app shows the link; the model gets the mods and minimums, not the URL.
+that has all of them (an "And" group), listed for instant buyout, optionally
+capped at a price. The app shows the link; the model gets the mods and minimums,
+not the URL. On the site every mod has a checkbox, so a search that asks too much
+is loosened by unticking one.
 
-pob-mcp's own query is one "Weighted Sum" group (a weight per mod). That is hard
-to read and to adjust on the site, so only its item filters (category, rarity,
-online sellers) are kept.
+pob-mcp's own query is one "Weighted Sum" group (a weight per mod) for sellers who
+are online. That is hard to read and to adjust on the site, so only its item
+filters (category, rarity) are kept.
 
 The link is the trade site's ?q=<query> form. The site lists matches cheapest
 first and doesn't take a sort order from a link. The compressed link pob-mcp also
@@ -30,8 +32,12 @@ from urllib.parse import quote
 TOOL_NAME = "trade_search"
 TRADE_ROOT = "https://www.pathofexile.com/trade/search/"
 CURRENCIES = ("chaos", "divine")
-MAX_STATS = 5  # mods in the search, most valuable for the build first
-NEED = 2  # how many of them an item must have
+# Mods in the search, most valuable for the build first: an item must have them all.
+# More than four rarely exist together on one rare item.
+MAX_STATS = 4
+# "Instant Buyout": items bought at once from a merchant tab. pob-mcp asks for
+# "online" (in person: whisper the seller and trade by hand).
+STATUS = "securable"
 # The minimum asked of each mod, as a share of its best tier's lowest roll: a good
 # roll, not only the top tier (which few listings have, fewer within a budget).
 ROLL_SHARE = 0.7
@@ -115,13 +121,12 @@ def search(data: Any, max_price: float | None = None, currency: str = "chaos") -
     mods.sort(key=lambda s: -float(s.get("scoreAtExample") or 0))
     mods = mods[:MAX_STATS]
     minimums = [minimum_roll(str(s["text"])) for s in mods]
-    need = min(NEED, len(mods))
 
     inner = copy.deepcopy(query["query"])
+    inner["status"] = {"option": STATUS}
     inner["stats"] = [
         {
-            "type": "count",
-            "value": {"min": need},
+            "type": "and",
             "filters": [
                 {"id": str(s["tradeId"]), **({"value": {"min": low}} if low is not None else {})}
                 for s, low in zip(mods, minimums, strict=True)
@@ -138,7 +143,6 @@ def search(data: Any, max_price: float | None = None, currency: str = "chaos") -
         "item": str(data.get("currentItem") or ""),
         "max_price": max_price,
         "currency": currency if max_price else None,
-        "need": need,
         "stats": [_label(str(s["text"]), low) for s, low in zip(mods, minimums, strict=True)],
         "url": trade_url(league, {"query": inner}),
     }
@@ -149,11 +153,11 @@ def for_model(found: dict[str, Any]) -> str:
     summary = {k: v for k, v in found.items() if k != "url" and v not in (None, "")}
     summary["note"] = (
         "The app shows the link to this search under your answer: don't write a URL. "
-        "The search finds rare items for the slot that have at least `need` of the mods "
-        "in `stats`, each with the minimum roll shown (e.g. 246+). Those are the mods "
-        "Path of Building values most for this build, most valuable first. The trade "
-        "site lists the matches cheapest first, and the user can change every minimum "
-        "there."
+        "The search finds rare items for the slot that have all the mods in `stats`, "
+        "each with the minimum roll shown (e.g. 246+), listed for instant buyout. "
+        "Those are the mods Path of Building values most for this build, most valuable "
+        "first. The trade site lists the matches cheapest first. If it finds nothing, "
+        "the user can untick a mod or lower a minimum there."
     )
     return json.dumps(summary, ensure_ascii=False)
 

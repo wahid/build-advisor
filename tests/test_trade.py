@@ -89,7 +89,7 @@ def test_a_search_asks_for_the_most_valuable_mods_with_real_minimums() -> None:
         "Covens of Umbra",
         "Doom Loop, Coral Ring",
     )
-    assert (found["max_price"], found["currency"], found["need"]) == (None, None, 2)
+    assert (found["max_price"], found["currency"]) == (None, None)
     assert found["stats"][:3] == [
         "+# to Accuracy Rating: 246+",  # 70% of the best tier's lowest roll (351)
         "+# to all Attributes: 9.1+",
@@ -100,7 +100,7 @@ def test_a_search_asks_for_the_most_valuable_mods_with_real_minimums() -> None:
     query = _decode(found["url"])
     assert set(query) == {"query"}  # no sort: the site ignores it in a link
     [group] = query["query"]["stats"]
-    assert (group["type"], group["value"]) == ("count", {"min": 2})
+    assert group["type"] == "and" and "value" not in group  # every mod is required
     assert group["filters"][:2] == [
         {"id": "explicit.stat_803737631", "value": {"min": 246}},
         {"id": "explicit.stat_1379411836", "value": {"min": 9.1}},
@@ -108,7 +108,7 @@ def test_a_search_asks_for_the_most_valuable_mods_with_real_minimums() -> None:
     assert len(group["filters"]) == trade.MAX_STATS
     # pob-mcp's item filters are kept, its weighted sum isn't.
     assert query["query"]["filters"] == result["query"]["query"]["filters"]
-    assert query["query"]["status"] == {"option": "online"}
+    assert query["query"]["status"] == {"option": "securable"}  # instant buyout
     assert "weight" not in json.dumps(query)
 
 
@@ -120,7 +120,7 @@ def test_a_price_cap_is_added_to_the_search() -> None:
     assert query["query"]["filters"]["trade_filters"] == {
         "filters": {"price": {"max": 50, "option": "divine"}}
     }
-    assert query["query"]["stats"][0]["type"] == "count"
+    assert query["query"]["stats"][0]["type"] == "and"
     assert "trade_filters" not in result["query"]["query"]["filters"]  # not edited in place
     assert (found["max_price"], found["currency"]) == (50, "divine")
 
@@ -139,14 +139,14 @@ def test_minimum_rolls(text: str, minimum: float | None) -> None:
     assert trade.minimum_roll(text) == minimum
 
 
-def test_one_mod_is_enough_when_only_one_helps() -> None:
+def test_a_mod_without_a_number_is_asked_for_without_a_minimum() -> None:
     result = trade_result()
     result["statWeights"] = [
         {"text": "Cannot be Frozen", "tradeId": "explicit.stat_1", "weight": 1}
     ]
     found = trade.search(result)
 
-    assert (found["need"], found["stats"]) == (1, ["Cannot be Frozen"])
+    assert found["stats"] == ["Cannot be Frozen"]
     assert _decode(found["url"])["query"]["stats"][0]["filters"] == [{"id": "explicit.stat_1"}]
     result["statWeights"] = []
     with pytest.raises(trade.TradeError, match="No mod"):

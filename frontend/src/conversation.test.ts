@@ -62,7 +62,6 @@ describe("trade searches", () => {
     item: "Doom Loop, Coral Ring",
     max_price: null,
     currency: null,
-    need: 1,
     stats: ["+# to maximum Life: 70+"],
     url: "https://www.pathofexile.com/trade/search/Covens/abc",
   };

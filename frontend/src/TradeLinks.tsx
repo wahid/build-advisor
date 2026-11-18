@@ -14,8 +14,8 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
       <h3 className="pob-heading">{heading}</h3>
       <p className="comparison-note">
         Rare items on pathofexile.com/trade{league && ` (${league} league)`} with the mods Path of Building values most
-        for your build, cheapest first. You can change the minimums on the site. Searching needs a pathofexile.com
-        login.
+        for your build, instant buyout, cheapest first. No results? Untick a mod or lower a minimum on the site.
+        Searching needs a pathofexile.com login.
       </p>
       <ul className="trade-list">
         {searches.map((search) => (
@@ -26,7 +26,7 @@ export function TradeLinks({ searches, heading = "Trade searches" }: { searches:
             <span className="passive-stats">
               {search.item && `You wear ${search.item}. `}
               {search.best_mod && `Biggest single gain: ${search.best_mod}. `}
-              {search.stats.length > 0 && `At least ${search.need} of: ${search.stats.join("; ")}.`}
+              {search.stats.length > 0 && `Needs: ${search.stats.join("; ")}.`}
             </span>
           </li>
         ))}

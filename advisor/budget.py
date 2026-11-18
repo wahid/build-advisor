@@ -226,9 +226,9 @@ def find_steps(call: Any, summary: dict[str, Any], arguments: dict[str, Any]) ->
             "body armours unlinked), equipped with average rolls in Path of Building. Damage "
             "and toughness are % changes of DPS and TotalEHP; resists are points gained or "
             "lost: an item that drops a resistance below the cap needs that fixed elsewhere. "
-            "rare_searches: trade-site searches for rare items with at least `need` of the "
-            "mods in `stats` (minimum rolls shown), at most the budget; the app shows their "
-            "links, so name the slots and the mods, without a URL."
+            "rare_searches: trade-site searches for rare items with all the mods in "
+            "`stats` (minimum rolls shown), instant buyout, at most the budget; the app "
+            "shows their links, so name the slots and the mods, without a URL."
         ),
     }
 
