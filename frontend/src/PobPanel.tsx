@@ -90,6 +90,7 @@ const LABELS: Record<string, [done: string, failed: string]> = {
   fix_gaps: ["Fixed resistance and attribute gaps", "fix resistance and attribute gaps"],
   export_build: ["Exported the build", "export the build"],
   price_check: ["Checked prices on poe.ninja", "check prices on poe.ninja"],
+  trade_search: ["Built a trade search", "build a trade search"],
   web_search: ["Searched the web", "search the web"],
   read_maxroll_guide: ["Read the Maxroll guide", "read the Maxroll guide"],
   suggest_passives: ["Ranked passives for damage and toughness", "rank passives"],

@@ -1,6 +1,8 @@
 """pob-mcp integration: argument safety and the process pool over real MCP stdio."""
 
+import base64
 import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -201,6 +203,34 @@ def test_a_build_with_an_unknown_tree_is_refused_and_harms_no_one_else(pool: Pob
     with pool.toolbox(build="other") as toolbox:  # the next question: a fresh process
         assert toolbox.call("load_build", {"source": "https://pobb.in/other"}).ok
         assert toolbox._server.call("get_stats", {}, 5).data == {"Life": 5000}
+
+
+def _code(nodes: str) -> str:
+    xml = f'<PathOfBuilding><Tree activeSpec="1"><Spec treeVersion="3_30" nodes="{nodes}"/></Tree>'
+    xml += "<Notes>" + "x" * 200 + "</Notes></PathOfBuilding>"
+    return base64.urlsafe_b64encode(zlib.compress(xml.encode())).decode()
+
+
+def test_a_share_code_says_whether_the_build_has_passives() -> None:
+    from advisor.pob import allocated_in_source, tree_lost
+
+    with_tree, without = _code("1,2,3,4,5"), _code("1,2")
+    assert allocated_in_source(with_tree) == 3  # two are the class and ascendancy starts
+    assert allocated_in_source(without) == 0
+    assert allocated_in_source("https://pobb.in/abc") is None
+    assert allocated_in_source("A" * 200) is None  # not a build
+
+    empty_duelist = {"className": "Duelist", "level": 90, "passivePointsUsed": 0}
+    empty_scion = {"className": "Scion", "ascendancy": "None", "level": 90, "passivePointsUsed": 0}
+    assert tree_lost(with_tree, empty_scion) is True
+    assert tree_lost(with_tree, {**empty_scion, "passivePointsUsed": 3}) is False
+    # A build that simply has no passives yet (e.g. one the app just created) loads.
+    assert tree_lost(without, empty_duelist) is False
+    assert tree_lost(without, empty_scion) is False
+    # A link can't be read here: only the empty Scion an unknown tree leaves counts.
+    assert tree_lost("https://pobb.in/abc", empty_scion) is True
+    assert tree_lost("https://pobb.in/abc", empty_duelist) is False
+    assert tree_lost("https://pobb.in/abc", {**empty_scion, "level": 2}) is False
 
 
 def test_a_reset_that_crashes_gets_a_fresh_process(pool: PobPool) -> None:

@@ -15,6 +15,7 @@ import type {
   PastedItem,
   PatchChanges,
   Source,
+  TradeSearch,
   Upgrades,
 } from "./types";
 
@@ -55,6 +56,8 @@ export interface ChatTurn {
   health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
   upgrades?: Upgrades;
+  /** Trade-site searches made for the turn, one per slot and price cap. */
+  tradeSearches?: TradeSearch[];
   /** Statements in the answer that contradict Path of Building's data. */
   facts?: FactCheck;
   /** The answer's numbers, checked against the sources and tool results. */
@@ -174,6 +177,11 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "upgrades": {
       const { type: _type, ...upgrades } = event;
       return { ...turn, upgrades };
+    }
+    case "trade_search": {
+      const { type: _type, ...search } = event;
+      const same = (s: TradeSearch) => s.slot === search.slot && s.max_price === search.max_price;
+      return { ...turn, tradeSearches: [...(turn.tradeSearches ?? []).filter((s) => !same(s)), search] };
     }
     case "leveling": {
       const { type: _type, ...lookup } = event;

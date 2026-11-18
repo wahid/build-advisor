@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import base64
+import binascii
 import json
 import logging
 import os
@@ -26,6 +28,7 @@ import re
 import sys
 import threading
 import time
+import zlib
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -34,6 +37,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from django.conf import settings
+
+from . import trade
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +77,7 @@ DEFAULT_TOOLS = (
     "list_item_slots",
     "plan_leveling",
     "import_character",
+    "trade_search",
 )
 
 # Tools that only read the build, or try a change and put the build back exactly as
@@ -101,6 +107,7 @@ READ_ONLY_TOOLS = frozenset(
         "rank_anoints",
         "rank_gear_upgrades",
         "list_item_slots",
+        "trade_search",
     }
 )
 
@@ -138,6 +145,8 @@ MAX_DESCRIPTION = 2000
 POB_CRASH_RE = re.compile(r"In '\w+': .*|Press Enter/Escape to dismiss", re.DOTALL)
 # A build whose passive tree version Path of Building doesn't know loads without an
 # error, as an empty character, and the process crashes on its next reset.
+SPEC_NODES_RE = re.compile(r'<Spec\b[^>]*\bnodes="([^"]*)"')
+START_NODES = 2  # a class's start and its ascendancy's start are in every tree
 TREE_NOT_LOADED = (
     "The build's passive tree couldn't be loaded: it is probably made for a newer game "
     "version than this Path of Building knows (its newest passive tree is {version})."
@@ -171,6 +180,43 @@ def validate_build_source(source: str) -> str:
         "Only Path of Building share codes and https links to pobb.in or pastebin.com "
         "can be loaded."
     )
+
+
+def allocated_in_source(source: str) -> int | None:
+    """Passive nodes allocated in a build's share code or XML (its largest tree).
+
+    None when that can't be read here: a link, which only pob-mcp downloads.
+    """
+    xml = source
+    if not source.lstrip().startswith("<"):
+        compact = re.sub(r"\s+", "", source)
+        if not SHARE_CODE_RE.match(compact):
+            return None
+        try:
+            padded = compact + "=" * (-len(compact) % 4)
+            xml = zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8", "replace")
+        except (binascii.Error, ValueError, zlib.error):
+            return None
+    counts = [len([n for n in nodes.split(",") if n]) for nodes in SPEC_NODES_RE.findall(xml)]
+    return max((max(count - START_NODES, 0) for count in counts), default=0)
+
+
+def tree_lost(source: str, loaded: dict[str, Any]) -> bool:
+    """True when the build has passives but Path of Building loaded it without any.
+
+    That is what an unknown passive tree version does: no error, an empty Scion.
+    A share code says how many passives it has. A link doesn't, so there only the
+    empty Scion at level 10 or higher counts (a build without passives made with
+    another class still loads).
+    """
+    if loaded.get("passivePointsUsed") != 0:
+        return False
+    allocated = allocated_in_source(source)
+    if allocated is not None:
+        return allocated > 0
+    level = loaded.get("level")
+    empty_scion = loaded.get("className") == "Scion" and loaded.get("ascendancy") in (None, "None")
+    return empty_scion and isinstance(level, int) and level >= 10
 
 
 def validate_character(arguments: dict[str, Any]) -> dict[str, str]:
@@ -232,6 +278,8 @@ def sanitize_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return {"format": "code"}  # never `save_to`, never XML
     if name == "import_character":
         return validate_character(arguments)  # never `json_path` (a file on the server)
+    if name == trade.TOOL_NAME:
+        return {k: v for k, v in arguments.items() if k in trade.ARGUMENTS}
     return arguments
 
 
@@ -249,6 +297,9 @@ def openai_tool_definitions(mcp_tools: list[Any], allowed: set[str]) -> list[dic
             schema.pop("required", None)
         if tool.name == "load_build":
             properties.pop("name", None)
+        if tool.name == trade.TOOL_NAME:
+            kept = {k: v for k, v in properties.items() if k in trade.ARGUMENTS}
+            schema["properties"] = {**kept, **trade.PRICE_PROPERTIES}
         definitions.append(
             {
                 "type": "function",
@@ -420,8 +471,8 @@ class PobToolbox:
             raise PobToolError(NO_BUILD_ERROR)
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
-        result = self._server.call(name, sanitize_arguments(name, arguments), self._timeout)
-        result = self._loaded(name, result)
+        arguments = sanitize_arguments(name, arguments)
+        result = self._loaded(name, arguments, self._server.call(name, arguments, self._timeout))
         if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         if name == "export_build" and result.ok and isinstance(result.data, dict):
@@ -441,21 +492,20 @@ class PobToolbox:
         composite tool. It skips the allowlist but still tracks changes."""
         if name not in READ_ONLY_TOOLS:
             self._server.changed = True
-        result = self._loaded(name, self._server.call(name, arguments, self._timeout))
+        result = self._loaded(name, arguments, self._server.call(name, arguments, self._timeout))
         if name in BUILD_STARTERS and result.ok:
             self._server.has_build = True
         return result
 
-    def _loaded(self, name: str, result: ToolResult) -> ToolResult:
-        """A loaded build without a single passive is one whose tree didn't load."""
+    def _loaded(self, name: str, arguments: dict[str, Any], result: ToolResult) -> ToolResult:
+        """Refuse a build that came out of Path of Building without its passive tree."""
         if name != "load_build" or not result.ok or not isinstance(result.data, dict):
             return result
-        level = result.data.get("level")
-        if result.data.get("passivePointsUsed") != 0 or not isinstance(level, int) or level < 10:
+        if not tree_lost(str(arguments.get("source") or ""), result.data):
             return result
         self._server.crashed = True  # it would crash on the next question's reset
         version = str(result.data.get("treeVersion") or "unknown").replace("_", ".")
-        logger.warning("load_build gave a level %s character without passives", level)
+        logger.warning("load_build lost the build's passive tree (PoB knows up to %s)", version)
         return ToolResult(ok=False, text=TREE_NOT_LOADED.format(version=version), data=None)
 
     def mark_loaded(self, source: str) -> None:

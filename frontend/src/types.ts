@@ -121,6 +121,23 @@ export interface NumberCheck {
   knowledge: number;
 }
 
+/** A search on pathofexile.com/trade for a better rare item in one slot. */
+export interface TradeSearch {
+  slot: string;
+  league: string;
+  /** What the build wears there now ("" = nothing). */
+  item: string;
+  /** True: only listings worth more to the build than that item. */
+  better_than_current: boolean;
+  max_price: number | null;
+  currency: "chaos" | "divine" | null;
+  /** The mods listings are ranked by, most valuable first. */
+  stats: string[];
+  url: string;
+  /** With budget upgrades: the single mod that would gain the most. */
+  best_mod?: string;
+}
+
 /** Affordable unique items tried on the build, best first. */
 export interface Upgrades {
   budget: number;
@@ -141,6 +158,8 @@ export interface Upgrades {
     resists: Record<string, number>;
     score: number;
   }[];
+  /** Trade searches for rare items, capped at the budget. */
+  rare_searches?: TradeSearch[];
   note: string;
 }
 
@@ -181,6 +200,7 @@ export type AskEvent =
   | ({ type: "passive_ranking" } & PassiveRanking)
   | ({ type: "leveling" } & Leveling)
   | ({ type: "upgrades" } & Upgrades)
+  | ({ type: "trade_search" } & TradeSearch)
   | ({ type: "health" } & Health)
   | ({ type: "patch_changes" } & PatchChanges)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck; facts?: FactCheck }

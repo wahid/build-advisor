@@ -10,6 +10,7 @@ sources first and then the answer as it streams in:
     {"type": "pob_export", "code": "..."}                               (build exported)
     {"type": "item", "item": {...}}             (a pasted item, with its tooltip card)
     {"type": "item_check", "slot": ..., "rows": [...]} (the item tried on the build)
+    {"type": "trade_search", "slot": ..., "url": ...}  (a link to pathofexile.com/trade)
     {"type": "delta", "text": "..."}            (repeated)
     {"type": "done", "cited": [1, 3], "patch": "3.29.3c"}
     {"type": "error", "message": "..."}         (instead of done, on failure)
@@ -45,6 +46,7 @@ from . import (
     leveling,
     passives,
     patchimpact,
+    trade,
     websearch,
 )
 from . import compare as build_compare
@@ -290,7 +292,9 @@ class _ToolRunner:
             result = yield from _follow(call, steps)
         except (budget.BudgetError, PobToolError) as exc:
             return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
-        text = json.dumps(result, ensure_ascii=False)
+        # The model gets the searches without their links: the app shows those.
+        searches = [{k: v for k, v in s.items() if k != "url"} for s in result["rare_searches"]]
+        text = json.dumps({**result, "rare_searches": searches}, ensure_ascii=False)
         events = self._events(call, arguments, ok=True, error="")
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         events.append({"type": "upgrades", **result})
@@ -309,6 +313,23 @@ class _ToolRunner:
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         events.append({"type": "health", **result})
         return events, _for_model(text)
+
+    def _trade_search(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
+        """A trade-site search for one slot: the link goes to the user, the mods to the model."""
+        assert self.toolbox is not None
+        max_price, currency = trade.price_cap(arguments)
+        try:
+            result = self.toolbox.call(call.name, arguments)
+            if not result.ok:
+                raise PobToolError(result.text)
+            found = trade.search(result.data, max_price, currency)
+        except (PobToolError, trade.TradeError) as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = trade.for_model(found)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        events.append({"type": "trade_search", **found})
+        return events, text
 
     def _patch_changes(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
         try:
@@ -439,6 +460,8 @@ class _ToolRunner:
             return (yield from self._health_check(call, arguments))
         if call.name == budget.TOOL_NAME and self.toolbox is not None:
             return (yield from self._budget_upgrades(call, arguments))
+        if call.name == trade.TOOL_NAME and self.toolbox is not None:
+            return self._trade_search(call, arguments)
         if call.name == patchimpact.TOOL_NAME:
             return self._patch_changes(call, arguments)
         if call.name == leveling.TOOL_NAME:

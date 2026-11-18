@@ -4,7 +4,9 @@ For each armour and jewellery slot, every unique that poe.ninja lists at or unde
 the budget (pob-mcp's price_check, the public economy prices) is equipped on the
 loaded build in Path of Building and scored on damage and toughness. The build is
 left as it was (compare_changes restores it). Rares aren't priced by poe.ninja, so
-they're out of scope; rank_gear_upgrades says which mods to look for on those.
+they get trade-site searches instead (advisor.trade): for the slots where one better
+mod gains the most, a link to listings better than the current item, at most the
+budget.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from . import trade
 from .items import DPS_STATS
 from .pob import PobToolError
 from .progress import Progress, Steps, drain
@@ -42,8 +45,10 @@ TOOL_DEFINITION = {
             "unique priced at or under the budget on poe.ninja (current league) is equipped "
             "in Path of Building and ranked by what it adds to damage and toughness. Use it "
             "for 'best upgrade for 50 chaos', 'what should I buy with 2 divines' and similar. "
-            "Covers armour, belts, amulets and rings (not weapons, not rare items). Prices "
-            "are market snapshots: say so, and name the league."
+            "Covers armour, belts, amulets and rings (not weapons). Rare items can't be "
+            "priced, so it also gives trade-site searches for the rare slots where one "
+            "better mod gains the most, capped at the budget: the app shows those links. "
+            "Prices are market snapshots: say so, and name the league."
         ),
         "parameters": {
             "type": "object",
@@ -199,6 +204,12 @@ def find_steps(call: Any, summary: dict[str, Any], arguments: dict[str, Any]) ->
         if best is not None and best["score"] > 0:
             rows.append(best)
     rows.sort(key=lambda r: -r["score"])
+    yield Progress(len(affordable), len(affordable), "searches for rare items")
+    rare_slots = [slot for slot_type in slot_types for slot in SLOTS[slot_type]]
+    try:
+        searches = trade.rare_searches(call, budget, currency, rare_slots)
+    except PobToolError:
+        searches = []
     return {
         "budget": budget,
         "currency": currency,
@@ -208,11 +219,15 @@ def find_steps(call: Any, summary: dict[str, Any], arguments: dict[str, Any]) ->
         "tried": len(affordable) - untested,
         "not_tried_time_limit": untested,
         "rows": rows[:MAX_ROWS],
+        "rare_searches": searches,
         "note": (
             "Unique items only, at poe.ninja's cheapest listed price for the item (any roll; "
             "body armours unlinked), equipped with average rolls in Path of Building. Damage "
             "and toughness are % changes of DPS and TotalEHP; resists are points gained or "
-            "lost: an item that drops a resistance below the cap needs that fixed elsewhere."
+            "lost: an item that drops a resistance below the cap needs that fixed elsewhere. "
+            "rare_searches: trade-site searches for rare items better than the current one "
+            "in that slot, at most the budget; the app shows their links, so name the slots "
+            "and the mods they rank by, without a URL."
         ),
     }
 

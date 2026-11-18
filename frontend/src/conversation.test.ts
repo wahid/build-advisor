@@ -54,6 +54,34 @@ describe("applyEvent", () => {
   });
 });
 
+describe("trade searches", () => {
+  const search = {
+    type: "trade_search" as const,
+    slot: "Ring 1",
+    league: "Covens",
+    item: "Doom Loop, Coral Ring",
+    better_than_current: true,
+    max_price: null,
+    currency: null,
+    stats: ["+# to maximum Life"],
+    url: "https://www.pathofexile.com/trade/search/Covens/abc",
+  };
+
+  it("keeps one search per slot and price cap, the latest", () => {
+    let turn = newTurn("Find me rings", "Find me rings");
+    turn = applyEvent(turn, search);
+    turn = applyEvent(turn, { ...search, slot: "Ring 2" });
+    turn = applyEvent(turn, { ...search, url: "https://www.pathofexile.com/trade/search/Covens/new" });
+    turn = applyEvent(turn, { ...search, max_price: 50, currency: "chaos" });
+
+    expect(turn.tradeSearches?.map((s) => [s.slot, s.max_price, s.url.split("/").pop()])).toEqual([
+      ["Ring 2", null, "abc"],
+      ["Ring 1", null, "new"],
+      ["Ring 1", 50, "abc"],
+    ]);
+  });
+});
+
 describe("toHistory", () => {
   it("keeps answered turns only, oldest first", () => {
     const failed = { ...newTurn("x", "broken"), status: "error" as const, error: "down" };

@@ -13,6 +13,7 @@ import { ItemTooltip } from "./ItemTooltip";
 import { itemName } from "./items";
 import { groupSources, SourceCard } from "./SourceCard";
 import { UpgradesTable } from "./UpgradesTable";
+import { TradeLinks } from "./TradeLinks";
 import { TurnActions } from "./TurnActions";
 
 interface Props {
@@ -115,6 +116,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
         {turn.health && <HealthCard health={turn.health} />}
         {turn.patchChanges && <PatchChangesTable changes={turn.patchChanges} />}
         {turn.upgrades && <UpgradesTable upgrades={turn.upgrades} />}
+        {turn.tradeSearches && <TradeLinks searches={turn.tradeSearches} />}
         {turn.status === "answering" && !turn.answer && !running && (
           <p className="status">Found {turn.sources.length} pages. Writing the answer…</p>
         )}

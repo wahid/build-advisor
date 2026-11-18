@@ -10,6 +10,8 @@ from advisor.llm import ToolCall
 from advisor.pob import NO_BUILD_ERROR, ToolResult
 from advisor.rag import _ToolRunner
 
+from .test_trade import trade_result
+
 UNIQUES = {
     "Belt": [
         {"name": "Ryslatha's Coil", "levelReq": 20},
@@ -64,6 +66,15 @@ class FakePob:
                     "FireResist": {"before": 75, "after": 60, "change": -15},
                 }
             }
+        elif name == "rank_gear_upgrades":
+            data = {
+                "upgrades": [
+                    {"slot": "Belt", "add": "+99 to maximum Life", "score": 4.0},
+                    {"slot": "Ring 2", "add": "+40% to Fire Resistance", "score": 9.0},
+                ]
+            }
+        elif name == "trade_search":
+            data = trade_result(arguments["slot"])
         else:
             raise AssertionError(name)
         return SimpleNamespace(ok=True, data=data, text="")
@@ -140,6 +151,15 @@ def test_the_tool_reports_progress_and_sends_the_table() -> None:
     assert [e["label"] for e in seen[1:]][:2] == ["looking up prices", "Ryslatha's Coil"]
     table = next(e for e in rest if e["type"] == "upgrades")
     assert table["rows"][0]["name"] == "Ryslatha's Coil" and '"Covens"' in text
+    # Rare items: a search per slot where one mod gains most, capped at the budget.
+    searches = table["rare_searches"]
+    assert [(s["slot"], s["best_mod"]) for s in searches] == [
+        ("Ring 2", "+40% to Fire Resistance"),
+        ("Belt", "+99 to maximum Life"),
+    ]
+    assert all(s["max_price"] == 100 and s["currency"] == "chaos" for s in searches)
+    assert "pathofexile.com/trade" in searches[0]["url"]
+    assert "Ring 2" in text and "pathofexile.com/trade" not in text  # the model gets no link
 
 
 def test_the_tool_needs_a_build() -> None:

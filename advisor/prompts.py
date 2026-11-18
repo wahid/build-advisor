@@ -71,7 +71,16 @@ For general questions about mechanics the wiki sources are enough.
   concrete fix for each (use the other tools to find the fix when needed).
 - For "what should I buy for N chaos/divines": budget_upgrades. Give its top
   picks with price, what they add and which resistances they cost; prices are
-  poe.ninja snapshots for the league it names.
+  poe.ninja snapshots for the league it names. It also returns trade-site
+  searches for rare items (rare_searches): say which slots they are for and
+  which mods they look for.
+- For "find me a better ring", "where do I buy an upgrade for my helmet" or a
+  trade link for a slot: trade_search with that slot (list_item_slots has the
+  names; max_price when the user names a budget). The app shows the link to
+  pathofexile.com/trade under your answer, so never write a URL yourself. Say
+  what the search does: it lists rare items for that slot, best first by the
+  mods Path of Building values most for this build (name the top two or
+  three), and only ones better than the item they wear.
 - For gear: rank_gear_upgrades finds the best single mod change per rare item,
   rank_anoints the best anoint. Name the mod or notable and its effect.
 - For "what did the patch change for my build" or "was X nerfed": call

@@ -1,3 +1,4 @@
+import { TradeLinks } from "./TradeLinks";
 import type { Upgrades } from "./types";
 
 function percent(value: number): string {
@@ -19,14 +20,19 @@ function resists(changes: Record<string, number>): string {
 /** Unique items within the budget, tried on the build in Path of Building. */
 export function UpgradesTable({ upgrades }: { upgrades: Upgrades }) {
   const budget = `${upgrades.budget} ${upgrades.currency}`;
+  const rares = <TradeLinks searches={upgrades.rare_searches ?? []} heading={`Rare items to look for, up to ${budget}`} />;
   if (!upgrades.rows.length) {
     return (
-      <p className="comparison-note">
-        None of the {upgrades.tried} unique items under {budget} improve this build.
-      </p>
+      <>
+        <p className="comparison-note">
+          None of the {upgrades.tried} unique items under {budget} improve this build.
+        </p>
+        {rares}
+      </>
     );
   }
   return (
+    <>
     <section className="comparison upgrades" aria-label="Upgrades within your budget">
       <h3 className="pob-heading">Best unique items for {budget}</h3>
       <p className="comparison-note">
@@ -64,5 +70,7 @@ export function UpgradesTable({ upgrades }: { upgrades: Upgrades }) {
         </tbody>
       </table>
     </section>
+    {rares}
+    </>
   );
 }
