@@ -36,6 +36,9 @@ support gems, test changes, or create a build and hand you the share code.
   skill gems ranked by calculated damage; two builds compared side by side.
 - **Leveling:** which quest or vendor gives each gem to your class, and when.
 - **Patches:** what the recent patch notes say about your build's gems and items.
+- **Atlas trees:** paste a poeplanner or pathofexile.com atlas tree link to see the
+  points per mechanic; name a farm ("essence + delirium") to get which nodes to drop,
+  which notables to take instead (cheapest path first) and a link to the new tree.
 - **Share:** publish a chat as a read-only page with a link.
 
 ## Status
@@ -277,6 +280,16 @@ POB_PATH=~/PathOfBuilding uv run python manage.py ask "Create a level 90 RF Chie
    duplicates dropped). Results become numbered sources the model cites like
    the wiki, shown as "Web page" cards with their site and date. The evals run
    without it, so scores don't change with the web.
+   **Atlas trees** (`advisor/atlas.py`): `atlas_tree` decodes a poeplanner or
+   pathofexile.com atlas tree link against GGG's
+   [atlas tree export](https://github.com/grindinggear/atlastree-export), trimmed
+   into `advisor/data/atlastree.json.gz` by `python manage.py build_atlastree`.
+   Each node belongs to the mechanic of its cluster (the export's mastery
+   names). For a farm it keeps the farmed mechanics and map sustain, prunes
+   allocated nodes that only lead elsewhere, and spends the points on the farm's
+   notables by breadth-first search, cheapest path first. Keystones are listed,
+   never added. It counts points, not value: why a notable matters comes from
+   the sources. The app shows the planned tree as a poeplanner link.
 6. **Streaming** (`POST /api/ask/`): sources first, then tool steps (with live
    progress for slow ones, e.g. "14 of 40: Ground Slam"), the answer token by
    token, an exported share code if any, and finally which sources were cited.
@@ -432,5 +445,6 @@ Wiki content is from [poewiki.net](https://www.poewiki.net), under a Creative
 Commons non-commercial licence ([CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)). This project is non-commercial and links every answer back to
 its source page. Build guides from [maxroll.gg](https://maxroll.gg) are used with
 Maxroll's written permission (LIC-2026-114); they stay Maxroll's content, credited
-with author and date, and are not redistributed. Path of Exile is a trademark of
+with author and date, and are not redistributed. The atlas tree data comes from
+Grinding Gear Games' public atlas tree export. Path of Exile is a trademark of
 Grinding Gear Games.

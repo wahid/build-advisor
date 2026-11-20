@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from advisor import guides
+from advisor import atlas, guides
 from advisor.llm import OpenAICompatibleProvider, Reasoning, ToolCall
 from advisor.pob import PobToolError, PobUnavailable, ToolResult
 from advisor.rag import COMPOSITE_TOOLS, LOOKUP_TOOLS, MAX_TOOL_RESULT_CHARS, answer, answer_stream
@@ -104,6 +104,7 @@ def test_model_calls_a_tool_and_answers_with_the_result(embedder, toolbox) -> No
         *COMPOSITE_TOOLS,
         guides.TOOL_DEFINITION,
         *LOOKUP_TOOLS,
+        atlas.TOOL_DEFINITION,
     ]
     assert "Path of Building tools" in messages[0]["content"]
 

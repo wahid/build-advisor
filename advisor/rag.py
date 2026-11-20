@@ -11,6 +11,7 @@ sources first and then the answer as it streams in:
     {"type": "item", "item": {...}}             (a pasted item, with its tooltip card)
     {"type": "item_check", "slot": ..., "rows": [...]} (the item tried on the build)
     {"type": "trade_search", "slot": ..., "url": ...}  (a link to pathofexile.com/trade)
+    {"type": "atlas_tree", "mechanics": [...], "plan": {...}, "link": ...} (atlas tree read)
     {"type": "delta", "text": "..."}            (repeated)
     {"type": "done", "cited": [1, 3], "patch": "3.29.3c"}
     {"type": "error", "message": "..."}         (instead of done, on failure)
@@ -36,6 +37,7 @@ from wiki.models import DocumentType
 from wiki.search import SearchFilters, SearchHit, hybrid_search
 
 from . import (
+    atlas,
     budget,
     gamefacts,
     gemrank,
@@ -239,10 +241,13 @@ class _ToolRunner:
         toolbox: PobToolbox | None,
         sources: list[Source] | None = None,
         question: str = "",
+        atlas_links: Sequence[str] = (),
     ) -> None:
         self.toolbox = toolbox
         self.sources = sources if sources is not None else []
         self.question = question
+        # Atlas tree links in the conversation, newest last: the tool's default tree.
+        self.atlas_links = list(atlas_links)
         self.web_searches = 0
         self.guides_read = 0
         # Source number -> the guide text the model was given (for the quote limit).
@@ -351,6 +356,17 @@ class _ToolRunner:
         events = self._events(call, arguments, ok=True, error="")
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         events.append({"type": "leveling", **result})
+        return events, _for_model(text)
+
+    def _atlas_tree(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
+        try:
+            result = atlas.run(arguments, self.atlas_links)
+        except atlas.AtlasError as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = atlas.for_model(result)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        events.append({"type": "atlas_tree", **result})
         return events, _for_model(text)
 
     def _web_search(self, call: ToolCall, arguments: dict[str, Any]) -> tuple[list[Event], str]:
@@ -466,6 +482,8 @@ class _ToolRunner:
             return self._patch_changes(call, arguments)
         if call.name == leveling.TOOL_NAME:
             return self._quest_rewards(call, arguments)
+        if call.name == atlas.TOOL_NAME:
+            return self._atlas_tree(call, arguments)
         if self.toolbox is None:
             error = f"There is no tool called {call.name}."
             return self._events(call, arguments, ok=False, error=error), f"Error: {error}"
@@ -558,8 +576,9 @@ def answer_stream(
         if not question.strip():
             question = DEFAULT_ITEM_QUESTION if build else "What is this item good for?"
 
-    # What to search for: a follow-up ("and bleed?") means little on its own.
-    standalone = f"{history[-1].question}\n{question}" if history else question
+    # What to search for: a follow-up ("and bleed?") means little on its own. An atlas
+    # tree link's code means nothing to the search.
+    standalone = atlas.strip_urls(f"{history[-1].question}\n{question}" if history else question)
     if expansion is None:
         expansion = ""
         if settings.SEARCH_QUERY_REWRITE if rewrite is None else rewrite:
@@ -680,7 +699,8 @@ def answer_stream(
         patch = ", ".join(sorted({s.patch for s in sources}))
 
         linked_guide = bool(guides.urls_in(question))
-        if not hits and toolbox is None and not linked_guide:
+        linked_atlas = bool(atlas.urls_in(question))
+        if not hits and toolbox is None and not linked_guide and not linked_atlas:
             yield {"type": "delta", "text": NO_SOURCES_ANSWER}
             yield {"type": "done", "cited": [], "patch": patch}
             return
@@ -776,8 +796,18 @@ def _converse(
     linked = guides.urls_in(question)
     mentioned = linked or any(guides.urls_in(turn.question) for turn in history)
     guide_tool = toolbox is not None or web or bool(mentioned)
+    # The atlas tool: with an atlas link in the conversation, or an atlas question.
+    atlas_links = [url for turn in history for url in atlas.urls_in(turn.question)]
+    atlas_links += atlas.urls_in(question)
+    atlas_tool = (
+        toolbox is not None or web or bool(atlas_links) or bool(atlas.ATLAS_RE.search(question))
+    )
     rounds = pob_rounds or (
-        settings.WEB_SEARCH_MAX_CALLS if web else LOOKUP_ROUNDS if lookup or guide_tool else 0
+        settings.WEB_SEARCH_MAX_CALLS
+        if web
+        else LOOKUP_ROUNDS
+        if lookup or guide_tool or atlas_tool
+        else 0
     )
     definitions = [
         *(toolbox.definitions if toolbox is not None else []),
@@ -785,8 +815,9 @@ def _converse(
         *([websearch.TOOL_DEFINITION] if web else []),
         *([guides.TOOL_DEFINITION] if guide_tool else []),
         *(LOOKUP_TOOLS if lookup else []),
+        *([atlas.TOOL_DEFINITION] if atlas_tool else []),
     ]
-    runner = _ToolRunner(toolbox, sources, question) if definitions or linked else None
+    runner = _ToolRunner(toolbox, sources, question, atlas_links) if definitions or linked else None
     guide_blocks: list[str] = []
     for n, url in enumerate(linked[: settings.MAXROLL_CHAT_MAX_GUIDES], start=1):
         assert runner is not None
@@ -810,6 +841,8 @@ def _converse(
         item_note=item_note,
         guides=guide_blocks,
         guide_tool=guide_tool,
+        atlas_tool=atlas_tool,
+        atlas_linked=bool(atlas.urls_in(question)),
     )
     answer_parts: list[str] = []
 

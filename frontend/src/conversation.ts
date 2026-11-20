@@ -3,6 +3,7 @@ import type { ShareLink } from "./api";
 import { itemName } from "./items";
 import type {
   AskEvent,
+  AtlasTree,
   Comparison,
   Entity,
   FactCheck,
@@ -52,6 +53,7 @@ export interface ChatTurn {
   leveling?: Leveling;
   /** What the patch notes say about the build's parts (the latest lookup of the turn). */
   patchChanges?: PatchChanges;
+  atlas?: AtlasTree;
   /** The build health check's checklist. */
   health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
@@ -186,6 +188,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "leveling": {
       const { type: _type, ...lookup } = event;
       return { ...turn, leveling: mergeLeveling(turn.leveling, lookup) };
+    }
+    case "atlas_tree": {
+      const { type: _type, ...atlas } = event;
+      return { ...turn, atlas };
     }
     case "passive_ranking": {
       const { type: _type, ...ranking } = event;
