@@ -179,6 +179,46 @@ export interface PatchChanges {
   note: string;
 }
 
+/** One atlas mechanic's points, or a group of nodes the plan drops. */
+export interface AtlasMechanic {
+  mechanic: string;
+  points: number;
+  notables: string[];
+}
+
+/** A node the atlas plan takes: a notable with its path cost, or a mechanic's small nodes. */
+export interface AtlasAddition {
+  name: string;
+  kind?: string;
+  mechanic?: string;
+  stats?: string;
+  cost?: number;
+  small_nodes?: number;
+}
+
+/** An atlas passive tree read from a link, and a plan for a farm. */
+export interface AtlasTree {
+  tree_version: string;
+  points_total: number;
+  points_used: number;
+  points_unspent: number;
+  mechanics?: AtlasMechanic[];
+  focus?: string[];
+  keystones?: { name: string; stats: string }[];
+  plan?: {
+    farm: string[];
+    kept_mechanics: string[];
+    remove: AtlasMechanic[];
+    points_freed: number;
+    add: AtlasAddition[];
+    points_after: number;
+    points_left: number;
+    keystones_in_reach: { name: string; stats: string; cost: number }[];
+  };
+  link?: string;
+  notes?: string[];
+}
+
 /** Statements in an answer that contradict Path of Building's data. */
 export interface FactCheck {
   wrong: { text: string; context: string; fact: string }[];
@@ -201,6 +241,7 @@ export type AskEvent =
   | ({ type: "trade_search" } & TradeSearch)
   | ({ type: "health" } & Health)
   | ({ type: "patch_changes" } & PatchChanges)
+  | ({ type: "atlas_tree" } & AtlasTree)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck; facts?: FactCheck }
   | { type: "error"; message: string };
 

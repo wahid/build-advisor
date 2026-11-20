@@ -106,6 +106,7 @@ def test_web_results_become_numbered_sources(web, embedder) -> None:
         "read_maxroll_guide",
         "quest_rewards",
         "patch_changes",
+        "atlas_tree",
     ]
     tool_message = provider.calls[1][0][-1]
     assert tool_message["role"] == "tool"

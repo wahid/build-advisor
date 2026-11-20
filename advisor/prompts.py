@@ -130,6 +130,23 @@ or leveled; not for how a mechanic works. A guide linked in the latest question
 has already been read: it is among the sources. A guide you read is a numbered
 source and rule 6 applies to it."""
 
+ATLAS_PROMPT = """
+
+Atlas tree:
+You can call atlas_tree to read an atlas passive tree link (poeplanner.com or
+pathofexile.com) and to plan a tree for a farm: give farm as the mechanics to
+farm (e.g. ["Essence", "Delirium"]). It counts points exactly: which allocated
+nodes don't help that farm, and which notables the points buy instead, cheapest
+first. It doesn't know what a notable is worth or what pays best this league:
+explain that from the sources (and web_search or Maxroll atlas guides if you
+have them), and say which mechanics fit together. Keystones it lists are not
+added: say what they trade before suggesting one. If the user hasn't said what
+they farm, read their tree first (no farm) and use its focus. The app shows the
+planned tree's link below your answer, so don't write a link yourself.{linked}"""
+
+ATLAS_LINKED = """ The user linked an atlas tree in their question:
+call atlas_tree for it before answering."""
+
 COMPARED_BUILD = """
 
 The user also attached a second build (B) to compare with their build (A, the
@@ -238,6 +255,8 @@ def build_messages(
     item_note: str = "",
     guides: Sequence[str] = (),
     guide_tool: bool = False,
+    atlas_tool: bool = False,
+    atlas_linked: bool = False,
 ) -> list[Message]:
     """guides: Maxroll guides read for this question, as numbered source blocks."""
     patches = sorted({hit.chunk.patch for hit in hits})
@@ -250,6 +269,8 @@ def build_messages(
         system += WEB_PROMPT
     if guide_tool:
         system += GUIDE_PROMPT
+    if atlas_tool:
+        system += ATLAS_PROMPT.format(linked=ATLAS_LINKED if atlas_linked else "")
     if build_summary is not None:
         system += ATTACHED_BUILD.format(summary=json.dumps(build_summary, indent=1)[:4000])
     if comparison is not None:
