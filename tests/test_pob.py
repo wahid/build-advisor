@@ -139,6 +139,39 @@ def test_leveling_uses_the_quick_planner_and_tools_start_no_extra_processes() ->
     assert set(by_name["rank_passives"]["parameters"]["properties"]) == {"top"}
 
 
+def test_a_crash_in_pob_mcp_is_reported_with_its_exception(tmp_path) -> None:
+    import tempfile
+
+    from advisor.pob import _Server
+
+    server = _Server.__new__(_Server)
+    server._stderr = tempfile.TemporaryFile("a+b")  # noqa: SIM115
+    server._stderr.write(
+        b"Loading main script...\nERROR Error calling tool\nTraceback (most recent call last):\n"
+        b'  File "timeless.py", line 81, in find\n'
+        b"AttributeError: 'list' object has no attribute 'items'\n"
+    )
+    report, cause = server._last_error()
+    assert report.startswith("Traceback")
+    assert cause == "AttributeError: 'list' object has no attribute 'items'"
+
+    # The MCP library's own report: Rich boxes titled "Traceback", the cause first.
+    server._stderr.write(
+        "[11/22/26 10:49:54] ERROR    Tool 'find_timeless_jewel' raised an unexpected exception\n"
+        "                             ╭──── Traceback (most recent call last) ────╮\n"
+        "                             │ ❱ 81 │ base = ...                          │\n"
+        "                             ╰───────────────────────────────────────────╯\n"
+        "                             KeyError: 'seed'   \n"
+        "                             The above exception was the direct cause of the following\n"
+        "                             ╭──── Traceback (most recent call last) ────╮\n"
+        "                             ╰───────────────────────────────────────────╯\n"
+        "            UnexpectedToolError: Error executing tool find_timeless_jewel\n".encode()
+    )
+    assert server._last_error()[1] == "KeyError: 'seed'"
+    server._stderr = None
+    assert server._last_error() == ("", "")
+
+
 # --- pool over real MCP stdio --------------------------------------------------
 
 

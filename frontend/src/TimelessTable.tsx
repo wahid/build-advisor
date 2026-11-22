@@ -20,7 +20,9 @@ function Row({ seed, timeless }: { seed: TimelessSeed; timeless: Timeless }) {
       <th scope="row">
         <span className="passive-name">
           Seed {seed.seed}
-          <span className="passive-keystone">near {seed.socket_near}</span>
+          <span className="passive-keystone">
+            {seed.replaces_current ? "your jewel's socket" : `near ${seed.socket_near}`}
+          </span>
         </span>
         <span className="passive-stats">
           {created(seed)}
@@ -63,6 +65,13 @@ export function TimelessTable({ timeless }: { timeless: Timeless }) {
         current tree (an estimate: the tree isn't rebuilt around the jewel).
         {timeless.applied && " The best one is now in your build."}
       </p>
+      {timeless.current && (
+        <p className="comparison-note">
+          You have {timeless.current.jewel}
+          {timeless.current.seed !== null && ` seed ${timeless.current.seed}`}
+          {timeless.current.conqueror && ` (${timeless.current.conqueror})`} socketed: the gains below are on top of it.
+        </p>
+      )}
       {seeds.length > 0 && (
         <table className="comparison-table">
           <thead>

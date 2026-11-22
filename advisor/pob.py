@@ -26,6 +26,7 @@ import os
 import queue
 import re
 import sys
+import tempfile
 import threading
 import time
 import zlib
@@ -164,6 +165,16 @@ TREE_NOT_LOADED = (
     "The build's passive tree couldn't be loaded: it is probably made for a newer game "
     "version than this Path of Building knows (its newest passive tree is {version})."
 )
+# A tool that crashed in pob-mcp (a Python exception, not a Path of Building error): the
+# MCP library sends only this and writes the traceback to pob-mcp's stderr.
+UNEXPECTED_RE = re.compile(r"^Error executing tool \w+$")
+STDERR_KEEP = 2_000_000  # bytes of pob-mcp's stderr kept per process
+STDERR_TAIL = 60_000  # bytes read back to find the traceback
+# Where a crash's report starts in pob-mcp's log (the MCP library logs it with Rich,
+# boxed; a plain traceback when Rich isn't installed), and its exception lines.
+CRASH_MARKERS = ("raised an unexpected exception", "Traceback (most recent call last)")
+EXCEPTION_LINE_RE = re.compile(r"^[\s│]*([A-Za-z_][\w.]*(?:Error|Exception)): (.+?)[\s│]*$")
+WRAPPER_EXCEPTIONS = ("UnexpectedToolError", "ToolError")
 POB_CRASHED = (
     "Path of Building crashed on this build ({detail}). It may be made with a newer "
     "version of Path of Building or have a damaged passive tree."
@@ -379,6 +390,9 @@ class _Server:
         self.has_build = False  # False: the empty build a reset leaves behind
         self.tools: list[Any] = []
         self._requests: asyncio.Queue[Any] | None = None
+        # pob-mcp's stderr goes to a file (unless POB_DEBUG shows it), so a crash's
+        # traceback can be read back: the MCP reply to the app only names the tool.
+        self._stderr: Any = None
 
     def start(self, timeout: float) -> None:
         self.tools = self.runner.run(self._start(), timeout)
@@ -396,7 +410,11 @@ class _Server:
 
         assert self._requests is not None
         params = StdioServerParameters(command=self.command[0], args=self.command[1:], env=self.env)
-        errlog = sys.stderr if settings.POB_DEBUG else open(os.devnull, "w")  # noqa: SIM115
+        if settings.POB_DEBUG:
+            errlog = sys.stderr
+        else:
+            # Appending: the file can be emptied while the process keeps writing to it.
+            self._stderr = errlog = tempfile.TemporaryFile("a+b")  # noqa: SIM115
         pending: Any = None
         try:
             async with (
@@ -456,6 +474,12 @@ class _Server:
             data = json.loads(text) if text else None
         except json.JSONDecodeError:
             data = None
+        if result.is_error and UNEXPECTED_RE.match(text.strip()):
+            report, cause = self._last_error()
+            if report:
+                logger.error("pob-mcp crashed in %s:\n%s", name, report)
+            if cause:
+                text = f"{text.strip()}: {cause}"
         if result.is_error and POB_CRASH_RE.search(text):
             self.crashed = True
             logger.warning("Path of Building crashed in %s: %s", name, text[:300])
@@ -464,6 +488,33 @@ class _Server:
                 detail = "no details"
             return ToolResult(ok=False, text=POB_CRASHED.format(detail=detail), data=None)
         return ToolResult(ok=not result.is_error, text=text, data=data)
+
+    def _last_error(self) -> tuple[str, str]:
+        """The last crash report pob-mcp wrote to its stderr, and the exception that
+        caused it ("TypeError: ..."); empty strings when there's none."""
+        handle = self._stderr
+        if handle is None:
+            return "", ""
+        try:
+            size = handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, size - STDERR_TAIL))
+            tail = handle.read().decode("utf-8", "replace")
+            if size > STDERR_KEEP:
+                handle.truncate(0)
+        except (OSError, ValueError):
+            return "", ""
+        # The MCP library's own line first: Rich titles every chained traceback's box
+        # "Traceback (most recent call last)", and the cause comes before the wrapper.
+        start = next((i for i in (tail.rfind(m) for m in CRASH_MARKERS) if i >= 0), -1)
+        if start < 0:
+            return "", ""
+        report = tail[start:]
+        causes = [
+            f"{m.group(1)}: {m.group(2)}"
+            for m in map(EXCEPTION_LINE_RE.match, report.splitlines())
+            if m and m.group(1).rsplit(".", 1)[-1] not in WRAPPER_EXCEPTIONS
+        ]
+        return report, causes[0][:300] if causes else ""
 
     def close(self) -> None:
         if self._requests is not None and not self.broken:
@@ -639,7 +690,9 @@ def get_pool() -> PobPool | None:
     """The process-wide pool, or None when Path of Building isn't configured."""
     if not settings.POB_ENABLED:
         return None
-    env = {**os.environ, "POB_PATH": settings.POB_PATH, "POB_MCP_GUIDE": "0"}
+    # COLUMNS: the MCP library logs a crash with Rich, wrapped at the terminal's width
+    # (80 without a terminal), which would cut the exception line apart.
+    env = {**os.environ, "POB_PATH": settings.POB_PATH, "POB_MCP_GUIDE": "0", "COLUMNS": "300"}
     return PobPool(
         command=[sys.executable, "-m", "pob_mcp", "--log-level", "WARNING"],
         env=env,

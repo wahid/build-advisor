@@ -9,7 +9,7 @@ const timeless: Timeless = {
   conqueror: "Akoya",
   mode: "balanced",
   verdict: "Seed 12345 in the socket near Ironwood: +4.2% score on the current tree (not rebuilt).",
-  current: null,
+  current: { jewel: "Lethal Pride", seed: 11403, conqueror: "Kaom", socket: 1 },
   best: {
     seed: 12345,
     socket_near: "Ironwood",
@@ -47,5 +47,6 @@ describe("TimelessTable", () => {
     expect(html).toContain('href="https://www.pathofexile.com/trade/search/Mirage?q=%7B%7D"');
     expect(html).toContain("any conqueror");
     expect(html).not.toContain("now in your build");
+    expect(html).toContain("You have Lethal Pride seed 11403 (Kaom) socketed");
   });
 });
