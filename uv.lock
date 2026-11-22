@@ -148,7 +148,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.18.3" },
     { name = "gunicorn", specifier = ">=27.0.0" },
     { name = "openai", specifier = ">=3.49.0" },
-    { name = "pathofbuilding-mcp", specifier = ">=0.5.3" },
+    { name = "pathofbuilding-mcp", specifier = ">=0.5.4" },
     { name = "pgvector", specifier = ">=0.5.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.8" },
     { name = "pyyaml", specifier = ">=6.0.3" },
@@ -1112,7 +1112,7 @@ wheels = [
 
 [[package]]
 name = "pathofbuilding-mcp"
-version = "0.5.3"
+version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "highspy" },
@@ -1121,9 +1121,9 @@ dependencies = [
     { name = "numpy" },
     { name = "pillow" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/d3/a05a7612f4444fdade13e61345f988b4db58a07f787b822dbaea6fa218f6/pathofbuilding_mcp-0.5.3.tar.gz", hash = "sha256:3502be35f7650cfa9b3e01e8ed65086d44b124f8aee3627bc20b21e2839de3c9", size = 209716, upload-time = "2026-11-22T09:49:21.029Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/82/a3eb8ce2820a39d025f34d80f9a9a5af26b4c812104f05f959d679df5635/pathofbuilding_mcp-0.5.4.tar.gz", hash = "sha256:db67c88f661b780f57500e4a0de846daef7f1655afe2b23480f6071bd37733dd", size = 210618, upload-time = "2026-11-22T11:29:50.542Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d9/f0/dbb8d95b6c4aad24dbf9b563f604b1523f4be8447dd5dd3e4421bcf32c3b/pathofbuilding_mcp-0.5.3-py3-none-any.whl", hash = "sha256:1abbf807f5b9e8210284110b31d98e2d82c58de2fcb6bdb6c4fa8a7fca80c03d", size = 162697, upload-time = "2026-11-22T09:49:19.825Z" },
+    { url = "https://files.pythonhosted.org/packages/75/fb/d6a5c264a3d99a1b9efb1eb3ac53a26d9b0696fea784c3174024c59c931f/pathofbuilding_mcp-0.5.4-py3-none-any.whl", hash = "sha256:6dd4415102d2fa9e78b485359ec61ce07b5c28765c9e7f27d57e097036b340ca", size = 163194, upload-time = "2026-11-22T11:29:49.46Z" },
 ]
 
 [[package]]

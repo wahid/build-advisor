@@ -35,6 +35,12 @@ JEWELS: dict[str, tuple[str, ...]] = {
 }
 MODES = ("balanced", "dps", "defence")
 MAX_PATH = 8  # points from the tree a socket may be
+# How many points away an unallocated notable in radius may be and still count when a
+# seed makes it worth taking: further when the build already has a timeless jewel, so
+# the search looks for seeds with good transformed notables around it, not only on it.
+MAX_PICK = 8
+PICK = 3
+PICK_WITH_JEWEL = 5
 MAX_SECONDS = 60  # pob-mcp's own limit; a chat tool call may take 90
 ALTERNATIVES = 4
 TRADE_ROOT = "https://www.pathofexile.com/trade/search/"
@@ -54,6 +60,9 @@ TOOL_DEFINITION = {
             + "; ".join(f"{jewel}: {', '.join(names)}" for jewel, names in JEWELS.items())
             + ". The conqueror only decides what a keystone in radius becomes, so the app "
             "also shows a trade search for the same seed with any conqueror (often cheaper). "
+            "With a timeless jewel already socketed, jewel and conqueror default to it, its "
+            "socket is searched too, and every result is compared with it: better seeds or "
+            "sockets, or a verdict to keep it. "
             "Glorious Vanity isn't supported. The gain is on the current tree, with extra "
             "points the jewel needs charged at a typical point's value: an estimate, not a "
             "rebuilt tree. The app shows the trade links."
@@ -61,8 +70,15 @@ TOOL_DEFINITION = {
         "parameters": {
             "type": "object",
             "properties": {
-                "jewel": {"type": "string", "enum": list(JEWELS)},
-                "conqueror": {"type": "string", "description": "The jewel's conqueror."},
+                "jewel": {
+                    "type": "string",
+                    "enum": list(JEWELS),
+                    "description": "Default: the timeless jewel the build has socketed.",
+                },
+                "conqueror": {
+                    "type": "string",
+                    "description": "The jewel's conqueror. Default: the socketed jewel's.",
+                },
                 "mode": {
                     "type": "string",
                     "enum": list(MODES),
@@ -74,6 +90,14 @@ TOOL_DEFINITION = {
                         f"Sockets up to this many points from the tree (0-{MAX_PATH}, default 8)."
                     ),
                 },
+                "max_pick": {
+                    "type": "integer",
+                    "description": (
+                        "Also count unallocated notables in radius up to this many points away "
+                        f"that a seed makes worth taking (0-{MAX_PICK}; default {PICK}, "
+                        f"{PICK_WITH_JEWEL} when a timeless jewel is socketed)."
+                    ),
+                },
                 "apply": {
                     "type": "boolean",
                     "description": (
@@ -82,7 +106,6 @@ TOOL_DEFINITION = {
                     ),
                 },
             },
-            "required": ["jewel", "conqueror"],
         },
     },
 }
@@ -92,15 +115,30 @@ class TimelessError(ValueError):
     """Arguments pob-mcp would reject, explained for the model."""
 
 
-def arguments_for_pob(arguments: dict[str, Any]) -> dict[str, Any]:
-    """The model's arguments -> pob-mcp's, with the run kept within a chat answer."""
-    jewel = _match(str(arguments.get("jewel") or ""), JEWELS)
+def arguments_for_pob(
+    arguments: dict[str, Any], current: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The model's arguments -> pob-mcp's, with the run kept within a chat answer.
+
+    current: the timeless jewel the build has socketed (socketed()), the default."""
+    asked = str(arguments.get("jewel") or "")
+    if not asked and current:
+        asked = current["jewel"]
+    jewel = _match(asked, JEWELS)
+    if jewel is None and not asked:
+        raise TimelessError(
+            "The build has no timeless jewel socketed: say which jewel to search "
+            f"({', '.join(JEWELS)})."
+        )
     if jewel is None:
         raise TimelessError(
             f"Unknown timeless jewel {arguments.get('jewel')!r}; one of: {', '.join(JEWELS)}. "
             "Glorious Vanity isn't supported."
         )
-    conqueror = _match(str(arguments.get("conqueror") or ""), JEWELS[jewel])
+    asked_conqueror = str(arguments.get("conqueror") or "")
+    if not asked_conqueror and current and current["jewel"] == jewel:
+        asked_conqueror = current.get("conqueror") or ""
+    conqueror = _match(asked_conqueror, JEWELS[jewel])
     if conqueror is None:
         raise TimelessError(
             f"{jewel}'s conqueror is one of: {', '.join(JEWELS[jewel])} "
@@ -111,16 +149,52 @@ def arguments_for_pob(arguments: dict[str, Any]) -> dict[str, Any]:
         max_path = int(arguments.get("max_path", MAX_PATH))
     except (TypeError, ValueError):
         max_path = MAX_PATH
+    try:
+        max_pick = int(arguments.get("max_pick", PICK_WITH_JEWEL if current else PICK))
+    except (TypeError, ValueError):
+        max_pick = PICK
     return {
         "jewel": jewel,
         "conqueror": conqueror,
         "mode": mode if mode in MODES else "balanced",
         "max_path": max(0, min(max_path, MAX_PATH)),
+        "max_pick": max(0, min(max_pick, MAX_PICK)),
         "apply": arguments.get("apply") is True,
         "rebuild": 0,
         "max_seconds": MAX_SECONDS,
         "jobs": 1,
     }
+
+
+def socketed(items: Any) -> dict[str, Any] | None:
+    """The timeless jewel in the build's items (pob-mcp get_items), if any:
+    {"jewel", "seed", "conqueror", "socket"}. Glorious Vanity counts too (it is
+    replaced by a supported jewel), with no default search."""
+    rows = items.get("items") if isinstance(items, dict) else items
+    for item in rows or []:
+        if not isinstance(item, dict) or item.get("base") != "Timeless Jewel":
+            continue
+        name = str(item.get("name") or "").split(",")[0].strip()
+        conquerors = JEWELS.get(name, ())
+        seed = conqueror = None
+        for line in str(item.get("raw") or "").splitlines():
+            number = re.search(r"\b(\d+)\b", line)
+            who = next((c for c in conquerors if c in line), None)
+            if (
+                number
+                and (who or not conquerors)
+                and not line.startswith(("Limited to", "Implicits", "Item Level"))
+            ):
+                seed, conqueror = int(number.group(1)), who
+                break
+        socket = re.search(r"(\d+)$", str(item.get("slot") or ""))
+        return {
+            "jewel": name,
+            "seed": seed,
+            "conqueror": conqueror,
+            "socket": int(socket.group(1)) if socket else None,
+        }
+    return None
 
 
 def _match(value: str, names: Any) -> str | None:
@@ -164,6 +238,7 @@ def _row(result: dict[str, Any]) -> dict[str, Any]:
     ]
     row = {
         "seed": result.get("seed"),
+        "socket": result.get("socket"),
         "socket_near": result.get("socketNear"),
         "socket_allocated": bool(result.get("socketAllocated")),
         "socket_path_cost": result.get("socketPathCost"),
@@ -175,6 +250,9 @@ def _row(result: dict[str, Any]) -> dict[str, Any]:
         "trade_url": plain_trade_link(str(result.get("trade") or "")),
         "trade_any_url": plain_trade_link(str(result.get("tradeAnyConqueror") or "")),
     }
+    if (result.get("seedsTiedWithBest") or 0) > 1:
+        # pob-mcp 0.5.4: this many seeds give the socket the same result; any will do.
+        row["seeds_tied"] = result["seedsTiedWithBest"]
     for key, name in (
         ("breaks", "breaks"),
         ("keystonesInRadius", "keystones_in_radius"),
@@ -185,18 +263,31 @@ def _row(result: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def summarise(raw: dict[str, Any]) -> dict[str, Any]:
-    """pob-mcp's result -> what the app shows (links included)."""
+def summarise(raw: dict[str, Any], current: dict[str, Any] | None = None) -> dict[str, Any]:
+    """pob-mcp's result -> what the app shows (links included).
+
+    current: the socketed timeless jewel (socketed()); results in its socket say so."""
     best = raw.get("best")
-    current = raw.get("currentTimeless")
+    if current is None and isinstance(raw.get("currentTimeless"), dict):
+        found = raw["currentTimeless"]
+        current = {
+            "jewel": found.get("name"),
+            "seed": found.get("seed"),
+            "conqueror": found.get("conqueror"),
+            "socket": found.get("socket"),
+        }
+    rows = [_row(best)] if isinstance(best, dict) else []
+    rows += [_row(r) for r in (raw.get("alternatives") or [])[:ALTERNATIVES]]
+    for row in rows:
+        row["replaces_current"] = bool(current) and row.get("socket") == current.get("socket")
     return {
         "jewel": raw.get("jewel"),
         "conqueror": raw.get("conqueror"),
         "mode": raw.get("mode"),
         "verdict": raw.get("verdict") or "",
-        "current": current.get("name") if isinstance(current, dict) else current or None,
-        "best": _row(best) if isinstance(best, dict) else None,
-        "alternatives": [_row(r) for r in (raw.get("alternatives") or [])[:ALTERNATIVES]],
+        "current": current,
+        "best": rows[0] if isinstance(best, dict) else None,
+        "alternatives": rows[1:] if isinstance(best, dict) else rows,
         "applied": raw.get("applied"),
         "sockets_scanned": raw.get("socketsScanned"),
         "seeds_per_socket": raw.get("seedsPerSocket"),
@@ -207,6 +298,13 @@ def summarise(raw: dict[str, Any]) -> dict[str, Any]:
             "score_gain_pct is on the current tree: extra points the jewel needs are charged "
             "at point_value_pct each (a typical point). The tree isn't rebuilt around the "
             "jewel here, so call it an estimate."
+            + (
+                " The build already has a timeless jewel (current): every result is compared "
+                "with the build as it is, jewel included, and one in the same socket "
+                "(replaces_current) is a straight swap."
+                if current
+                else ""
+            )
             + (
                 " Militant Faith's devotion mods are random and not scored."
                 if raw.get("jewel") == "Militant Faith"
@@ -233,9 +331,11 @@ def for_model(result: dict[str, Any]) -> str:
 
 def find(call: Any, arguments: dict[str, Any]) -> dict[str, Any]:
     """Run the search on the loaded build; `call` runs a pob-mcp tool (call_internal)."""
-    result = call(TOOL_NAME, arguments_for_pob(arguments))
+    items = call("get_items", {})
+    current = socketed(items.data) if items.ok else None
+    result = call(TOOL_NAME, arguments_for_pob(arguments, current))
     if not result.ok:
         raise PobToolError(result.text)
     if not isinstance(result.data, dict):
         raise PobToolError("find_timeless_jewel returned nothing readable.")
-    return summarise(result.data)
+    return summarise(result.data, current)

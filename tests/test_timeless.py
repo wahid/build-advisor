@@ -91,6 +91,7 @@ def test_arguments_keep_the_run_within_a_chat_answer() -> None:
         "conqueror": "Akoya",
         "mode": "balanced",
         "max_path": timeless.MAX_PATH,
+        "max_pick": timeless.PICK,
         "apply": False,  # only a real true applies
         "rebuild": 0,
         "max_seconds": timeless.MAX_SECONDS,
@@ -126,21 +127,49 @@ def test_the_summary_has_links_and_the_model_text_has_none() -> None:
     assert summary["best"]["trade_url"].startswith(timeless.TRADE_ROOT + "Mirage?q=")
     assert len(summary["alternatives"]) == timeless.ALTERNATIVES
     assert summary["top_seeds_url"]
+    assert "seeds_tied" not in summary["best"]
+    tied = timeless.summarise(raw_result(best={**raw_result()["best"], "seedsTiedWithBest": 40}))
+    assert tied["best"]["seeds_tied"] == 40
     text = timeless.for_model(summary)
     assert "pathofexile.com/trade" not in text
     assert "12345" in text and "estimate" in text
 
 
+NO_ITEMS = ToolResult(ok=True, text="", data={"items": []})
+SOCKETED = {
+    "base": "Timeless Jewel",
+    "id": 8,
+    "name": "Lethal Pride, Timeless Jewel",
+    "rarity": "UNIQUE",
+    "raw": (
+        "Rarity: UNIQUE\nLethal Pride\nTimeless Jewel\nLeague: Legion\nRadius: Large\n"
+        "Limited to: 1\nImplicits: 0\nCommanded leadership over 11403 warriors under Kaom\n"
+        "Passives in radius are Conquered by the Karui\nHistoric"
+    ),
+    "slot": "Jewel socket 61419",
+}
+RARE = {
+    "base": "Cobalt Jewel",
+    "name": "Honour Vessel, Cobalt Jewel",
+    "raw": "",
+    "slot": "Jewel socket 1",
+}
+
+
 class FakeToolbox:
     has_build = True
 
-    def __init__(self, result: ToolResult) -> None:
+    def __init__(self, result: ToolResult, items: ToolResult = NO_ITEMS) -> None:
         self.result = result
+        self.items = items
         self.calls: list[tuple[str, dict]] = []
 
     def call_internal(self, name: str, arguments: dict) -> ToolResult:
         self.calls.append((name, arguments))
-        return self.result
+        return self.items if name == "get_items" else self.result
+
+    def searched(self) -> list[dict]:
+        return [args for name, args in self.calls if name == timeless.TOOL_NAME]
 
 
 def test_the_runner_shows_the_seeds_and_reports_errors() -> None:
@@ -150,8 +179,7 @@ def test_the_runner_shows_the_seeds_and_reports_errors() -> None:
         "t1", timeless.TOOL_NAME, json.dumps({"jewel": "Lethal Pride", "conqueror": "Akoya"})
     )
     events, text = runner.run(call)
-    assert toolbox.calls[0][0] == "find_timeless_jewel"
-    assert toolbox.calls[0][1]["rebuild"] == 0
+    assert toolbox.searched()[0]["rebuild"] == 0
     assert events[-1]["type"] == "timeless"
     assert events[-1]["best"]["trade_url"]
     assert "trade/search" not in text
@@ -168,7 +196,7 @@ def test_a_bad_conqueror_never_reaches_path_of_building() -> None:
         "t1", timeless.TOOL_NAME, json.dumps({"jewel": "Lethal Pride", "conqueror": "Bob"})
     )
     events, text = _ToolRunner(toolbox).run(call)  # type: ignore[arg-type]
-    assert toolbox.calls == []
+    assert toolbox.searched() == []
     assert text.startswith("Error: Lethal Pride's conqueror")
 
 
@@ -178,3 +206,46 @@ def test_an_unreadable_result_is_an_error() -> None:
             FakeToolbox(ToolResult(ok=True, text="", data=None)).call_internal,
             {"jewel": "Lethal Pride", "conqueror": "Kaom"},
         )
+
+
+def test_the_socketed_jewel_is_read_from_the_items() -> None:
+    assert timeless.socketed({"items": [RARE, SOCKETED]}) == {
+        "jewel": "Lethal Pride",
+        "seed": 11403,
+        "conqueror": "Kaom",
+        "socket": 61419,
+    }
+    assert timeless.socketed({"items": [RARE]}) is None
+    vanity = {
+        **SOCKETED,
+        "name": "Glorious Vanity, Timeless Jewel",
+        "raw": (
+            "Glorious Vanity\nImplicits: 0\n"
+            "Bathed in the blood of 2000 sacrificed in the name of Doryani"
+        ),
+    }
+    assert timeless.socketed({"items": [vanity]})["seed"] == 2000
+
+
+def test_with_a_jewel_socketed_the_search_starts_from_it() -> None:
+    current = timeless.socketed({"items": [SOCKETED]})
+    args = timeless.arguments_for_pob({}, current)
+    assert (args["jewel"], args["conqueror"]) == ("Lethal Pride", "Kaom")
+    assert args["max_pick"] == timeless.PICK_WITH_JEWEL  # transformed notables further out
+    # Another jewel: its conqueror must be given.
+    with pytest.raises(timeless.TimelessError, match="Cadiro"):
+        timeless.arguments_for_pob({"jewel": "Elegant Hubris"}, current)
+    with pytest.raises(timeless.TimelessError, match="no timeless jewel socketed"):
+        timeless.arguments_for_pob({})
+
+
+def test_results_in_the_current_jewels_socket_are_swaps() -> None:
+    toolbox = FakeToolbox(
+        ToolResult(ok=True, text="", data=raw_result()),
+        ToolResult(ok=True, text="", data={"items": [SOCKETED]}),
+    )
+    result = timeless.find(toolbox.call_internal, {})
+    assert toolbox.searched()[0]["jewel"] == "Lethal Pride"
+    assert result["current"]["seed"] == 11403
+    assert result["best"]["replaces_current"] is True
+    assert "straight swap" in result["note"]

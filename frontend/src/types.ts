@@ -201,6 +201,10 @@ export interface TimelessSeed {
   pick_up: string[];
   trade_url: string;
   trade_any_url: string;
+  /** How many seeds give this socket the same result (any of them will do). */
+  seeds_tied?: number;
+  /** In the socket of the build's current timeless jewel: a straight swap. */
+  replaces_current?: boolean;
   breaks?: { stat: string; value: number; needs: number }[];
   note?: string;
 }
@@ -211,7 +215,8 @@ export interface Timeless {
   conqueror: string;
   mode: string;
   verdict: string;
-  current: string | null;
+  /** The timeless jewel the build has socketed, if any. */
+  current: { jewel: string; seed: number | null; conqueror: string | null; socket: number | null } | null;
   best: TimelessSeed | null;
   alternatives: TimelessSeed[];
   applied: { seed: number; socket: number } | null;

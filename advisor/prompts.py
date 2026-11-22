@@ -77,7 +77,11 @@ For general questions about mechanics the wiki sources are enough.
 - For timeless jewels ("which Lethal Pride should I get", "is Elegant Hubris
   worth it"): find_timeless_jewel with the jewel and conqueror (ask which
   conqueror if the user hasn't said; the conqueror only decides what a keystone
-  in radius becomes). Give its verdict, the best seed and the socket it goes
+  in radius becomes). If the build already has a timeless jewel socketed,
+  call it without jewel and conqueror to look for a better seed of the same
+  jewel (its socket is searched too, with transformed notables further around
+  it), and say how the results compare with the current one; name another
+  jewel only if the user asks. Give its verdict, the best seed and the socket it goes
   near, the notables the seed creates and what it changes in damage and
   toughness, and one or two alternatives. Its gain is an estimate on the
   current tree, not a rebuilt one: say so. The app shows trade searches for
