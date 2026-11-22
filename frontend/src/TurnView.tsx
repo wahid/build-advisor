@@ -6,6 +6,7 @@ import { ComparisonTable, ItemCheckTable } from "./ComparisonTable";
 import { Feedback } from "./Feedback";
 import { LevelingTable } from "./LevelingTable";
 import { AtlasTable } from "./AtlasTable";
+import { TimelessTable } from "./TimelessTable";
 import { PassiveTable } from "./PassiveTable";
 import { PatchChangesTable } from "./PatchChangesTable";
 import { PobExport, PobSteps } from "./PobPanel";
@@ -117,6 +118,7 @@ export function TurnView({ turn, isLatest, onRated, onRetry, onEdit, limitReache
         {turn.health && <HealthCard health={turn.health} />}
         {turn.patchChanges && <PatchChangesTable changes={turn.patchChanges} />}
         {turn.atlas && <AtlasTable atlas={turn.atlas} />}
+        {turn.timeless && <TimelessTable timeless={turn.timeless} />}
         {turn.upgrades && <UpgradesTable upgrades={turn.upgrades} />}
         {turn.tradeSearches && <TradeLinks searches={turn.tradeSearches} />}
         {turn.status === "answering" && !turn.answer && !running && (

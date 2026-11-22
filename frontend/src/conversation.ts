@@ -4,6 +4,7 @@ import { itemName } from "./items";
 import type {
   AskEvent,
   AtlasTree,
+  Timeless,
   Comparison,
   Entity,
   FactCheck,
@@ -54,6 +55,7 @@ export interface ChatTurn {
   /** What the patch notes say about the build's parts (the latest lookup of the turn). */
   patchChanges?: PatchChanges;
   atlas?: AtlasTree;
+  timeless?: Timeless;
   /** The build health check's checklist. */
   health?: Health;
   /** Affordable upgrades found for the build (the latest search of the turn). */
@@ -188,6 +190,10 @@ export function applyEvent(turn: ChatTurn, event: AskEvent): ChatTurn {
     case "leveling": {
       const { type: _type, ...lookup } = event;
       return { ...turn, leveling: mergeLeveling(turn.leveling, lookup) };
+    }
+    case "timeless": {
+      const { type: _type, ...timeless } = event;
+      return { ...turn, timeless };
     }
     case "atlas_tree": {
       const { type: _type, ...atlas } = event;

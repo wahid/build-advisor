@@ -34,6 +34,10 @@ support gems, test changes, or create a build and hand you the share code.
   with poe.ninja's economy data and tried on the build.
 - **What to take next:** passive notables ranked for damage and toughness per point;
   skill gems ranked by calculated damage; two builds compared side by side.
+- **Timeless jewels:** the best seed and socket for a Lethal Pride, Brutal Restraint,
+  Militant Faith, Elegant Hubris or Heroic Tragedy on your tree (every seed in every
+  socket near it, the best checked in Path of Building), with trade searches for the
+  seed with your conqueror or any.
 - **Leveling:** which quest or vendor gives each gem to your class, and when.
 - **Patches:** what the recent patch notes say about your build's gems and items.
 - **Atlas trees:** paste a poeplanner or pathofexile.com atlas tree link to see the
