@@ -140,6 +140,19 @@ REALMS = ("pc", "xbox", "sony")
 BUILD_STARTERS = ("new_build", "load_build", "import_character")
 LINK_ONLY_QUESTION = "What do you think of this build?"
 MAX_DESCRIPTION = 2000
+# pob-mcp >= 0.5.2 can measure on several PoB processes; here each web process has its
+# own small pool (POB_POOL_SIZE), so a tool may not start more.
+HIDDEN_ARGUMENTS = frozenset({"jobs"})
+# plan_leveling's "nested" planner (pob-mcp 0.5.2's default) runs the exact optimiser
+# per stage and takes minutes; the older greedy planner fits in a chat answer.
+LEVELING_ARGUMENTS = ("levels", "weights")
+LEVELING_DESCRIPTION = (
+    "Create a leveling tree spec for each level (default 30, 50, 70, 90), each built only "
+    "from nodes in the current (final) tree with that level's passive and ascendancy points; "
+    "the final tree stays active. Stages are picked by `weights` (default main DPS + "
+    "TotalEHP), most valuable notable first, without masteries. Export the build afterwards "
+    "so the user gets the trees."
+)
 # Path of Building's own crash screen. Once it shows, the process answers every later
 # call with the same error (also for builds that are fine), so it is replaced.
 POB_CRASH_RE = re.compile(r"In '\w+': .*|Press Enter/Escape to dismiss", re.DOTALL)
@@ -280,7 +293,10 @@ def sanitize_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return validate_character(arguments)  # never `json_path` (a file on the server)
     if name == trade.TOOL_NAME:
         return {k: v for k, v in arguments.items() if k in trade.ARGUMENTS}
-    return arguments
+    if name == "plan_leveling":
+        kept = {k: v for k, v in arguments.items() if k in LEVELING_ARGUMENTS}
+        return {**kept, "method": "greedy"}
+    return {k: v for k, v in arguments.items() if k not in HIDDEN_ARGUMENTS}
 
 
 def openai_tool_definitions(mcp_tools: list[Any], allowed: set[str]) -> list[dict[str, Any]]:
@@ -300,12 +316,20 @@ def openai_tool_definitions(mcp_tools: list[Any], allowed: set[str]) -> list[dic
         if tool.name == trade.TOOL_NAME:
             kept = {k: v for k, v in properties.items() if k in trade.ARGUMENTS}
             schema["properties"] = {**kept, **trade.PRICE_PROPERTIES}
+        if tool.name == "plan_leveling":
+            schema["properties"] = {k: v for k, v in properties.items() if k in LEVELING_ARGUMENTS}
+        for hidden in HIDDEN_ARGUMENTS:
+            schema["properties"].pop(hidden, None)
         definitions.append(
             {
                 "type": "function",
                 "function": {
                     "name": tool.name,
-                    "description": (tool.description or "")[:MAX_DESCRIPTION],
+                    "description": (
+                        LEVELING_DESCRIPTION
+                        if tool.name == "plan_leveling"
+                        else (tool.description or "")[:MAX_DESCRIPTION]
+                    ),
                     "parameters": schema,
                 },
             }

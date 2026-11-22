@@ -179,6 +179,48 @@ export interface PatchChanges {
   note: string;
 }
 
+/** A notable inside a timeless jewel's radius, and what the seed turns it into. */
+export interface TimelessNotable {
+  node: string;
+  becomes: string | null;
+  allocated: boolean;
+  points_to_reach: number | null;
+  value_pct: number | null;
+}
+
+/** One timeless jewel seed in one socket. */
+export interface TimelessSeed {
+  seed: number;
+  socket_near: string;
+  socket_allocated: boolean;
+  socket_path_cost: number;
+  extra_points: number;
+  score_gain_pct: number;
+  change_pct: { dps?: number | null; ehp?: number | null; life?: number | null };
+  notables: TimelessNotable[];
+  pick_up: string[];
+  trade_url: string;
+  trade_any_url: string;
+  breaks?: { stat: string; value: number; needs: number }[];
+  note?: string;
+}
+
+/** The best timeless jewel seeds and sockets for the build (pob-mcp find_timeless_jewel). */
+export interface Timeless {
+  jewel: string;
+  conqueror: string;
+  mode: string;
+  verdict: string;
+  current: string | null;
+  best: TimelessSeed | null;
+  alternatives: TimelessSeed[];
+  applied: { seed: number; socket: number } | null;
+  sockets_scanned: number;
+  seeds_per_socket: number;
+  top_seeds_url: string;
+  note: string;
+}
+
 /** One atlas mechanic's points, or a group of nodes the plan drops. */
 export interface AtlasMechanic {
   mechanic: string;
@@ -242,6 +284,7 @@ export type AskEvent =
   | ({ type: "health" } & Health)
   | ({ type: "patch_changes" } & PatchChanges)
   | ({ type: "atlas_tree" } & AtlasTree)
+  | ({ type: "timeless" } & Timeless)
   | { type: "done"; cited: number[]; patch: string; log_id?: string; entities?: Entity[]; numbers?: NumberCheck; facts?: FactCheck }
   | { type: "error"; message: string };
 

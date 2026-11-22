@@ -107,6 +107,38 @@ def test_tool_definitions_follow_the_allowlist_and_hide_file_parameters() -> Non
     assert "title" not in by_name["export_build"]
 
 
+def test_leveling_uses_the_quick_planner_and_tools_start_no_extra_processes() -> None:
+    from types import SimpleNamespace
+
+    assert sanitize_arguments(
+        "plan_leveling", {"levels": [40], "method": "nested", "jobs": 4, "mode": "dps"}
+    ) == {"levels": [40], "method": "greedy"}
+    assert sanitize_arguments("auto_allocate_passives", {"points": 5, "jobs": 4}) == {"points": 5}
+
+    tools = [
+        SimpleNamespace(
+            name="plan_leveling",
+            description="nested takes a minute or two",
+            input_schema={
+                "type": "object",
+                "properties": {"levels": {}, "weights": {}, "method": {}, "mode": {}, "jobs": {}},
+            },
+        ),
+        SimpleNamespace(
+            name="rank_passives",
+            description="Rank",
+            input_schema={"type": "object", "properties": {"top": {}, "jobs": {}}},
+        ),
+    ]
+    by_name = {
+        d["function"]["name"]: d["function"]
+        for d in openai_tool_definitions(tools, {"plan_leveling", "rank_passives"})
+    }
+    assert set(by_name["plan_leveling"]["parameters"]["properties"]) == {"levels", "weights"}
+    assert "minute" not in by_name["plan_leveling"]["description"]
+    assert set(by_name["rank_passives"]["parameters"]["properties"]) == {"top"}
+
+
 # --- pool over real MCP stdio --------------------------------------------------
 
 

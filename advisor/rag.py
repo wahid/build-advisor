@@ -11,6 +11,7 @@ sources first and then the answer as it streams in:
     {"type": "item", "item": {...}}             (a pasted item, with its tooltip card)
     {"type": "item_check", "slot": ..., "rows": [...]} (the item tried on the build)
     {"type": "trade_search", "slot": ..., "url": ...}  (a link to pathofexile.com/trade)
+    {"type": "timeless", "best": {...}, "alternatives": [...], ...}  (timeless jewel seeds)
     {"type": "atlas_tree", "mechanics": [...], "plan": {...}, "link": ...} (atlas tree read)
     {"type": "delta", "text": "..."}            (repeated)
     {"type": "done", "cited": [1, 3], "patch": "3.29.3c"}
@@ -48,6 +49,7 @@ from . import (
     leveling,
     passives,
     patchimpact,
+    timeless,
     trade,
     websearch,
 )
@@ -211,6 +213,7 @@ COMPOSITE_TOOLS = [
     passives.TOOL_DEFINITION,
     budget.TOOL_DEFINITION,
     health.TOOL_DEFINITION,
+    timeless.TOOL_DEFINITION,
 ]
 
 # Database lookups: they work without Path of Building.
@@ -303,6 +306,22 @@ class _ToolRunner:
         events = self._events(call, arguments, ok=True, error="")
         events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
         events.append({"type": "upgrades", **result})
+        return events, _for_model(text)
+
+    def _find_timeless_jewel(
+        self, call: ToolCall, arguments: dict[str, Any]
+    ) -> tuple[list[Event], str]:
+        assert self.toolbox is not None
+        if not self.toolbox.has_build:
+            return self._events(call, arguments, ok=False, error=NO_BUILD_ERROR), NO_BUILD_ERROR
+        try:
+            result = timeless.find(self.toolbox.call_internal, arguments)
+        except (timeless.TimelessError, PobToolError) as exc:
+            return self._events(call, arguments, ok=False, error=str(exc)), f"Error: {exc}"
+        text = timeless.for_model(result)
+        events = self._events(call, arguments, ok=True, error="")
+        events[1]["preview"] = text[:TOOL_PREVIEW_CHARS]
+        events.append({"type": "timeless", **result})
         return events, _for_model(text)
 
     def _health_check(self, call: ToolCall, arguments: dict[str, Any]) -> ToolSteps:
@@ -478,6 +497,8 @@ class _ToolRunner:
             return (yield from self._budget_upgrades(call, arguments))
         if call.name == trade.TOOL_NAME and self.toolbox is not None:
             return self._trade_search(call, arguments)
+        if call.name == timeless.TOOL_NAME and self.toolbox is not None:
+            return self._find_timeless_jewel(call, arguments)
         if call.name == patchimpact.TOOL_NAME:
             return self._patch_changes(call, arguments)
         if call.name == leveling.TOOL_NAME:
@@ -894,6 +915,8 @@ def _converse(
                 events, result = yield from runner.stream(call)
                 ok = any(e["type"] == "tool_result" and e["ok"] for e in events)
                 changed |= call.name in MODIFYING_TOOLS and ok
+                # A timeless jewel search changes the build only when it put the jewel in.
+                changed |= any(e["type"] == "timeless" and e.get("applied") for e in events)
                 exported |= any(e["type"] == "pob_export" for e in events)
                 yield from events
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
