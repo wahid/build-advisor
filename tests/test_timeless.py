@@ -127,6 +127,9 @@ def test_the_summary_has_links_and_the_model_text_has_none() -> None:
     assert summary["best"]["trade_url"].startswith(timeless.TRADE_ROOT + "Mirage?q=")
     assert len(summary["alternatives"]) == timeless.ALTERNATIVES
     assert summary["top_seeds_url"]
+    assert "seeds_tied" not in summary["best"]
+    tied = timeless.summarise(raw_result(best={**raw_result()["best"], "seedsTiedWithBest": 40}))
+    assert tied["best"]["seeds_tied"] == 40
     text = timeless.for_model(summary)
     assert "pathofexile.com/trade" not in text
     assert "12345" in text and "estimate" in text

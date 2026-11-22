@@ -250,6 +250,9 @@ def _row(result: dict[str, Any]) -> dict[str, Any]:
         "trade_url": plain_trade_link(str(result.get("trade") or "")),
         "trade_any_url": plain_trade_link(str(result.get("tradeAnyConqueror") or "")),
     }
+    if (result.get("seedsTiedWithBest") or 0) > 1:
+        # pob-mcp 0.5.4: this many seeds give the socket the same result; any will do.
+        row["seeds_tied"] = result["seedsTiedWithBest"]
     for key, name in (
         ("breaks", "breaks"),
         ("keystonesInRadius", "keystones_in_radius"),

@@ -27,6 +27,7 @@ function Row({ seed, timeless }: { seed: TimelessSeed; timeless: Timeless }) {
         <span className="passive-stats">
           {created(seed)}
           {seed.extra_points > 0 && ` · ${seed.extra_points} extra points`}
+          {seed.seeds_tied && ` · ${seed.seeds_tied} seeds give the same result: buy the cheapest`}
           {seed.breaks?.length ? ` · breaks ${seed.breaks.map((b) => b.stat).join(", ")}` : ""}
         </span>
         <span className="passive-stats">
